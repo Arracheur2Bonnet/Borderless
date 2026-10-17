@@ -106,10 +106,13 @@ def test_wrong_or_missing_otp_rejected():
     orch, ledger, _, sid, t = start()
     fx, univ, rent = t.actions
     confirm(orch, sid, fx), confirm(orch, sid, univ)
-    for otp in (None, "000000", ""):
+    for otp in (None, ""):          # no code entered: asked for it, not counted as a wrong attempt
         r = confirm(orch, sid, rent, otp)
-        assert r.actions[0].status == "awaiting_confirmation"
-        assert "incorrect" in r.assistant_text.lower()
+        assert r.actions[0].status == "awaiting_confirmation" and "code" in r.assistant_text.lower()
+        assert not r.security_events
+    r = confirm(orch, sid, rent, "000000")
+    assert r.actions[0].status == "awaiting_confirmation"
+    assert "incorrect" in r.assistant_text.lower() and "2 attempts left" in r.assistant_text
     assert ledger.accounts["acc_eur"].balance == D("1450.00")  # 450 + 2200 - 1200, nothing for rent
     assert confirm(orch, sid, rent, params.DEMO_OTP).actions[0].status == "executed"
 
@@ -126,14 +129,29 @@ def test_confirm_twice_replayed_no_double_spend():
     assert len(receipts.items) == 2 and len(again.receipts) == 1
 
 
-def test_resend_same_message_does_not_move_money_twice():
+def test_two_identical_messages_are_two_payments():
+    """A deliberate second identical request is a new payment (fresh ids); it must not be silently replayed."""
     orch, ledger, _, sid, _ = start()
     t1 = orch.handle_message(sid, "send 50 euros to mom")
-    confirm(orch, sid, t1.actions[0])
     t2 = orch.handle_message(sid, "send 50 euros to mom")
-    r = confirm(orch, sid, t2.actions[0])
-    assert r.actions[0].status == "replayed"
-    assert ledger.accounts["acc_eur"].balance == D("400.00")
+    a1, a2 = t1.actions[0].action, t2.actions[0].action
+    assert a1.action_id != a2.action_id and a1.idempotency_key != a2.idempotency_key
+    assert confirm(orch, sid, t1.actions[0]).actions[0].status == "executed"
+    assert confirm(orch, sid, t2.actions[0]).actions[0].status == "executed"
+    assert ledger.accounts["acc_eur"].balance == D("350.00") and ledger.exec_calls == 2
+    # confirming the same action again replays: money moved once for it
+    again = confirm(orch, sid, t2.actions[0])
+    assert again.actions[0].status == "replayed" and ledger.exec_calls == 2
+    assert ledger.accounts["acc_eur"].balance == D("350.00")
+
+
+def test_ids_deterministic_for_same_message_sequence():
+    ids = []
+    for _ in range(2):
+        orch, _, _, sid, t0 = start()
+        t1 = orch.handle_message(sid, "send 50 euros to mom")
+        ids.append([v.action.action_id for v in t0.actions + t1.actions])
+    assert ids[0] == ids[1]
 
 
 def test_denied_action_gets_receipt():

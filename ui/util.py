@@ -32,3 +32,34 @@ def iban_tail(iban: str, n: int = 4) -> str:
 
 def short(h: str | None, n: int = 8) -> str:
     return (h or "")[:n]
+
+
+def anchor_label(anchor: Any) -> str:
+    """'#3 · dc29...b22 · signed' (customer-facing short form of a ReceiptAnchor)."""
+    if anchor is None:
+        return ""
+    h = str(get(anchor, "receipt_hash", ""))
+    signed = "signed" if get(anchor, "signature") else "unsigned"
+    return f"#{get(anchor, 'seq')} · {h[:4]}...{h[-3:]} · {signed}"
+
+
+def links_ok(receipts: list[Any]) -> bool:
+    """Prev-hash pointer check only (what a server-side chain check sees)."""
+    prev = "0" * 64
+    for r in receipts:
+        if get(r, "prev_receipt_hash") != prev:
+            return False
+        prev = get(r, "receipt_hash")
+    return True
+
+
+def truncation_demo(receipts: list[Any], anchor: Any) -> dict[str, Any] | None:
+    """Explain the anchor check on an IN-MEMORY COPY: drop the anchored receipt and everything after it,
+    as an insider deleting recent rows would. Never touches the real store."""
+    if anchor is None or not receipts:
+        return None
+    seq = get(anchor, "seq")
+    copy = [r for r in receipts if get(r, "seq") < seq]
+    found = any(get(r, "seq") == seq and get(r, "receipt_hash") == get(anchor, "receipt_hash") for r in copy)
+    return {"original_length": len(receipts), "truncated_length": len(copy), "deleted_from_seq": seq,
+            "chain_only_valid": links_ok(copy), "anchor_valid": found}

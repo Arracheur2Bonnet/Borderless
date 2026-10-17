@@ -10,7 +10,7 @@ from bg.contracts import params
 from bg.contracts.hashing import params_hash
 from bg.contracts.models import (
     Account, AddBeneficiaryAction, Beneficiary, Confirmation, ExecutionResult, FxAction,
-    Obligation, PaymentAction, ProposedAction, SimulationResult, UntrustedDocument,
+    Obligation, PaymentAction, ProposedAction, RecentPayment, SimulationResult, UntrustedDocument,
 )
 
 CENT = Decimal("0.01")
@@ -36,6 +36,8 @@ class SandboxLedger:
         self._executions: dict[str, tuple[str, str, ExecutionResult]] = {}
         # (user_id, date, eur amount) of executed payments
         self._outflows: list[tuple[str, Any, Decimal]] = []
+        # (user_id, RecentPayment) of executed payments, in execution order (oldest first)
+        self._payments: list[tuple[str, RecentPayment]] = []
 
     # ------------------------------------------------------------------ reads (tenant scoped)
     def get_accounts(self, user_id: str) -> list[Account]:
@@ -98,6 +100,10 @@ class SandboxLedger:
     def executed_today_eur(self, user_id: str) -> Decimal:
         today = self.now.date()
         return sum((e for u, d, e in self._outflows if u == user_id and d == today), Decimal("0.00"))
+
+    def recent_payments(self, user_id: str, since: datetime) -> list[RecentPayment]:
+        """Executed outgoing payments (not FX, not add_beneficiary) at or after `since`, oldest first."""
+        return [p for u, p in self._payments if u == user_id and p.executed_at >= since]
 
     # ------------------------------------------------------------------ core transition
     def _apply(self, action: ProposedAction, bal: dict[str, Decimal], ccy: dict[str, str]) -> list[str]:
@@ -174,7 +180,10 @@ class SandboxLedger:
         for k, v in bal.items():
             self._accounts[k] = self._accounts[k].model_copy(update={"balance": v})
         if isinstance(action, PaymentAction):
-            self._outflows.append((user_id, self.now.date(), self.eur_equivalent(action.amount, action.currency)))
+            eur = self.eur_equivalent(action.amount, action.currency)
+            self._outflows.append((user_id, self.now.date(), eur))
+            self._payments.append((user_id, RecentPayment(
+                beneficiary_id=action.beneficiary_id, amount_eur=eur, executed_at=self.now)))
         tx = "tx_" + hashlib.sha256(action.idempotency_key.encode()).hexdigest()[:12]
         res = ExecutionResult(action_id=action.action_id, idempotency_key=action.idempotency_key,
                               status="executed", ledger_tx_id=tx, balances_after=dict(bal))

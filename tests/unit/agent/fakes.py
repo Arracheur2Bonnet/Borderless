@@ -12,7 +12,8 @@ from bg.contracts.hashing import GENESIS_HASH, params_hash, sha256_hex
 from bg.contracts.models import (
     Account, AddBeneficiaryAction, Beneficiary, ChainVerification, Confirmation, DocumentScan,
     ExecutionResult, FxAction, FxQuote, Obligation, PaymentAction, PolicyContext, PolicyDecision,
-    Receipt, RiskLevel, RuleResult, SecurityEvent, SimulationResult, UntrustedDocument, Verdict,
+    Receipt, ReceiptAnchor, RecentPayment, RiskLevel, RuleResult, SecurityEvent, SimulationResult,
+    UntrustedDocument, Verdict,
 )
 
 D = Decimal
@@ -29,6 +30,8 @@ class FakeLedger:
         self.exec_calls = 0
         self.outflow = D("0")
         self.added: list[AddBeneficiaryAction] = []
+        self.payments: list[RecentPayment] = []
+        self.recent_calls: list = []
 
     def get_accounts(self, user_id): return [a for a in self.accounts.values() if a.user_id == user_id]
     def get_beneficiaries(self, user_id): return [b for b in self.bens if b.user_id == user_id]
@@ -62,6 +65,10 @@ class FakeLedger:
         return amount if currency == "EUR" else amount * params.FX_RATES[("USD", "EUR")]
 
     def executed_today_eur(self, user_id): return self.outflow
+
+    def recent_payments(self, user_id, since):
+        self.recent_calls.append((user_id, since))
+        return [p for p in self.payments if p.executed_at >= since]
 
     def _apply(self, bal: dict[str, Decimal], a) -> str | None:
         if isinstance(a, PaymentAction):
@@ -103,6 +110,9 @@ class FakeLedger:
             self.accounts[k] = self.accounts[k].model_copy(update={"balance": v})
         if isinstance(action, PaymentAction):
             self.outflow += self.eur_equivalent(action.amount, action.currency)
+            self.payments.append(RecentPayment(beneficiary_id=action.beneficiary_id,
+                                               amount_eur=self.eur_equivalent(action.amount, action.currency),
+                                               executed_at=params.DEMO_NOW))
         if isinstance(action, AddBeneficiaryAction):
             self.added.append(action)
         res = ExecutionResult(action_id=action.action_id, idempotency_key=action.idempotency_key,
@@ -128,7 +138,18 @@ class FakeReceipts:
 
     def list(self, user_id=None): return list(self.items)
     def get(self, receipt_id): return next((r for r in self.items if r.receipt_id == receipt_id), None)
-    def verify_chain(self): return ChainVerification(valid=True, length=len(self.items), detail="ok")
+    def verify_chain(self, anchor=None):
+        if anchor is not None:
+            ok = any(r.seq == anchor.seq and r.receipt_hash == anchor.receipt_hash for r in self.items)
+            return ChainVerification(valid=ok, length=len(self.items), detail="anchor ok" if ok else "anchor mismatch")
+        return ChainVerification(valid=True, length=len(self.items), detail="ok")
+
+    def anchor(self):
+        if not self.items:
+            return None
+        h = self.items[-1]
+        return ReceiptAnchor(seq=h.seq, receipt_hash=h.receipt_hash, signature=sha256_hex([h.seq, h.receipt_hash]),
+                             issued_at=params.DEMO_NOW)
 
 
 class FakePolicy:
@@ -159,6 +180,13 @@ class FakePolicy:
             rules.append(RuleResult(rule_id="BENEFICIARY_AGE", passed=not new, severity=R3, detail="Payee age"))
             rules.append(RuleResult(rule_id="AMOUNT_TIER", passed=eur <= params.R2_MAX_PAYMENT_EUR, severity=R3,
                                     detail="Amount tier"))
+            same = [p for p in ctx.recent_payments if p.beneficiary_id == action.beneficiary_id]
+            total = sum((p.amount_eur for p in same), D("0")) + eur
+            rules.append(RuleResult(rule_id="STRUCTURING", passed=total <= params.STRUCTURING_THRESHOLD_EUR,
+                                    severity=R3, detail=f"{len(same) + 1} payments to this payee in 24h total {total} EUR"))
+            hit = bool(ben and any(n.lower() in ben.display_name.lower() for n in params.SANCTIONS_WATCHLIST_NAMES))
+            rules.append(RuleResult(rule_id="SANCTIONS_SCREEN", passed=not hit, severity=R4,
+                                    detail="Payee is on the sanctions watchlist" if hit else "Not on watchlist"))
         elif isinstance(action, FxAction):
             rules.append(RuleResult(rule_id="FX_TIER", passed=action.quote.buy_amount <= params.R2_MAX_FX_EUR,
                                     severity=R3, detail="FX tier"))

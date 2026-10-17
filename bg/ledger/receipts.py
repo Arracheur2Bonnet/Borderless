@@ -1,15 +1,18 @@
 """Append-only Proof-of-Intent hash chain backed by SQLite."""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import os
 import sqlite3
 import threading
 from datetime import datetime
 from typing import Callable
 
 from bg.contracts.hashing import GENESIS_HASH, canonical_json, sha256_hex
-from bg.contracts.models import ChainVerification, Receipt
-from bg.contracts.params import DEMO_NOW
+from bg.contracts.models import ChainVerification, Receipt, ReceiptAnchor
+from bg.contracts.params import DEMO_NOW, DEMO_RECEIPT_KEY, RECEIPT_KEY_ENV
 
 _PARTS = ("intent", "action", "simulation", "decision", "confirmation", "result")
 
@@ -25,7 +28,11 @@ def _receipt_hash(seq, receipt_id, action_id, created_at, intent_hash, action_ha
 
 
 class SqliteReceiptStore:
-    def __init__(self, path: str = ":memory:", clock: Callable[[], datetime] = lambda: DEMO_NOW):
+    def __init__(self, path: str = ":memory:", clock: Callable[[], datetime] = lambda: DEMO_NOW,
+                 key: str | bytes | None = None):
+        if key is None:
+            key = os.environ.get(RECEIPT_KEY_ENV) or DEMO_RECEIPT_KEY
+        self._key = key.encode() if isinstance(key, str) else bytes(key)
         self._db = sqlite3.connect(path, check_same_thread=False)
         self._lock = threading.RLock()
         self._clock = clock
@@ -89,8 +96,43 @@ class SqliteReceiptStore:
                                  (receipt_id,)).fetchone()
         return self._to_receipt(r) if r else None
 
+    # ------------------------------------------------------------------ anchors
+    def _sign(self, seq: int, receipt_hash: str) -> str:
+        return hmac.new(self._key, f"{seq}:{receipt_hash}".encode(), hashlib.sha256).hexdigest()
+
+    def anchor(self) -> ReceiptAnchor | None:
+        """Signed anchor for the current head (None when the chain is empty)."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT seq, receipt_hash FROM receipts ORDER BY seq DESC LIMIT 1").fetchone()
+        if row is None:
+            return None
+        return ReceiptAnchor(seq=row[0], receipt_hash=row[1], signature=self._sign(row[0], row[1]),
+                             issued_at=self._clock())
+
     # ------------------------------------------------------------------ verify
-    def verify_chain(self) -> ChainVerification:
+    def verify_chain(self, anchor: ReceiptAnchor | None = None) -> ChainVerification:
+        result = self._verify_links()
+        if anchor is None or not result.valid:
+            return result
+        n = result.length
+        if not hmac.compare_digest(self._sign(anchor.seq, anchor.receipt_hash), anchor.signature):
+            return ChainVerification(valid=False, length=n, first_invalid_seq=None,
+                                     detail="anchor signature invalid (forged or issued with another key)")
+        with self._lock:
+            row = self._db.execute("SELECT receipt_hash FROM receipts WHERE seq=?", (anchor.seq,)).fetchone()
+        if row is None:
+            return ChainVerification(
+                valid=False, length=n, first_invalid_seq=min(anchor.seq, n + 1),
+                detail=f"chain truncated: anchored receipt seq {anchor.seq} is missing (chain length {n})")
+        if not hmac.compare_digest(row[0], anchor.receipt_hash):
+            return ChainVerification(
+                valid=False, length=n, first_invalid_seq=anchor.seq,
+                detail=f"chain rewritten: receipt seq {anchor.seq} no longer matches the anchored hash")
+        return ChainVerification(valid=True, length=n,
+                                 detail=f"chain intact, consistent with anchor at seq {anchor.seq}")
+
+    def _verify_links(self) -> ChainVerification:
         with self._lock:
             rows = self._db.execute(
                 f"SELECT {self._COLS}, payload, user_id FROM receipts ORDER BY seq").fetchall()

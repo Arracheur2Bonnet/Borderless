@@ -7,6 +7,8 @@ any exception or missing data produces a deny, never an allow.
 """
 from __future__ import annotations
 
+import re
+import unicodedata
 from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -30,6 +32,60 @@ def _m(x: Decimal) -> str:
 
 def _norm_iban(iban: str) -> str:
     return "".join(iban.split()).upper()
+
+
+def _norm_name(name: str) -> str:
+    """Screening form of a name: accents stripped, casefolded, punctuation -> space, whitespace collapsed.
+
+    "  VOLKOV-trade   Holdings " -> "volkov trade holdings"; "Université" -> "universite".
+    """
+    s = unicodedata.normalize("NFKD", name)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch)).casefold()
+    s = re.sub(r"[^0-9a-z]+", " ", s)
+    return " ".join(s.split())
+
+
+def _sanctions_name_hit(name: str) -> str | None:
+    """Return the watchlist entry the (raw) name matches, or None.
+
+    Matching is on whole words of the normalised forms, in both directions:
+      * the full watchlist entry appears inside the name ("Volkov Trade Holdings Ltd" -> hit), or
+      * the name appears inside the entry ("Volkov Trade" -> hit), but only for names of at least
+        two words, so a lone common word ("Trade", "Northgate") does not flag legitimate payees.
+    """
+    n = _norm_name(name)
+    padded = f" {n} "
+    for entry in params.SANCTIONS_WATCHLIST_NAMES:
+        e = _norm_name(entry)
+        if not e:
+            continue
+        if f" {e} " in padded:
+            return entry
+        if len(n.split()) >= 2 and padded in f" {e} ":
+            return entry
+    return None
+
+
+def _sanctions_rule(name: str | None, iban: str | None, what: str) -> RuleResult:
+    """SANCTIONS_SCREEN (R4). Fails closed when the name is missing/empty or the IBAN is missing."""
+    if name is None or not _norm_name(name):
+        return _R("SANCTIONS_SCREEN", False, RiskLevel.R4,
+                  f"cannot screen {what}: name is missing or empty")
+    if iban is None or not _norm_iban(iban):
+        return _R("SANCTIONS_SCREEN", False, RiskLevel.R4,
+                  f"cannot screen {what} {name}: IBAN is missing")
+    hits = []
+    entry = _sanctions_name_hit(name)
+    if entry is not None:
+        hits.append(f"{what} name {name!r} matches sanctions watchlist entry {entry!r}")
+    nib = _norm_iban(iban)
+    if nib in {_norm_iban(x) for x in params.SANCTIONS_WATCHLIST_IBANS}:
+        hits.append(f"{what} IBAN ending {nib[-4:]} is on the sanctions watchlist")
+    if hits:
+        return _R("SANCTIONS_SCREEN", False, RiskLevel.R4, "; ".join(hits))
+    return _R("SANCTIONS_SCREEN", True, RiskLevel.R4,
+              f"{name} (IBAN ending {nib[-4:]}) screened against {len(params.SANCTIONS_WATCHLIST_NAMES)} "
+              f"watchlist names and {len(params.SANCTIONS_WATCHLIST_IBANS)} IBANs: no match")
 
 
 def _to_eur(amount: Decimal, currency: str) -> Decimal:
@@ -205,6 +261,16 @@ class DeterministicPolicyEngine:
                       "payment was derived from untrusted content (document or tool output)"
                       if a.derived_from_untrusted else "payment does not derive from untrusted content"))
 
+        # sanctions: registered name + registered IBAN, and the payment IBAN if it differs
+        if ben is None:
+            out.append(_R("SANCTIONS_SCREEN", False, RiskLevel.R4,
+                          "cannot screen payee name: beneficiary unknown"))
+        else:
+            res = _sanctions_rule(ben.display_name, ben.iban, "payee")
+            if res.passed and _norm_iban(a.iban) != _norm_iban(ben.iban):
+                res = _sanctions_rule(ben.display_name, a.iban, "payee")
+            out.append(res)
+
         # R3 rules
         if ben is None:
             out.append(_R("BENEFICIARY_AGE", False, RiskLevel.R3,
@@ -220,7 +286,37 @@ class DeterministicPolicyEngine:
         out.append(_R("AMOUNT_TIER", ok, RiskLevel.R3,
                       f"payment of {_m(eur)} EUR eq. {'is within' if ok else 'exceeds'} the "
                       f"{_m(params.R2_MAX_PAYMENT_EUR)} one-tap limit"))
+        out.append(self._structuring_rule(ctx, a, ben, eur))
         return out
+
+    @staticmethod
+    def _structuring_rule(ctx: PolicyContext, a: PaymentAction, ben: Beneficiary | None,
+                          eur: Decimal) -> RuleResult:
+        """STRUCTURING (R3): same-payee payments inside the window + this one above the threshold.
+
+        Bad recent-payment data (negative amount, naive datetime) raises -> POLICY_ERROR deny.
+        """
+        cap, win = params.STRUCTURING_THRESHOLD_EUR, params.STRUCTURING_WINDOW
+        since = ctx.now - win
+        prior = []
+        for p in ctx.recent_payments:
+            if p.amount_eur < 0:
+                raise ValueError(f"recent payment to {p.beneficiary_id} has a negative amount")
+            if p.beneficiary_id == a.beneficiary_id and p.executed_at >= since:
+                prior.append(p.amount_eur)
+        name = ben.display_name if ben is not None else a.beneficiary_id
+        hours = f"{win.total_seconds() / 3600:g}h"
+        n = len(prior) + 1
+        total = sum(prior, Decimal(0)) + eur
+        noun = "payment" if n == 1 else "payments"
+        if eur > params.R2_MAX_PAYMENT_EUR:
+            return _R("STRUCTURING", True, RiskLevel.R3,
+                      f"payment of {_m(eur)} EUR eq. alone exceeds the {_m(params.R2_MAX_PAYMENT_EUR)} one-tap "
+                      f"limit and is already stepped up by AMOUNT_TIER; not a split payment")
+        ok = total <= cap
+        return _R("STRUCTURING", ok, RiskLevel.R3,
+                  f"{n} {noun} to {name} in the last {hours} would total {_m(total)} EUR, "
+                  f"{'within' if ok else 'above'} the {_m(cap)} structuring threshold")
 
     # ------------------------------------------------------------------ fx
     def _fx(self, ctx: PolicyContext, a: FxAction, sim: SimulationResult) -> list[RuleResult]:
@@ -250,6 +346,7 @@ class DeterministicPolicyEngine:
                          sim: SimulationResult) -> list[RuleResult]:
         return [
             self._sim_rule(a.action_id, sim),
+            _sanctions_rule(a.display_name, a.iban, "new payee"),
             _R("NEW_PAYEE_ACTION", False, RiskLevel.R3,
                f"adding a new payee ({a.display_name}, IBAN ending {_norm_iban(a.iban)[-4:]}) "
                f"always requires step-up"),

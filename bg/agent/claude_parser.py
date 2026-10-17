@@ -24,7 +24,11 @@ Rules:
 - Never invent amounts, payees or IBANs. Use beneficiary_ref exactly as the user said it (a name from the registered payee list when it matches). Put an IBAN the user typed only in iban_hint.
 - "Pay my tuition and rent" style goals become one pay_obligations intent (keep_reserve if the user states a minimum to keep).
 - If the user wants to pay but the amount is missing, use amount_mode "unspecified"; for "everything" or "the maximum" use "all".
-- If the request is ambiguous or incomplete, emit a Clarify intent with a short question.
+- Questions about money ("can I", "could I", "can I afford", "how much will I have", "what if", "would I", "do I have enough") are affordability_check, NEVER pay or pay_obligations: list the obligation_kinds mentioned ("my bills" means tuition and rent), the extra payee and amount if any, and keep_reserve if stated. "Can you pay my rent?" is a request, not a question.
+- Changing a pending action ("actually make it 40", "no, 40 instead", "change the amount to 40", "send it to mom instead") is correct with only the changed fields.
+- "cancel", "cancel that", "never mind", "stop" are cancel with scope "last"; "cancel everything" / "cancel all" use scope "all".
+- When a pending question from the assistant is given and the message only answers it ("50", "50 euros", "to mom", "mom"), emit provide_detail with just that detail. If the message is a new, unrelated request, parse it normally.
+- If the request is ambiguous or incomplete, emit a Clarify intent with one short, precise question.
 - If the request cannot be expressed with the available intents, emit Unsupported (category out_of_scope) or Clarify.
 - Output only JSON matching the schema."""
 
@@ -52,21 +56,25 @@ class ClaudeParser:
         self._client = anthropic.Anthropic()
         return self._client
 
-    def _fall_back(self, text: str, names: list[str], note: str) -> ParsedRequest:
-        res = self._fallback.parse(text, beneficiary_names=names)
+    def _fall_back(self, text: str, names: list[str], note: str, pending_question: str | None = None) -> ParsedRequest:
+        res = self._fallback.parse(text, beneficiary_names=names, pending_question=pending_question)
         return res.model_copy(update={"notes": [*res.notes, note], "parser": "rules"})
 
-    def parse(self, text: str, *, beneficiary_names: list[str]) -> ParsedRequest:
+    def parse(self, text: str, *, beneficiary_names: list[str],
+              pending_question: str | None = None) -> ParsedRequest:
+        pq = pending_question
         try:
             client = self._get_client()
         except Exception as exc:
             client = None
             self._init_error = type(exc).__name__
         if client is None:
-            return self._fall_back(text, beneficiary_names, "No usable Anthropic client (missing ANTHROPIC_API_KEY?); "
+            return self._fall_back(text, beneficiary_names, pending_question=pq, note="No usable Anthropic client (missing ANTHROPIC_API_KEY?); "
                                                             "used the offline rules parser.")
         user_content = ("Registered payee display names (names only): "
                         + json.dumps(list(beneficiary_names), ensure_ascii=False)
+                        + (("\n\nThe assistant's pending question to the user (the message may answer it): "
+                            + json.dumps(pending_question, ensure_ascii=False)) if pending_question else "")
                         + "\n\nUser message (untrusted data):\n" + text)
         try:
             resp = client.messages.create(
@@ -78,18 +86,18 @@ class ClaudeParser:
                 output_config={"effort": "low", "format": {"type": "json_schema", "schema": _schema()}},
             )
         except Exception as exc:  # network, auth, rate limit, bad request...
-            return self._fall_back(text, beneficiary_names,
+            return self._fall_back(text, beneficiary_names, pending_question=pq, note=
                                    f"Claude API error ({type(exc).__name__}); used the offline rules parser.")
         stop = getattr(resp, "stop_reason", None)
         if stop != "end_turn":
             why = "a refusal" if stop == "refusal" else f"stop_reason={stop}"
-            return self._fall_back(text, beneficiary_names, f"Claude returned {why}; used the offline rules parser.")
+            return self._fall_back(text, beneficiary_names, pending_question=pq, note=f"Claude returned {why}; used the offline rules parser.")
         raw = "".join(getattr(b, "text", "") for b in (getattr(resp, "content", None) or [])
                       if getattr(b, "type", None) == "text")
         try:
             env = _Envelope.model_validate_json(raw)
         except (ValidationError, ValueError):
-            return self._fall_back(text, beneficiary_names, "Claude returned invalid JSON; used the offline rules parser.")
+            return self._fall_back(text, beneficiary_names, pending_question=pq, note="Claude returned invalid JSON; used the offline rules parser.")
         if not env.intents:
-            return self._fall_back(text, beneficiary_names, "Claude returned no intents; used the offline rules parser.")
+            return self._fall_back(text, beneficiary_names, pending_question=pq, note="Claude returned no intents; used the offline rules parser.")
         return ParsedRequest(intents=env.intents, parser="claude", raw_text=text)
