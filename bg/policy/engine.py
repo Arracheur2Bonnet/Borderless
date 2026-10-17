@@ -34,12 +34,28 @@ def _norm_iban(iban: str) -> str:
     return "".join(iban.split()).upper()
 
 
+# Look-alike letters (Cyrillic, Greek, fullwidth forms are handled by NFKC) folded to Latin before
+# screening, so "Vоlkov" with a Cyrillic "о" cannot slip past the watchlist.
+_CONFUSABLES = str.maketrans({
+    "а": "a", "в": "b", "е": "e", "ё": "e", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c",
+    "т": "t", "у": "y", "х": "x", "і": "i", "ј": "j", "ѕ": "s", "ԁ": "d", "ɡ": "g", "һ": "h", "ӏ": "l",
+    "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C", "Т": "T",
+    "У": "Y", "Х": "X", "І": "I", "Ј": "J", "Ѕ": "S",
+    "α": "a", "β": "b", "ε": "e", "ι": "i", "κ": "k", "ν": "v", "ο": "o", "ρ": "p", "τ": "t", "υ": "u",
+    "χ": "x", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
+    "Ο": "O", "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X",
+    "​": "", "‌": "", "‍": "", "⁠": "", "﻿": "", "­": "",
+})
+
+
 def _norm_name(name: str) -> str:
-    """Screening form of a name: accents stripped, casefolded, punctuation -> space, whitespace collapsed.
+    """Screening form of a name: look-alikes folded to Latin, accents stripped, casefolded,
+    punctuation -> space, whitespace collapsed.
 
     "  VOLKOV-trade   Holdings " -> "volkov trade holdings"; "Université" -> "universite".
     """
-    s = unicodedata.normalize("NFKD", name)
+    s = unicodedata.normalize("NFKC", name).translate(_CONFUSABLES)
+    s = unicodedata.normalize("NFKD", s)
     s = "".join(ch for ch in s if not unicodedata.combining(ch)).casefold()
     s = re.sub(r"[^0-9a-z]+", " ", s)
     return " ".join(s.split())

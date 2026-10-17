@@ -203,10 +203,14 @@ class _Orchestrator:
         scans: dict[str, Any] = {}
         docs = list(documents or [])
         wanted = {k for i in intents if isinstance(i, PayObligations) for k in i.obligation_kinds}
+        uploaded = {d.document_id for d in docs}
         if wanted:
-            have = {d.document_id for d in docs}
+            have = set(uploaded)
             for ob in self.ledger.get_obligations(s.user_id):
-                # only the documents behind what was asked: paying tuition must not scan the rent invoice
+                # only the documents behind what was asked: paying tuition must not scan the rent invoice.
+                # When the user attached their own invoice, that one is the document of record.
+                if docs and len(wanted) == 1:
+                    continue
                 if ob.kind in wanted and ob.document_id and ob.document_id not in have:
                     d = self.ledger.get_document(s.user_id, ob.document_id)
                     if d is not None:
@@ -221,6 +225,16 @@ class _Orchestrator:
                                             f"Patterns: {', '.join(scan.matched_patterns) or 'n/a'}"))
                 t.notes.append(f"The document {d.filename or d.document_id} contained hidden instructions. "
                                "I quarantined it and ignored them; it is treated as data only.")
+            # A swapped IBAN with no instruction text is the classic invoice fraud: tell the user explicitly.
+            doc_iban = (scan.extracted or {}).get("iban")
+            registered = {b.iban for b in self.ledger.get_beneficiaries(s.user_id)}
+            if doc_iban and doc_iban not in registered:
+                t.events.append(self._event(s, "beneficiary_mismatch", d.document_id,
+                                            f"Document IBAN ending {doc_iban[-4:]} is not a registered payee IBAN."))
+                t.notes.append(f"Warning: {d.filename or d.document_id} asks for payment to an account ending "
+                               f"{doc_iban[-4:]}, which is not registered for any of your payees. I will only pay the "
+                               "IBAN registered for the payee. If the payee really changed bank, add the new account "
+                               "as a payee first (one-time-code verification).")
 
         proposals: list[tuple[Any, ProposedAction, str]] = []   # (intent, action, title)
         for idx, intent in enumerate(intents):
@@ -412,7 +426,13 @@ class _Orchestrator:
             elif intent.category in ("jailbreak", "limit_change"):
                 if not any(e.kind == "jailbreak_attempt" for e in t.events):
                     t.events.append(self._event(s, "jailbreak_attempt", "user_message", intent.reason))
-            t.info.append(f"I cannot do that: {intent.reason}")
+            if intent.reason.startswith("BANK DETAILS: "):
+                reason = intent.reason.removeprefix("BANK DETAILS: ")
+                t.events.append(self._event(s, "beneficiary_mismatch", "user_message",
+                                            "Request to pay or redirect to an unregistered IBAN in chat; refused."))
+                t.info.append(reason)
+            else:
+                t.info.append(f"I cannot do that: {intent.reason}")
         elif isinstance(intent, PayObligations):
             self._expand_obligations(s, idx, intent, out, t, scans)
         elif isinstance(intent, FxConvert):

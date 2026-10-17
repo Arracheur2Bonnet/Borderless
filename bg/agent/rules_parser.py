@@ -15,7 +15,8 @@ _CUR = {"eur": "EUR", "euro": "EUR", "euros": "EUR", "€": "EUR",
         "usd": "USD", "dollar": "USD", "dollars": "USD", "$": "USD", "bucks": "USD"}
 _CUR_WORD = r"(?:euros?|eur|dollars?|usd|bucks)"
 _NUM = r"(\d[\d,]*(?:\.\d+)?)"
-_PAY_VERB = r"\b(send|pay|transfer|wire|settle|remit)\b"
+# includes frequent typos ("sned 40 eur to mom"): a typo must not make a request unreadable
+_PAY_VERB = r"\b(send|pay|transfer|wire|settle|remit|sned|snd|semd|pya|transfr|tranfer|trasnfer)\b"
 _RELATIVE = (r"\b(half|third|quarter|portion|partial(?:ly)?|part of|some of|most of|a bit|a little|"
              r"\d+\s*%|percent|per cent)\b")
 
@@ -73,7 +74,7 @@ def _amounts(text: str) -> list[tuple[Decimal, str]]:
         d = _to_dec(m.group(2))
         if d is not None:
             found.append((m.start(), d, _CUR[m.group(1)]))
-    for m in re.finditer(_NUM + r"\s*(" + _CUR_WORD + r"|[€$])", text, re.I):
+    for m in re.finditer(_NUM + r"\s*(?:more\s+|extra\s+|additional\s+)?(" + _CUR_WORD + r"|[€$])", text, re.I):
         d = _to_dec(m.group(1))
         if d is not None:
             found.append((m.start(), d, _CUR[m.group(2).lower()]))
@@ -162,6 +163,16 @@ class RulesParser:
         if _QUESTION_RE.search(low_ni):
             return [self._affordability(low_ni, names)]
 
+        # "use IBAN GB33... instead, it's her new account": bank details of a payee never change in chat
+        if iban and re.search(r"\binstead\b|\bnew (?:bank |account|iban)|\bchanged? (?:her |his |their |the )?"
+                              r"(?:bank|account|iban)|\bswitch(?:ed)? (?:to|bank)|\bupdate (?:the |her |his )?iban\b",
+                              low_ni) and not re.match(r"\s*(please\s+)?(add|register|save|create)\b", low):
+            return [Unsupported(category="out_of_scope",
+                                reason=f"BANK DETAILS: I cannot change a payee's bank details in chat. Payments only go "
+                                       f"to the IBAN registered for that payee, so I did not use the account ending "
+                                       f"{iban[-4:]}. If this account is genuine, add it as a new payee (this needs "
+                                       f"one-time-code verification).")]
+
         corr = self._correct(low_ni, names)
         if corr is not None:
             return [corr]
@@ -199,10 +210,30 @@ class RulesParser:
             return [PayObligations(obligation_kinds=kinds, keep_reserve=reserve)]
 
         if has_pay_verb:
+            # several payments in one message ("send 760 to mom and another 760 to mom"): parse each part,
+            # never drop one silently; if any part is unclear the whole request becomes a question
+            parts = [p for p in re.split(r"\s*(?:,\s*)?\b(?:and then|and also|and another|and|then|plus)\b\s*", low_ni)
+                     if p.strip()]
+            amount_parts = [p for p in parts if _amounts(p) or _BARE_NUM_RE.search(p)]
+            if len(amount_parts) >= 2:
+                out: list[FinancialIntent] = []
+                last_ref: str | None = None
+                for p in amount_parts:
+                    seg = p if re.search(_PAY_VERB, p) else "send " + p
+                    intent = self._pay(seg, None, names)
+                    if isinstance(intent, Clarify) and last_ref:
+                        intent = self._pay(seg + " to " + last_ref, None, names)
+                    if isinstance(intent, Pay):
+                        last_ref = intent.beneficiary_ref
+                    out.append(intent)
+                if all(isinstance(i, Pay) and i.amount_mode == "exact" for i in out):
+                    return out
+                return [Clarify(question="You asked for several payments in one message and I could not read all of "
+                                         "them exactly. Please send them one at a time, each with a payee and an amount.")]
             return [self._pay(low_ni, iban, names)]
 
         if re.search(r"\b(balance|balances|accounts?|overview|how much|what do i have|funds|summary|wallet|"
-                     r"what do i owe|what i owe|owe|what'?s due|upcoming|due this month)\b", low_ni):
+                     r"what do i owe|what i owe|owe|what'?s due|upcoming|coming up|due this month|bills?)\b", low_ni):
             return [ReadOverview()]
 
         return [Clarify(question="I did not understand that. You can ask for your balance, pay your tuition and rent, "
@@ -211,6 +242,12 @@ class RulesParser:
     # ------------------------------------------------------------------ v2 intents
     def _affordability(self, low: str, names: list[str]) -> AffordabilityCheck:
         reserve = self._reserve(low)
+        if reserve is None:
+            # "would I still have 600 euros after rent?": the number is the floor to check, not a payment
+            m = re.search(r"\b(?:still\s+)?have\s+(?:at\s+least\s+)?(?:[€$]\s*)?" + _NUM + r"\s*(?:" + _CUR_WORD +
+                          r"|[€$])?\s+(?:left\s+)?(?:after|once|if)\b", low)
+            if m:
+                reserve = _to_dec(m.group(1))
         kinds = self._obligation_kinds(low)
         if not kinds and re.search(r"\b(bills?|everything due|what i owe|obligations|both)\b", low):
             kinds = ["tuition", "rent"]
@@ -219,7 +256,8 @@ class RulesParser:
             stated = [(a, c) for a, c in stated if a != reserve]
         amount, cur = stated[0] if stated else (None, None)
         if amount is None:
-            m = re.search(r"\b(?:send|pay|transfer|wire|give|spend|afford|remit)\s+(?:to\s+)?(?:\w+\s+){0,2}?"
+            m = re.search(r"\b(?:send|sent|pay|paid|transfer|transferred|wire|wired|give|gave|spend|spent|afford|remit)"
+                          r"\s+(?:to\s+)?(?:\w+\s+){0,2}?"
                           r"(?:[€$]\s*)?" + _NUM + r"\b", low)
             if m:
                 amount = _to_dec(m.group(1))
@@ -407,7 +445,9 @@ class RulesParser:
             amount, cur = amts[0]
             mode = "exact"
         else:
-            m = re.search(r"\b(?:send|pay|transfer|wire|remit)\s+(?:him\s+|her\s+|them\s+)?" + _NUM + r"\b", low)
+            # amount without a currency ("wire mum 500"): the payment is in EUR, shown on the confirmation card
+            m = re.search(r"\b(?:send|pay|transfer|wire|remit|sned|snd|semd|pya|transfr|tranfer|trasnfer)\s+"
+                          r"(?:him\s+|her\s+|them\s+|my\s+\w+\s+|\w+\s+)?" + _NUM + r"\b(?!\s*%)", low)
             if m:
                 amount = _to_dec(m.group(1))
                 mode = "exact" if amount is not None else "unspecified"

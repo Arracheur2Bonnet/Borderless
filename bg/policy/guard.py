@@ -7,6 +7,7 @@ runs on text with zero-width characters removed, so ``ig​nore`` is still caugh
 from __future__ import annotations
 
 import hashlib
+import base64
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -74,6 +75,11 @@ _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("skip_confirmation_fr", re.compile(
         r"\bsans\s+(?:demander\s+)?(?:de\s+|la\s+)?(?:confirmation|v[ée]rification|validation|otp)\b", _F)),
 ]
+
+# Structural signals (see scan_document).
+_ANY_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b")
+_B64_BLOB = re.compile(r"\b[A-Za-z0-9+/]{24,}={0,2}")
+_LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "|": "l"})
 
 # Hidden HTML comment: always a finding when it addresses an AI / contains instruction words.
 _HTML_COMMENT = re.compile(r"<!--[\s\S]*?(?:-->|$)")
@@ -169,6 +175,22 @@ class RuleBasedContentGuard:
             if name not in findings:
                 findings.append(name)
 
+        # Language-independent structural signals. Phrase patterns cover English and French only; these do not
+        # depend on wording, because redirecting money always requires supplying another account.
+        all_ibans = {"".join(m.group(0).split()).upper() for m in _ANY_IBAN.finditer(text)}
+        if len(all_ibans) >= 2:
+            findings.append("conflicting_ibans")
+        for blob in _B64_BLOB.findall(text):
+            decoded = self._b64_text(blob)
+            if decoded and (self._match_spans(decoded) or _ANY_IBAN.search(decoded)):
+                findings.append("encoded_payload")
+                break
+        folded = text.lower().translate(_LEET)
+        if folded != text.lower():
+            for name, _s, _e in self._match_spans(folded):
+                if name not in findings and "obfuscated_instruction" not in findings:
+                    findings.append("obfuscated_instruction")
+
         # Visible text = comments blanked out (newlines kept). Lines touching a pattern match are dropped.
         chars = list(text)
         for s, e in comment_spans:
@@ -188,6 +210,16 @@ class RuleBasedContentGuard:
         return DocumentScan(
             document_id=doc.document_id, injection_detected=detected,
             matched_patterns=findings, extracted=self._extract(lines), quarantined=detected)
+
+    @staticmethod
+    def _b64_text(blob: str) -> str | None:
+        try:
+            raw = base64.b64decode(blob + "=" * (-len(blob) % 4), validate=False)
+            txt = raw.decode("utf-8")
+        except Exception:
+            return None
+        printable = sum(ch.isprintable() or ch.isspace() for ch in txt)
+        return txt if txt and printable / len(txt) > 0.9 else None
 
     @staticmethod
     def _extract(lines: list[str]) -> dict[str, str]:
