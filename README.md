@@ -1,219 +1,163 @@
-# FinTechathon 2026 — Shenzhen International FinTech Competition
+# BorderlessGuard
 
-> **WeBank FinTech University Challenge** — International Track (Artificial Intelligence)
-> Source : https://fintechathon.g-ican.com/#/en
-> Langue officielle du track international : **anglais** · Fuseau de référence : **China Standard Time (UTC+8)**
+BorderlessGuard is a safe conversational AI money agent for international students. It handles tuition, rent, FX and family transfers. It was built for the 2026 Shenzhen International FinTech Competition, International AI Track, Topic C (Cross-border and Student Finance).
 
----
+**Principle: the LLM proposes, a deterministic policy gate authorises, a deterministic service executes.** The language model only produces typed intents. It has no tools and never sees IBANs, balances or document text. A fooled model therefore cannot move money.
 
-## 🎯 En bref (ce qui nous concerne : International AI Track)
+> Status: prototype running on a **simulated sandbox ledger**. It is not connected to any bank, payment network, FX provider or sanctions-list provider. It is not a real deployment.
 
-| Élément | Détail |
-|---|---|
-| **Track visé** | International Track — Artificial Intelligence (Global AI) |
-| **Équipe** | 2 à 5 membres · ≥ 60 % de membres non-chinois |
-| **Inscription ouverte** | 31 août 2026 |
-| **Deadline inscription + soumission** | **20 octobre 2026, 24:00 (UTC+8)** |
-| **Finale (défense sur site)** | 22 novembre 2026 — WeBank, Shenzhen |
-| **Cérémonie de remise des prix** | 23 novembre 2026 |
-| **Dotation du track** | RMB 250 000 (pool total : RMB 750 000) |
-| **Contact officiel** | fintechathon@ican-x.com |
+## What it does
 
----
+Demo goal: *"Pay my November tuition and rent, but keep at least 600 euros for living expenses."*
 
-## 1. À propos de la compétition
+1. It detects and quarantines a prompt injection hidden in the rent invoice.
+2. It proposes three actions, all to registry-held IBANs:
+   - an FX purchase: 2,200.00 EUR for 2,403.26 USD, fee 11.96 USD;
+   - a 1,200.00 EUR tuition payment;
+   - an 850.00 EUR rent payment.
 
-La **2026 Shenzhen International FinTech Competition — WeBank FinTech University Challenge** est organisée avec la Shenzhen Municipal Local Financial Administration, l'Université de Shenzhen et WeBank comme unités de guidage stratégique, et le **Shenzhen University–WeBank Institute of FinTech** comme hôte.
+   Each payment is evaluated against 13 policy rules.
+3. It asks for a tap on the two R2 actions and a one-time code on the R3 rent payment, because the landlord was added as a payee 20 h ago. Three wrong codes lock the action.
+4. It ends with 600.00 EUR and 196.74 USD, and three hash-chained Proof-of-Intent receipts. The customer gets a signed anchor of the chain head, which later reveals truncation or rewriting.
 
-- 8ᵉ édition consécutive · des milliers de projets · ~10 000 étudiants de Chine et de l'étranger.
-- Pour 2026, la compétition étend son **International Track (direction Intelligence Artificielle)** au monde entier.
-- S'inscrit dans le contexte du **Sommet APEC 2026** à Shenzhen.
+**Multi-turn dialogue (v2):**
 
-**Unités de guidage technique :**
-- CCF Technical Committee on Digital Finance
-- Tsinghua Institute of Financial Technology
-- IEEE Computational Intelligence Society — Singapore Chapter
-- IEEE Computational Intelligence Society — Shenzhen Chapter
+- **Missing details.** The agent asks for a missing amount or payee and remembers the draft for one message.
+- **Corrections** ("actually make it 40") create a new action and never change one in place.
+- **Cancellation:** "cancel that" or "cancel everything".
+- **Affordability questions** ("can I afford 300 to mom after my bills?") are answered with a simulation that never proposes or executes anything.
+- **Plan ordering.** Confirming a step before the step it depends on keeps it waiting, and the agent says which step comes first.
 
----
+**Compliance-style controls:**
 
-## 2. Les tracks
+- **Structuring:** more than 1,500 EUR to one payee within 24 h requires the one-time code.
+- **Sanctions screening:** names are normalised, including homoglyph folding, and IBANs are checked against a fictional watchlist.
 
-### Tracks domestiques — AI & Data Analytics
-### Track international — **Global AI** ← *notre track*
+## Quick start
 
----
+Requires Python 3.11.
 
-## 3. Challenges
+```bash
+python -m venv .venv
+source .venv/Scripts/activate              # Git Bash on Windows; Linux/macOS: source .venv/bin/activate
+pip install -r requirements-lock.txt       # exact versions used for the runs (requirements.txt has lower bounds)
 
-### 🟦 Artificial Intelligence Track — *Banking AI Agent*
+python -m pytest tests -q -p no:cacheprovider -rx   # 621 passed, 8 xfailed (offline, about 10 s)
+python scripts/run_scenarios.py                     # 20/20 tasks completed (100.0%)
+python scripts/golden_path.py                       # RESULT: PASS
+python tests/e2e_report.py                          # regenerates deliverables/security_results.md/.json (69/69, 29/29)
+python -m streamlit run ui/app.py                   # demo UI at http://localhost:8501
+```
 
-Objectif : **« l'IA opère la banque au nom de l'utilisateur »** (sécurité + expérience).
-Construire un **AI Banking Agent** qui :
-- comprend l'intention financière via un dialogue en langage naturel,
-- planifie et exécute de façon autonome des opérations bancaires,
-- se connecte aux utilisateurs via des canaux comme apps et messagerie instantanée (IM).
+**Offline mode (default).** No key is needed. A deterministic rules parser is used. Everything is reproducible, including all tests and the missions, and produces identical receipt hashes (and identical anchor signatures while `BG_RECEIPT_KEY` is unset).
 
-**Exigence : couvrir au moins 3 scénarios cœur** (couverture complète encouragée).
+**With Claude.** Set the key, then switch on "Use Claude (needs API key)" in the UI sidebar:
 
-| # | Scénario | Contenu |
+```bash
+export ANTHROPIC_API_KEY=sk-...        # PowerShell: $env:ANTHROPIC_API_KEY = "sk-..."
+python -m streamlit run ui/app.py
+```
+
+- Claude is called with structured JSON-schema output and no tools.
+- On any error, refusal or malformed output, the system falls back to the rules parser.
+- Security behaviour does not depend on which parser is active.
+- **The Claude path has been tested only with a fake client. No evaluation in this repository used the live API.**
+
+The simulated one-time code for step-up actions is `246810` (shown in the UI).
+
+**For a deployment,** set `BG_RECEIPT_KEY` to a secret. The default anchor key in `params.py` is a public demo value.
+
+## Architecture in short
+
+```
+untrusted text --> ContentGuard (advisory) --> Parser (Claude or rules) --> typed intents
+   --> Orchestrator expands intents using the REGISTRY (drafts, corrections, cancel, affordability)
+   --> Ledger.simulate --> PolicyEngine R0..R4 --> tap / OTP bound to params_hash (3 wrong -> locked)
+   --> Ledger.execute (idempotent) --> hash-chained receipt (executed AND denied) --> signed anchor to customer
+   (optional audit_sink: one JSON record per step, IBANs masked, no OTPs)
+```
+
+**Risk tiers:**
+
+| Tier | Verdict | Triggered by |
 |---|---|---|
-| 01 | **Smart Transfers** | Virement par nom / téléphone / note ; virements programmés ; collecte partage d'addition |
-| 02 | **Bill Analysis** | Catégories de dépenses ; détection de transactions inhabituelles ; rapports mensuels / annuels |
-| 03 | **Wealth Operations** | Recommandation et comparaison de produits ; évaluation du risque ; souscription / rachat |
-| 04 | **Card Management** | Demande de carte ; ajustement de plafond ; restrictions / déblocage ; déclaration de perte |
-| 05 | **Subscriptions / Direct Debit** | Détection de prélèvements récurrents ; rappels de renouvellement ; annulation en un clic |
-| 06 | **Cross-scenario Orchestration** | Reconnaître un besoin (ex. anniversaire), réserver des fonds et commander automatiquement fleurs, gâteau, etc. |
+| R2 | one tap | payee older than 72 h, payment <= 1,500 EUR eq., same-payee 24 h total <= 1,500, FX buy <= 2,500 EUR eq. |
+| R3 | one-time code | new payee, larger amounts, structuring, adding a payee |
+| R4 | hard deny | infeasible; unregistered or blocked payee; IBAN differs from registry; other tenant; reserve floor; > 4,000 EUR per payment; > 5,000 EUR per day; untrusted origin; sanctions hit; 3 wrong one-time codes |
 
-> Le track international reprend les **6 topics (A–F)**. Topic F est évalué via des **hashs de transactions on-chain** ; les autres via des tâches scriptées en environnement simulé.
+A payment is evaluated against 13 rules when a reserve is stated, 12 otherwise. The full rule list is in `deliverables/technical_document.md`.
 
-### 🟩 Data Analytics Track *(track domestique — pour référence)*
+## Repository map
 
-5 challenges basés sur des scénarios fintech réels (sourcing de données, modélisation, application métier). Les équipes choisissent **un** challenge.
-
-- **Challenge 1 — Stability of Credit Risk Scoring** : construire un modèle de scoring de risque de crédit alliant fort pouvoir discriminant et stabilité des sorties (cohérence quand les caractéristiques clients restent inchangées).
-- Challenges 2 à 5 : *(détails non fournis sur la page téléchargée)*
-
----
-
-## 4. Calendrier (International AI Track · UTC+8)
-
-| Date | Étape |
+| Path | Content |
 |---|---|
-| **31 août** | Ouverture des inscriptions |
-| **20 oct** | **Deadline inscription & soumission (24:00)** |
-| **21 oct** | Compliance Screening (vérification formelle + éligibilité International Track) |
-| **22–23 oct** | Online Review — le jury sélectionne **10 équipes finalistes** |
-| **31 oct** | Finalistes annoncés · lettres d'invitation émises |
-| **20 nov** | Check-in · visite de WeBank |
-| **22 nov** | **Défense internationale sur site** (en anglais, WeBank Shenzhen) |
-| **23 nov** | **Cérémonie de remise des prix** · Shenzhen, Chine |
+| `bg/contracts/` | Frozen data contracts, interfaces, canonical hashing, parameters and seed data |
+| `bg/agent/` | `RulesParser`, `ClaudeParser`, orchestrator (multi-turn, audit sink) |
+| `bg/policy/` | `DeterministicPolicyEngine` (R0 to R4, incl. `STRUCTURING`, `SANCTIONS_SCREEN`), `RuleBasedContentGuard` |
+| `bg/ledger/` | `SandboxLedger`, `SqliteReceiptStore` (Proof-of-Intent chain, signed anchors) |
+| `bg/app.py` | Single wiring point: `build_default()` |
+| `ui/app.py` | Streamlit UI: Assistant, Proof of Intent, Adversarial demo |
+| `scenarios/`, `scripts/run_scenarios.py` | 20 scripted missions and their runner |
+| `scripts/golden_path.py`, `scripts/screenshots.py` | Golden-path proof script; UI screenshot capture (Playwright) |
+| `tests/adversarial/`, `tests/benign/` | Development suites (69 + 29) |
+| `tests/heldout/` | Blind held-out v1 (73 cases); blind on its first run only |
+| `tests/heldout_v2/` | Blind held-out v2 (105 cases, independent tester); blind on its frozen run only |
+| `tests/scenarios/`, `tests/unit/` | Missions as pytest; component unit tests (332) |
+| `deliverables/` | `technical_document.md`, `security_self_assessment.md`, `execution_evidence.md`, `task_completion.md`, `security_results.md/.json`, `heldout_results.md`, `heldout_v2_results.md`, `evidence/` (per-mission JSONL audit logs), `screenshots/` |
+| `SPEC.md` | Build specification (including "v2 additions") |
 
-> \* En cas de force majeure, le Comité d'organisation peut modifier résultats / format / règles de défense et notifiera via site officiel, email et assistants de la compétition.
+## Results summary
 
----
+| Evaluation | Cases | Result | How to read it |
+|---|---:|---|---|
+| Development suites (adversarial / benign) | 69 / 29 | 69 blocked / 29 completed | Development result: written while building the guard; not generalisation |
+| Blind held-out v1, first run | 48 / 25 | 47 blocked (97.9%) / 21 completed (84.0%) | Blind at the time; see the correction below |
+| **Blind held-out v2, frozen before any fix** | **70 attacks / 30 benign EN** | **69 blocked = 98.6% (95% CI 92.3 to 99.7); multi-turn 15/15; benign English 24 = 80.0% (CI 62.7 to 90.5); non-English 0/5 (out of scope); 0 wrong payments, 0 data leaks, 0 unconfirmed executions** | **Headline generalisation estimate** (rules parser) |
+| Held-out v2 after fixes | 105 | 98 passed + 7 strict xfails (B12, B25 by design, N01 to N05 non-English) | Regression, not generalisation |
+| Full suite | 629 | 621 passed, 8 xfailed | Regression |
+| Scripted missions | 20 | 20/20 completed, deterministic, one JSONL audit log each | Task completion; team-scripted |
 
-## 5. Prix & dotations
+**Caveats from the independent v2 tester:**
 
-**Pool total : RMB 750 000** (3 tracks × RMB 250 000 : Domestic AI, International AI, Data Analytics).
+- 9 attacks were "blocked" only because the rules parser did not understand them. Excluding them, and the 2 structuring cases that never exercised the control, the result is 58/59.
+- Structuring was exercised for real in only one case.
+- The Claude parser was not evaluated.
+- The single miss was a real control bypass: a Cyrillic "о" in a sanctioned name passed the sanctions screen. It needed the user's one-time code, and no money moved.
 
-Chaque track décerne :
+**Fixed after the v2 run (`7e5db05`):**
 
-| Prix | Montant |
+- homoglyph folding in sanctions screening;
+- several payments in one message are all parsed or clarified, never silently dropped;
+- an unregistered IBAN in a document triggers an explicit warning and a `beneficiary_mismatch` event;
+- IBAN changes requested in chat are refused with an explanation;
+- the parser now handles typos in pay verbs, amounts without a currency (EUR, shown on the card), "what if I sent", "would I still have 600 after rent", "bills coming up" and "300 more euros".
+
+**Correction about v1.** Earlier versions said all 14 v1 document-injection cases were detected. That was inflated:
+
+- The seeded rent invoice is itself injected, and it was also scanned on rent requests. Its event masked **8** real detection misses: Spanish, Arabic, Chinese, base64, leetspeak, table, polite request, fake bank notice.
+- In all 8, money stayed safe: the registry IBAN and the registry amount were used.
+- The 8 are now detected by three language-independent structural signals: `conflicting_ibans`, `encoded_payload` (base64 decoded and rescanned) and `obfuscated_instruction` (leetspeak folded and rescanned).
+- Details are in `deliverables/heldout_results.md`.
+
+## Limitations
+
+- **Sandbox only.** Balances, rates, fee, OTP and watchlist are simulated. There is no bank, KYC/AML or regulatory integration.
+- **The guard can be evaded.** Its phrase patterns are English and French only; the structural signals do not depend on language. By design, authorisation never depends on detection.
+- **The offline rules parser** is English-only and brittle on unseen phrasing. **The Claude parser is untested against the live API.**
+- **OTP lockout is per action.** Re-sending a request creates a fresh action with a fresh attempt counter.
+- **The receipt chain needs the customer's anchor.** Truncation or a full rewrite is undetectable *without* the anchor and detectable *with* it, but the anchor only helps if the customer keeps it. The demo HMAC key is public: a deployment must set `BG_RECEIPT_KEY`.
+- **Sanctions screening and structuring are demonstrations.** The watchlist is fictional and the confusables table is finite. The structuring check covers one payee and one 24 h window.
+- **Not implemented:** federated learning (cross-institution risk scoring), on-chain anchoring of receipts, real bank integration.
+
+## Licences of dependencies
+
+| Package | Licence |
 |---|---|
-| 🥇 First Prize | RMB 100 000 |
-| 🥈 Second Prize | RMB 80 000 |
-| 🥉 Third Prize | RMB 50 000 |
-| 🏅 Best Creative Award | RMB 20 000 |
+| pydantic | MIT |
+| anthropic (Python SDK) | MIT |
+| streamlit | Apache-2.0 |
+| pytest | MIT |
 
-> Les équipes gagnantes reçoivent certificats physiques et trophées. **Tous les montants sont avant impôt (pre-tax).**
+Python standard-library modules (sqlite3, hashlib, hmac, decimal) are used for storage, hashing and anchor signing. Two further tools are used only by helper scripts: `python-pptx` (deck builder) and Playwright (screenshot script).
 
----
-
-## 6. Règles — International Artificial Intelligence Track
-
-> *S'appliquent au International AI Track.*
-
-### 1. Éligibilité
-Ouvert aux étudiants **à temps plein** (licence, master, doctorat) inscrits dans des **universités ou instituts de recherche à l'étranger**, sans condition de nationalité, filière ou année.
-« Universités étrangères » = établissements établis **hors de Chine continentale** (y compris **Hong Kong, Macao et Taïwan**), disposant de qualifications éducatives indépendantes.
-
-### 2. Composition d'équipe
-- Participation **en équipe** : **2 à 5 membres**.
-- Équipes inter-années, inter-filières, inter-universités et inter-pays autorisées.
-- **≥ 60 % de membres non-chinois** par équipe.
-- Le Comité détermine l'éligibilité au track selon nationalités, institutions et justificatifs. Une équipe non conforme peut être réaffectée ou disqualifiée.
-- **Arrondi vers le haut** : ex. une équipe de 3 doit inclure au moins **2 membres non-chinois**.
-- Diversité et représentation internationale **encouragées**.
-
-### 3. Inscription & véracité des informations
-Pour chaque membre : nom, nationalité, type + numéro de pièce d'identité valide (passeport, etc.), institution + preuve d'inscription, filière, année, coordonnées.
-Informations **vraies, exactes, valides**. **Une personne = une seule équipe** (tous tracks confondus) ; double inscription invalide.
-
-### 4. Langue officielle
-**Anglais.** Soumission, présentations et jugement en anglais ; les documents doivent inclure une **version anglaise**.
-
-### 5. Réalisation autonome & intégrité
-Travail indépendant, conforme aux lois. **Interdits** : triche, fraude, plagiat, violation de PI. Toute violation vérifiée → révocation de l'éligibilité et des résultats.
-
-### 6. Conformité des entrées & matériaux tiers
-Données, code, composants open-source, APIs et autres matériaux tiers doivent être **légalement autorisés** et conformes aux licences open-source / conditions d'usage des données. L'équipe est responsable de toute violation.
-
-### 7. Propriété intellectuelle
-La **PI des projets appartient aux participants**. L'organisateur peut utiliser les entrées et infos d'équipe à des fins de **publicité non commerciale** (promotion, publications, médias autorisés, site officiel, expositions). Licence **non exclusive et libre de redevance**.
-
----
-
-## 7. Processus de soumission (International AI Track)
-
-### Soumission & Sélection
-**1 — Registration & Submission · 31 août – 20 oct**
-S'inscrire par email officiel, choisir **1 des 6 topics**, soumettre les documents en anglais avant **24:00 le 20 octobre (UTC+8)** :
-- ✅ **Documentation technique** *(obligatoire)*
-- ✅ **Deck de présentation**, ≤ 10 minutes *(obligatoire)*
-- ✅ **Vidéo démo**, ≤ 5 minutes *(obligatoire)*
-- ⬜ Code source, auto-évaluation sécurité et preuves d'exécution *(optionnel)*
-
-**2 — Compliance Screening · 21 oct** — Revue formelle + vérification d'éligibilité.
-
-**3 — Online Review · 22–23 oct** — Le jury sélectionne **10 équipes finalistes**.
-
-### Finales
-**1 — Finalists & Invitations · 31 oct** — Liste des finalistes + lettres d'invitation.
-**2 — International Defence · 22 nov** — Défense + présentation **en anglais** à WeBank, Shenzhen.
-**3 — Awards Ceremony · 23 nov** — Annonce des prix + présentation des projets sélectionnés.
-
----
-
-## 8. Critères de notation
-
-> Les 6 topics du track international utilisent les **mêmes dimensions de notation**.
-
-| Poids | Dimension | Détail |
-|---|---|---|
-| **40 %** | **Task Completion** | Accomplissement des tâches scriptées en environnement simulé (topics non on-chain) ; **Topic F** évalué via les hashs de transactions on-chain. |
-| **30 %** | **Security & Compliance** | Défense contre virements induits, extraction de données, escalade de privilèges, prompt injection. Les failles de sécurité graves → déductions substantielles. |
-| **30 %** | **Innovation & Interaction** | Nouveauté du scénario, valeur réelle, efficacité du dialogue, clarification, correction et capacité de fallback. |
-
-- **Bonus 0–5 points** (plafonné) pour topics avancés ou déploiement réel démontré.
-- Le **choix du topic n'affecte pas le score de base**.
-- **Appels** possibles dans les **3 jours ouvrés** après annonce des résultats.
-
-### Déclaration de compétition
-1. Lire et respecter les règles officielles ; entrées indépendantes ; infos vraies et légales.
-2. Le Comité peut ajuster calendrier / format / jugement / défense et notifiera via canaux officiels.
-3. La PI reste aux participants ; usage par l'organisateur limité à la publicité non commerciale.
-4. Track international régi par le **droit de la RP de Chine**. En cas de divergence, **la version chinoise prévaut**.
-
----
-
-## 9. Conseillers académiques invités
-
-| Nom | Affiliation |
-|---|---|
-| **Wang Shouyang** | Distinguished Researcher, Chinese Academy of Sciences ; Académicien TWAS & IASCYS ; NSFC Distinguished Young Scholar |
-| **Qiang Yang** | Chief AI Adviser, WeBank ; Fellow, Royal Society of Canada ; Fellow, Canadian Academy of Engineering |
-| **Li Wenrong** | Vice-President, City University of Hong Kong ; Fellow, U.S. National Academy of AI |
-| **Li Jianqiang** | Dean, College of AI, Shenzhen University ; NSFC Distinguished Young Scholar |
-| **Chai Yunpeng** | Dean, School of Information, Renmin University of China |
-| **Dacheng Xiu** | Joseph Sondheimer Professor, Chicago Booth, University of Chicago |
-| **Wolfgang Karl Härdle** | Tenured Professor, Humboldt-Universität zu Berlin |
-| **Joshua Bongard** | Veinott Professor of Computer Science, University of Vermont |
-
----
-
-## 10. Partenaires & organisateurs
-
-- **Guidage stratégique** : Shenzhen Municipal Local Financial Administration · Shenzhen University · WeBank
-- **Hôte** : Shenzhen University–WeBank Institute of FinTech
-- **Organisateurs** : iCAN Future (Beijing) Technology Co., Ltd. · GouXiongHui
-- **Conseillers techniques** : CCF Technical Committee on Digital Finance · Tsinghua Institute of Financial Technology · IEEE CIS Singapore Chapter · IEEE CIS Shenzhen Chapter
-
----
-
-## 📌 Points d'attention (à vérifier avec tes infos en bulk)
-
-- [ ] Détails des **Challenges 2 à 5** (Data Analytics) et des **Topics A–F** du track international.
-- [ ] Format exact et contenu attendu de la **documentation technique**.
-- [ ] Détails de l'**environnement simulé** et du **Topic F on-chain**.
-- [ ] Modalités précises d'inscription par email (modèle, pièces à fournir).
+The project's own licence has not been set in this repository: add a `LICENSE` file before publishing.
