@@ -1,11 +1,11 @@
 # BorderlessGuard: Security and Compliance Self-Assessment
 
-**Scope.** This assessment covers the prototype in this repository, running against a simulated sandbox ledger. The authors wrote it; it is a self-assessment, not an independent audit. State: commit `7e5db05`, 2026-10-17.
+**Scope.** This assessment covers the prototype in this repository, running against a simulated sandbox ledger. The authors wrote it; it is a self-assessment, not an independent audit. State: commit `292f748`, 2026-10-17.
 
 Test ids refer to pytest functions under these folders:
 
 - `tests/adversarial/` (families F1 to F5) and `tests/benign/`;
-- `tests/heldout/` (blind v1) and `tests/heldout_v2/` (blind v2, written by an independent tester);
+- `tests/heldout/` (blind v1) and `tests/heldout_v2/` (blind v2, written by a separate AI agent with restricted file access);
 - `tests/scenarios/` (20 missions) and `tests/unit/`.
 
 ## Evaluation summary (the same story in every document)
@@ -14,7 +14,7 @@ Test ids refer to pytest functions under these folders:
 |---|---|---|
 | Development suites (`tests/adversarial`, `tests/benign`) | 69/69 attacks, 29/29 benign | Development result. The suites were written while building the guard. Not generalisation. |
 | Blind held-out v1, first run (`tests/heldout`) | attacks 47/48, benign 21/25 | Blind at the time. **Correction:** the claim that all 14 v1 document injections were detected was inflated (see below). |
-| **Blind held-out v2, frozen in commit `977b936` before any fix** | **attacks 69/70 = 98.6% (Wilson 95% CI 92.3 to 99.7); multi-turn 15/15; benign English 24/30 = 80.0% (CI 62.7 to 90.5); non-English 0/5 (out of scope); 0 wrong payments, 0 data leaks, 0 unconfirmed executions** | **Headline generalisation estimate**, with the caveats listed below. Rules parser only. |
+| **Blind held-out v2, frozen in commit `44542f2` before any fix** | **attacks 69/70 = 98.6% (Wilson 95% CI 92.3 to 99.7); multi-turn 15/15; benign English 24/30 = 80.0% (CI 62.7 to 90.5); non-English 0/5 (out of scope); 0 wrong payments, 0 data leaks, 0 unconfirmed executions** | **Headline generalisation estimate**, with the caveats listed below. Rules parser only. |
 | After the v2 fixes | v2: 98 passed + 7 strict xfails (attacks 70/70, English benign 28/30); v1: 72 passed + 1 xfail; full suite **621 passed, 8 xfailed** | Regression result, not generalisation. |
 | Task completion (`scripts/run_scenarios.py`) | 20/20 scripted missions, deterministic | Demonstrates the end-to-end flows. Team-scripted. |
 
@@ -164,7 +164,7 @@ The structuring and sanctions controls are prototypes of the control shape only.
 | Structuring rule is narrow | Same payee only, one 24 h window, executed payments only. Splitting across several payees or over several days is not detected. Blind-tested for real in one case only. |
 | Receipt-chain truncation or rewrite | **Undetectable without the customer's anchor; detectable with it** (only up to the anchored receipt). The anchor only helps if the customer keeps it. The demo HMAC key is public in the source: a deployment must set `BG_RECEIPT_KEY`. HMAC is symmetric, so the key holder could forge anchors. No public-chain or external timestamp anchoring is implemented. |
 | Claude parser untested live | Every end-to-end and blind evaluation used the rules parser. The failure mode of a wrong intent is still gated by policy and confirmation. |
-| Rules parser coverage | English-only, phrase-based: blind v2 English benign 80.0%, non-English 0/5. The chat-IBAN-change refusal is phrase-based, and one phrasing quotes a wrong IBAN tail in the reply (cosmetic). An inflated invoice amount is ignored silently (the registry amount is used, the user is not told). |
+| Rules parser coverage | English-only, phrase-based: blind v2 English benign 80.0%, non-English 0/5. The chat-IBAN-change refusal is phrase-based (the wrong-IBAN-tail quote and the silent inflated amount were fixed in b7b9f85). |
 | Suites tuned after blind runs | Both held-out sets have been fixed against, so their current pass rates are regression results. Only the frozen first runs are generalisation estimates. |
 | Sandbox rates, balances and clock are fixed | No market-data risk modelled. |
 | In-memory sessions, drafts, OTP counters and idempotency store | Lost on process restart; not suitable for production. |

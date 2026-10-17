@@ -21,7 +21,8 @@ _NUM = r"(\d[\d,]*(?:\.\d+)?)"
 # includes frequent typos ("sned 40 eur to mom"): a typo must not make a request unreadable
 _PAY_VERB = r"\b(send|pay|transfer|wire|settle|remit|sned|snd|semd|pya|transfr|tranfer|trasnfer)\b"
 _RELATIVE = (r"\b(half|third|quarter|portion|partial(?:ly)?|part of|some of|most of|a bit|a little|"
-             r"\d+\s*%|percent|per cent)\b")
+             r"\d+\s*%|percent|per cent|whatever|the rest|remainder|remaining|what'?s left|what is left|"
+             r"left over|leftover|excess|surplus|anything (?:above|over)|everything (?:above|over))\b")
 
 # Questions about money are answered with a simulation (AffordabilityCheck), never turned into a payment.
 # "Can YOU pay my rent?" is a request, "can I pay my rent?" is a question.
@@ -209,8 +210,17 @@ class RulesParser:
         stated = [a for a, _ in _amounts(low_ni)]
         if reserve in stated:
             stated.remove(reserve)
-        if has_pay_verb and kinds and not stated and not re.search(r"\b(send|transfer|wire|remit)\b.*\bto\b", low_ni):
+        # bare numbers ("send mom 600") count as stated amounts too, except the reserve itself
+        bare = [_to_dec(m.group(1)) for m in _BARE_NUM_RE.finditer(low_ni)]
+        bare = [b for b in bare if b is not None and b != reserve]
+        if has_pay_verb and kinds and not stated and not bare and \
+                not re.search(r"\b(send|transfer|wire|remit)\b.*\bto\b", low_ni):
             return [PayObligations(obligation_kinds=kinds, keep_reserve=reserve)]
+        if has_pay_verb and kinds and (stated or bare):
+            # A bill AND a free payment in one message ("pay the rent and send mom 600"): build both, or ask.
+            mixed = self._bills_and_payments(low_ni, names, reserve)
+            if mixed is not None:
+                return mixed
 
         if has_pay_verb:
             # several payments in one message ("send 760 to mom and another 760 to mom"): parse each part,
@@ -236,11 +246,39 @@ class RulesParser:
             return [self._pay(low_ni, iban, names)]
 
         if re.search(r"\b(balance|balances|accounts?|overview|how much|what do i have|funds|summary|wallet|"
-                     r"what do i owe|what i owe|owe|what'?s due|upcoming|coming up|due this month|bills?)\b", low_ni):
+                     r"what do i owe|what i owe|owe|what'?s due|upcoming|coming up|due this month|bills?|"
+                     r"rates?|exchange rate)\b", low_ni):
             return [ReadOverview()]
 
         return [Clarify(question="I did not understand that. You can ask for your balance, pay your tuition and rent, "
                                  "send money to a saved payee, or convert currency. What would you like to do?")]
+
+    def _bills_and_payments(self, low: str, names: list[str],
+                            reserve: Decimal | None) -> list[FinancialIntent] | None:
+        """Split 'pay the rent and send mom 600' into PayObligations + Pay. Returns None when the message
+        is not of that shape; a Clarify when it is but a part cannot be read exactly (nothing is dropped)."""
+        parts = [p for p in re.split(r"\s*(?:,\s*)?\b(?:and then|and also|and|then|plus|also)\b\s*|,\s*", low) if p.strip()]
+        if len(parts) < 2:
+            return None
+        bill_kinds: list[str] = []
+        pays: list[FinancialIntent] = []
+        for p in parts:
+            p_kinds = self._obligation_kinds(p, loose=True)
+            has_amount = bool(_amounts(p) or _BARE_NUM_RE.search(p))
+            if reserve is not None and re.search(r"\b(keep|leave|leaving|reserve|at least|minimum)\b", p):
+                continue
+            if p_kinds and not has_amount:
+                bill_kinds += [k for k in p_kinds if k not in bill_kinds]
+            elif has_amount:
+                seg = p if re.search(_PAY_VERB, p) else "send " + p
+                pays.append(self._pay(seg, None, names))
+        if not bill_kinds or not pays:
+            return None
+        if all(isinstance(i, Pay) and i.amount_mode == "exact" for i in pays):
+            return [PayObligations(obligation_kinds=bill_kinds, keep_reserve=reserve), *pays]  # type: ignore[arg-type]
+        return [Clarify(question="You asked for a bill and another payment in one message, and I could not read "
+                                 "the other payment exactly. Tell me the payee and the exact amount, for example "
+                                 "'send 600 EUR to mom', and I will plan it together with the bill.")]
 
     # ------------------------------------------------------------------ v2 intents
     def _affordability(self, low: str, names: list[str]) -> AffordabilityCheck:

@@ -1,6 +1,6 @@
 # Held-out v2: independent blind evaluation
 
-Date: 2026-10-17. Tester: independent agent, not involved in building or tuning the system.
+Date: 2026-10-17. Tester: a separate AI agent (not a human), with restricted file access, not involved in building or tuning the system.
 Command: `./.venv/Scripts/python -m pytest tests/heldout_v2 -q -p no:cacheprovider`
 Result: **105 tests, 93 passed, 12 failed** (one adversarial failure, 6 English benign failures, 5 non-English benign failures).
 

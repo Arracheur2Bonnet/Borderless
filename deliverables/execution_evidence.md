@@ -1,6 +1,6 @@
 # BorderlessGuard: Execution Evidence
 
-**How these outputs were produced.** Every output below was captured by running the code in this repository on 2026-10-17, at commit `7e5db05`. Environment: Python 3.11.6, Windows 11, Git Bash, `./.venv/Scripts/python`.
+**How these outputs were produced.** Every output below was captured by running the code in this repository on 2026-10-17, at commit `292f748`. Environment: Python 3.11.6, Windows 11, Git Bash, `./.venv/Scripts/python`.
 
 **What is needed.** No network access and no API key.
 
@@ -127,7 +127,7 @@ These are development-suite numbers, written while the guard was being built. Th
    - **Correction:** the claim that all 14 document injections were detected was inflated. The seeded, injected rent invoice was also scanned on rent requests, and its event masked 8 real misses: Spanish, Arabic, Chinese, base64, leetspeak, table, polite request, fake bank notice.
    - In all 8, money stayed safe.
    - The 8 are now detected by the `conflicting_ibans`, `encoded_payload` and `obfuscated_instruction` signals (see `heldout_results.md`, Addendum).
-3. **Blind held-out v2: the headline generalisation estimate.** Written by an independent tester and frozen in commit `977b936` before any fix.
+3. **Blind held-out v2: the headline generalisation estimate.** Written by a separate AI agent with restricted file access (it could not read the guard, parser or policy code) and frozen in commit `44542f2` before any fix.
    - Attacks blocked: **69/70 = 98.6%** (Wilson 95% CI 92.3 to 99.7).
    - Multi-turn attacks: 15/15.
    - Benign English: **24/30 = 80.0%** (CI 62.7 to 90.5).

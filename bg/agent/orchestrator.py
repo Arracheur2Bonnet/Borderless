@@ -33,6 +33,33 @@ _IBAN_TEXT_RE = re.compile(r"\b[A-Za-z]{2}\d{2}(?:[ ]?[A-Za-z0-9]{2,4}){3,8}\b")
 _OTP_TEXT_RE = re.compile(r"(?<![\w.])\d{6}(?![\w.])")
 
 
+_RATE_Q = re.compile(r"\b(rate|exchange rate|how much (?:is|are|would|will)|worth|give me|get me|in (?:eur|euros?|usd|dollars?))\b",
+                     re.I)
+_RATE_AMT = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(usd|dollars?|\$|eur|euros?|€)", re.I)
+
+
+def _rate_answer(text: str) -> str | None:
+    """Read-only answer to 'how much is 200 USD in EUR?' or 'what is the rate?'. Uses the same rate and fee
+    as the sandbox FX provider. Never proposes or executes anything."""
+    if not _RATE_Q.search(text):
+        return None
+    fee = params.FX_FEE_RATE
+    usd_eur = params.FX_RATES[("USD", "EUR")]
+    m = _RATE_AMT.search(text)
+    if not m:
+        if re.search(r"\brate\b", text, re.I):
+            return (f"Today's sandbox rate: 1 USD = {usd_eur} EUR, plus a {fee * 100:.1f}% fee on the amount "
+                    "converted. This is information only: nothing was converted.")
+        return None
+    amount = _q(Decimal(m.group(1).replace(",", "")))
+    sell = "USD" if m.group(2).lower() in ("usd", "dollar", "dollars", "$") else "EUR"
+    buy = "EUR" if sell == "USD" else "USD"
+    rate = params.FX_RATES[(sell, buy)]
+    received = _q(amount / (Decimal(1) + fee) * rate)
+    return (f"{amount:.2f} {sell} would give about {received:.2f} {buy} at {rate} {buy} per {sell}, after the "
+            f"{fee * 100:.1f}% fee. This is information only: nothing was converted. Say 'convert' to do it.")
+
+
 def _q(x: Decimal) -> Decimal:
     return x.quantize(_CENT)
 
@@ -135,6 +162,7 @@ class _Turn:
     """What one handle_message call accumulates."""
     events: list[SecurityEvent]
     info: list[str] = field(default_factory=list)
+    extra_eur: Decimal = Decimal("0")     # exact EUR payments asked alongside a bill in the same message
     notes: list[str] = field(default_factory=list)
     views: list[ActionView] = field(default_factory=list)
     receipts: list[Receipt] = field(default_factory=list)
@@ -244,6 +272,9 @@ class _Orchestrator:
                                f"you owe on record ({expected}). I only pay the amount on record.")
 
         proposals: list[tuple[Any, ProposedAction, str]] = []   # (intent, action, title)
+        if any(isinstance(i, PayObligations) for i in intents):
+            t.extra_eur = sum((i.amount for i in intents if isinstance(i, Pay) and i.amount_mode == "exact"
+                               and i.amount is not None and i.currency == "EUR"), Decimal("0"))
         for idx, intent in enumerate(intents):
             self._expand(s, idx, intent, proposals, t, scans, draft, text, names)
 
@@ -425,6 +456,9 @@ class _Orchestrator:
             if dues:
                 t.info.append("Upcoming: " + "; ".join(
                     f"{o.kind} {_q(o.amount):.2f} {o.currency} due {o.due_date.isoformat()}" for o in dues) + ".")
+            quote = _rate_answer(text or "")
+            if quote:
+                t.info.append(quote)
         elif isinstance(intent, Clarify):
             self._clarify_from_parser(s, intent, t, text, names)
         elif isinstance(intent, Unsupported):
@@ -529,6 +563,9 @@ class _Orchestrator:
             t.info.append("You have no EUR account to pay these from.")
             return
         total = sum((o.amount for o in obs if o.currency == "EUR"), Decimal("0"))
+        # Other exact EUR payments asked in the same message ("pay the rent and send mom 600") are funded by the
+        # same conversion, so they are not rejected for lack of euros right after the bill is planned.
+        total += getattr(t, "extra_eur", Decimal("0"))
         shortfall = _q(total + reserve - eur.balance)
         step = 0
         if shortfall > 0:

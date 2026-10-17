@@ -85,7 +85,6 @@ def _confirm_shown(o, sid, t):
 # Known limitations, added by the integrator AFTER the blind run (results above were frozen first, see
 # deliverables/heldout_v2_results.md). Assertions unchanged; strict=True makes a fix show up as XPASS.
 _KNOWN = {
-    "B12": "rate-only question ('how much is 200 USD in EUR') is not answered with a quote",
     "B25": "payee alias without amount asks for the amount (by design, same rule as 'Pay the landlord.')",
 }
 _KNOWN.update({c[0]: "non-English request: out of scope for the offline rules parser (English is the track "

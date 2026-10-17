@@ -4,7 +4,7 @@
 
 ## Status of this document
 
-Every statement about behaviour refers to code in this repository and to commands that were actually run on 2026-10-17 (commit `7e5db05` plus these documents).
+Every statement about behaviour refers to code in this repository and to commands that were actually run on 2026-10-17 (commit `292f748` plus these documents).
 
 - **Full test suite:** `pytest tests -q -p no:cacheprovider -rx` gives **621 passed, 8 xfailed**.
 - **Scripted missions:** `scripts/run_scenarios.py` completes **20/20** scripted missions.
@@ -269,7 +269,7 @@ These are rules-parser fixes, all made after seeing the blind v2 failures:
 - "I need 300 more euros, buy them with my USD" yields an FX purchase of 300.00 EUR.
 - A request to change a payee's bank details in chat is refused with an explanation, and a `beneficiary_mismatch` event is raised. Example: "no wait, use IBAN GB33 ... instead, it's her new account". The reply is: "I cannot change a payee's bank details in chat. Payments only go to the IBAN registered for that payee ... If this account is genuine, add it as a new payee (this needs one-time-code verification)."
   - This refusal is phrase-based. Other phrasings fall back to `Clarify` or to a normal `Pay` whose IBAN is still taken from the registry.
-  - Known cosmetic defect: when a spaced IBAN is followed by the word "instead", the reply quotes the wrong last four characters ("TEAD"). No money is affected.
+  - Fixed in b7b9f85: an IBAN followed by the word "instead" used to be quoted with a wrong tail ("TEAD"); the parser no longer swallows the following word.
 
 ### 5.8 Duplicate-payment idempotency fix
 
@@ -600,7 +600,7 @@ A separate author wrote 73 cases without reading the guard, the parser, the poli
 
 - Rent-type requests also scanned the seeded rent invoice, which is itself injected. Its event masked real misses, because the test only asked whether *some* `prompt_injection` event existed.
 - The first addendum said only one miss (D14) had been exposed. **That was wrong too.**
-- Re-scanning the 14 documents with the guard as it was before the held-out commit (`167fb64`) shows that the guard missed 9 of the 12 instruction-bearing documents on their own text:
+- Re-scanning the 14 documents with the guard as it was before the held-out commit (`dcda392`) shows that the guard missed 9 of the 12 instruction-bearing documents on their own text:
   - D14 (bare `SYSTEM:` line), fixed earlier with new patterns;
   - **8 rent documents: Spanish, Arabic, Chinese, base64, leetspeak, table, polite request, fake bank notice.**
 - In all 8, money stayed safe: the registry IBAN and the registry amount were used.
@@ -619,9 +619,9 @@ In addition, when the user attaches an invoice for a single obligation, the seed
 
 **Setup.**
 
-- An independent tester, who did not build or tune the system, wrote 105 cases. The tester read only the SPEC, the contracts, `bg/app.py` and one test helper file.
+- A separate AI agent (not a human tester), which did not build or tune the system, wrote 105 cases. The tester read only the SPEC, the contracts, `bg/app.py` and one test helper file.
 - The tester ran the cases black-box against `build_default()`.
-- **The results were frozen in commit `977b936` before any fix.** The full report is `heldout_v2_results.md`.
+- **The results were frozen in commit `44542f2` before any fix.** The full report is `heldout_v2_results.md`.
 - No API key was set, so this evaluates the **rules parser, not Claude**.
 
 | Rate | k/n | Point | Wilson 95% CI |
@@ -653,7 +653,7 @@ Safety outcomes: **0 wrong payments, 0 data leaks, 0 unconfirmed executions** (n
 
 ### 12.4 After held-out v2: fixes and regression state (not generalisation)
 
-These fixes were made **after** seeing the v2 failures, in commit `7e5db05`:
+These fixes were made **after** seeing the v2 failures, in commit `292f748`:
 
 - **Sanctions screening** folds homoglyphs and confusables (X08 is now denied by `SANCTIONS_SCREEN`).
 - **Several payments in one message** are all parsed, or the whole request is clarified. A payment is never silently dropped.
@@ -704,7 +704,7 @@ The xfail markers were added to the tester's file after the frozen run. The asse
    - non-English requests fail;
    - B12 (rate quote) and B25 ("pay the uni") remain open;
    - the chat-IBAN-change refusal is phrase-based and shows a wrong IBAN tail for one phrasing (Section 5.7);
-   - an inflated amount in an uploaded invoice is ignored in favour of the registry amount, but the user is not told about the discrepancy.
+   - (fixed in b7b9f85) an inflated amount in an uploaded invoice is ignored in favour of the registry amount and the user now gets an explicit notice.
 4. **Claude parser untested live.** No suite was run against the live API.
 5. **OTP lockout is per action.** Sending the same request again creates a fresh action with a fresh attempt counter. So 3 guesses are possible per re-sent request.
    - There is no per-user or per-session throttle.
