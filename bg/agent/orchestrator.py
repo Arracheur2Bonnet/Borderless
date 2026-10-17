@@ -235,6 +235,13 @@ class _Orchestrator:
                                f"{doc_iban[-4:]}, which is not registered for any of your payees. I will only pay the "
                                "IBAN registered for the payee. If the payee really changed bank, add the new account "
                                "as a payee first (one-time-code verification).")
+            # An inflated amount is data too: the registry obligation is what gets paid, and the user is told.
+            doc_amount = (scan.extracted or {}).get("amount")
+            due = [o for o in self.ledger.get_obligations(s.user_id) if not wanted or o.kind in wanted]
+            if doc_amount and due and all(_q(Decimal(doc_amount)) != _q(o.amount) for o in due):
+                expected = ", ".join(f"{o.kind} {_q(o.amount):.2f} {o.currency}" for o in due)
+                t.notes.append(f"Note: {d.filename or d.document_id} states {doc_amount}, which does not match what "
+                               f"you owe on record ({expected}). I only pay the amount on record.")
 
         proposals: list[tuple[Any, ProposedAction, str]] = []   # (intent, action, title)
         for idx, intent in enumerate(intents):

@@ -10,7 +10,10 @@ from bg.contracts.models import (
     ParsedRequest, PayObligations, ProvideDetail, ReadOverview, Unsupported,
 )
 
-_IBAN_RE = re.compile(r"\b([A-Za-z]{2}\d{2}(?:[ ]?[A-Za-z0-9]{2,4}){3,8})\b")
+# Upper-case IBANs as printed, or all-lower-case ones typed in chat. In the lower-case form every group must
+# contain a digit, so a following word ("... 5555 55 instead") is never swallowed into the IBAN.
+_IBAN_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{2,4}){3,8}"
+                      r"|[a-z]{2}\d{2}(?:[ ]?(?=[a-z]{0,3}\d)[a-z0-9]{2,4}){3,8})\b")
 _CUR = {"eur": "EUR", "euro": "EUR", "euros": "EUR", "€": "EUR",
         "usd": "USD", "dollar": "USD", "dollars": "USD", "$": "USD", "bucks": "USD"}
 _CUR_WORD = r"(?:euros?|eur|dollars?|usd|bucks)"
