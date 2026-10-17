@@ -57,7 +57,11 @@ _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         r"\b(?:transfer|send|wire|remit|move)\s+(?:the\s+|a\s+total\s+of\s+)?"
         r"(?:(?:EUR|USD|€|\$)\s*\d[\d.,]*|\d[\d.,]*\s*(?:EUR|USD|€|\$|euros?|dollars?))", _F)),
     ("limit_override", re.compile(
-        r"\b(?:raise|increase|remove|lift|disable|bypass)\s+(?:\w+\s+){0,2}(?:limits?|reserve|floor)\b", _F)),
+        r"\b(?:raise[ds]?|increase[ds]?|remove[ds]?|lift(?:ed)?|disable[ds]?|bypass(?:ed)?)\s+(?:\w+\s+){0,2}"
+        r"(?:limits?|reserve|floor)\b|"
+        r"\b(?:limits?|reserve|floor)\s+(?:\w+\s+){0,4}?(?:raised|increased|removed|lifted|disabled|waived|bypassed)\b", _F)),
+    # a bare "SYSTEM:" / "ADMIN:" line, as used to fake a privileged message inside a document
+    ("fake_role_line", re.compile(r"(?:^|\n)\s*(?:system|admin(?:istrator)?|root|developer)\s*:", _F)),
     # French variants: "ignorez vos instructions", "virez 2000 EUR", "sans demander confirmation"
     ("instruction_override_fr", re.compile(
         r"\b(?:ignore[zr]?|oubli(?:e[zr]?|ez)|contourne[zr]?|d[ée]sactive[zr]?)\s+" + _GAP +

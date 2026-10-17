@@ -81,6 +81,12 @@ class RulesParser:
             if fx:
                 return [fx]
 
+        # Relative or partial amounts ("half", "20%", "some of") cannot be turned into an exact payment.
+        if has_pay_verb and re.search(
+                r"\b(half|third|quarter|portion|partial(?:ly)?|part of|some of|most of|a bit|a little|"
+                r"\d+\s*%|percent|per cent)\b", low_ni):
+            return [Clarify(question="What exact amount should I pay? I can pay a full invoice, or an exact "
+                                     "amount such as 300 EUR; I do not guess partial amounts.")]
         reserve = self._reserve(low_ni)
         kinds = self._obligation_kinds(low_ni)
         wide = self._obligation_kinds(low_ni, loose=True)
@@ -96,7 +102,8 @@ class RulesParser:
         if has_pay_verb:
             return [self._pay(low_ni, iban, names)]
 
-        if re.search(r"\b(balance|balances|accounts?|overview|how much|what do i have|funds|summary)\b", low_ni):
+        if re.search(r"\b(balance|balances|accounts?|overview|how much|what do i have|funds|summary|wallet|"
+                     r"what do i owe|what i owe|owe|what'?s due|upcoming|due this month)\b", low_ni):
             return [ReadOverview()]
 
         return [Clarify(question="I did not understand that. You can ask for your balance, pay your tuition and rent, "
@@ -128,7 +135,7 @@ class RulesParser:
         # `loose` also accepts "school", "my university", "landlord". Callers only use it when the
         # sentence names two obligations or a reserve, so "Pay the landlord." stays a clarification.
         kinds: list[tuple[int, str]] = []
-        tuition_pat = r"tuition|school fees?|university fees?"
+        tuition_pat = r"tuition|tution|tuiton|school fees?|university fees?"
         rent_pat = r"\brent\b"
         if loose:
             tuition_pat += r"|\bschool\b|\bmy university\b"

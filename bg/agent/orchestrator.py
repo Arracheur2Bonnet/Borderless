@@ -96,10 +96,12 @@ class _Orchestrator:
         notes: list[str] = []
         scans: dict[str, Any] = {}
         docs = list(documents or [])
-        if any(isinstance(i, PayObligations) for i in parsed.intents):
+        wanted = {k for i in parsed.intents if isinstance(i, PayObligations) for k in i.obligation_kinds}
+        if wanted:
             have = {d.document_id for d in docs}
             for ob in self.ledger.get_obligations(s.user_id):
-                if ob.document_id and ob.document_id not in have:
+                # only the documents behind what was asked: paying tuition must not scan the rent invoice
+                if ob.kind in wanted and ob.document_id and ob.document_id not in have:
                     d = self.ledger.get_document(s.user_id, ob.document_id)
                     if d is not None:
                         docs.append(d)
@@ -223,6 +225,10 @@ class _Orchestrator:
             bal = ", ".join(f"{a.currency} {_q(a.balance):.2f}" for a in accs) or "no accounts"
             ben = ", ".join(b.display_name for b in self.ledger.get_beneficiaries(s.user_id)) or "none"
             info.append(f"Your balances: {bal}. Saved payees: {ben}.")
+            dues = sorted(self.ledger.get_obligations(s.user_id), key=lambda o: o.due_date)
+            if dues:
+                info.append("Upcoming: " + "; ".join(
+                    f"{o.kind} {_q(o.amount):.2f} {o.currency} due {o.due_date.isoformat()}" for o in dues) + ".")
         elif isinstance(intent, Clarify):
             info.append(intent.question)
         elif isinstance(intent, Unsupported):
