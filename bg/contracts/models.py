@@ -125,8 +125,41 @@ class Unsupported(Frozen):
     category: Literal["out_of_scope", "data_access", "limit_change", "jailbreak"] = "out_of_scope"
 
 
+class AffordabilityCheck(Frozen):
+    """'Can I afford to send 300 to mom after my bills?' -> simulate and answer. Never proposes an action."""
+    kind: Literal["affordability_check"] = "affordability_check"
+    obligation_kinds: list[Literal["tuition", "rent"]] = []
+    beneficiary_ref: str | None = None
+    amount: Decimal | None = None
+    currency: Currency = "EUR"
+    keep_reserve: Decimal | None = None
+
+
+class ProvideDetail(Frozen):
+    """Answer to the agent's last clarification question: '50 euros', 'to mom'."""
+    kind: Literal["provide_detail"] = "provide_detail"
+    amount: Decimal | None = None
+    currency: Currency | None = None
+    beneficiary_ref: str | None = None
+
+
+class Correct(Frozen):
+    """Change a pending, not yet executed action: 'actually make it 40', 'send it to mom instead'."""
+    kind: Literal["correct"] = "correct"
+    amount: Decimal | None = None
+    currency: Currency | None = None
+    beneficiary_ref: str | None = None
+
+
+class Cancel(Frozen):
+    """'cancel that' (last pending action) / 'cancel everything' (all pending actions)."""
+    kind: Literal["cancel"] = "cancel"
+    scope: Literal["last", "all"] = "last"
+
+
 FinancialIntent = Annotated[
-    Union[ReadOverview, PayObligations, FxConvert, Pay, AddBeneficiary, Clarify, Unsupported],
+    Union[ReadOverview, PayObligations, FxConvert, Pay, AddBeneficiary, Clarify, Unsupported,
+          AffordabilityCheck, ProvideDetail, Correct, Cancel],
     Field(discriminator="kind"),
 ]
 
@@ -217,10 +250,18 @@ class SecurityEvent(Frozen):
     kind: Literal[
         "prompt_injection", "beneficiary_mismatch", "tool_output_poisoning",
         "replay_blocked", "data_access_denied", "param_tamper", "jailbreak_attempt",
+        "step_up_failed", "structuring_suspected", "sanctions_hit",
     ]
     source: str                      # document id, tool name, "user_message", action id...
     detail: str
     at: datetime
+
+
+class RecentPayment(Frozen):
+    """An executed outgoing payment, used for velocity / structuring checks."""
+    beneficiary_id: str
+    amount_eur: Decimal
+    executed_at: datetime
 
 
 class PolicyContext(Frozen):
@@ -232,6 +273,7 @@ class PolicyContext(Frozen):
     reserve_floor_eur: Decimal | None
     step_up_verified: bool
     security_events: list[SecurityEvent] = []
+    recent_payments: list[RecentPayment] = []   # executed payments inside STRUCTURING_WINDOW
 
 
 class PolicyDecision(Frozen):
@@ -304,6 +346,25 @@ class ChainVerification(Frozen):
     detail: str
 
 
+class ReceiptAnchor(Frozen):
+    """Customer-held copy of the chain head, like a statement number. Lets the customer detect
+    a truncated or rewritten chain, which the server-side chain alone cannot."""
+    seq: int
+    receipt_hash: str
+    signature: str                   # HMAC-SHA256(server key, f"{seq}:{receipt_hash}")
+    issued_at: datetime
+
+
+class Projection(Frozen):
+    """Answer to an AffordabilityCheck: simulated, nothing proposed or executed."""
+    balances_now: dict[str, Decimal]     # currency -> amount
+    balances_after: dict[str, Decimal]
+    reserve_floor_eur: Decimal | None
+    reserve_ok: bool
+    feasible: bool
+    lines: list[str]                     # human-readable breakdown
+
+
 # --------------------------------------------------------------------------- UI-facing turn
 
 ActionStatus = Literal[
@@ -328,3 +389,6 @@ class AgentTurn(Frozen):
     actions: list[ActionView] = []
     security_events: list[SecurityEvent] = []
     receipts: list[Receipt] = []
+    projection: Projection | None = None
+    anchor: ReceiptAnchor | None = None      # latest customer-held chain anchor, after any new receipt
+    pending_question: str | None = None      # set when the agent is waiting for a detail from the user

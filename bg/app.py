@@ -5,7 +5,10 @@ from bg.contracts.interfaces import Orchestrator
 from bg.contracts.params import DEMO_NOW
 
 
-def build_default(poisoned_fx: bool = False, parser=None, receipts_path: str = ":memory:") -> Orchestrator:
+def build_default(poisoned_fx: bool = False, parser=None, receipts_path: str = ":memory:",
+                  audit_sink=None) -> Orchestrator:
+    """`audit_sink`: optional callable(dict) receiving one structured record per pipeline step
+    (parse, expand, simulate, policy, confirm, execute, receipt). Used for execution evidence logs."""
     from bg.agent import build_orchestrator
     from bg.ledger import SandboxLedger, SqliteReceiptStore
     from bg.policy import DeterministicPolicyEngine, RuleBasedContentGuard
@@ -15,5 +18,5 @@ def build_default(poisoned_fx: bool = False, parser=None, receipts_path: str = "
     return build_orchestrator(
         ledger=ledger, receipts=receipts,
         policy=DeterministicPolicyEngine(), guard=RuleBasedContentGuard(),
-        parser=parser, now=DEMO_NOW,
+        parser=parser, now=DEMO_NOW, audit_sink=audit_sink,
     )

@@ -16,6 +16,22 @@ NEW_BENEFICIARY_WINDOW = timedelta(hours=72)  # payee added more recently -> R3 
 DAILY_OUTFLOW_LIMIT_EUR = Decimal("5000")   # payments executed + this one above -> R4 deny
 MAX_SINGLE_PAYMENT_EUR = Decimal("4000")    # hard cap per payment -> R4 deny
 
+# Structuring ("smurfing"): splitting a large transfer into payments that each stay under the R2 tier.
+# Payments to the SAME payee inside the window, plus this one, above the threshold -> R3 step-up.
+STRUCTURING_WINDOW = timedelta(hours=24)
+STRUCTURING_THRESHOLD_EUR = R2_MAX_PAYMENT_EUR
+
+# Step-up authentication: wrong codes allowed before the action is locked (denied, receipt written).
+MAX_OTP_ATTEMPTS = 3
+
+# Sanctions screening (R4). FICTIONAL demo watchlist: no real person or company is named here.
+SANCTIONS_WATCHLIST_NAMES = ["Volkov Trade Holdings", "Northgate Exchange FZE"]
+SANCTIONS_WATCHLIST_IBANS = ["AE070331234567890123456"]
+
+# Proof-of-Intent anchor signing. Demo-only default; a deployment sets BG_RECEIPT_KEY.
+RECEIPT_KEY_ENV = "BG_RECEIPT_KEY"
+DEMO_RECEIPT_KEY = "borderlessguard-demo-key-not-a-secret"
+
 # --------------------------------------------------------------------------- simulated market
 FX_RATES = {("USD", "EUR"): Decimal("0.92"), ("EUR", "USD"): Decimal("1.085")}
 FX_FEE_RATE = Decimal("0.005")              # 0.5% of the sell amount

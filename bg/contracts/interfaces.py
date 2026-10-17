@@ -10,11 +10,13 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
+from datetime import datetime
+
 from .models import (
     Account, AgentTurn, Beneficiary, ChainVerification, Confirmation, DocumentScan,
     ExecutionResult, FinancialIntent, Obligation, ParsedRequest, PolicyContext,
-    PolicyDecision, ProposedAction, Receipt, SecurityEvent, SimulationResult,
-    UntrustedDocument,
+    PolicyDecision, ProposedAction, Receipt, ReceiptAnchor, RecentPayment, SecurityEvent,
+    SimulationResult, UntrustedDocument,
 )
 
 
@@ -51,6 +53,10 @@ class Ledger(Protocol):
     def executed_today_eur(self, user_id: str) -> Decimal: ...
     def eur_equivalent(self, amount: Decimal, currency: str) -> Decimal: ...
 
+    def recent_payments(self, user_id: str, since: datetime) -> list[RecentPayment]:
+        """Executed outgoing payments (not FX) at or after `since`, oldest first. Tenant-scoped."""
+        ...
+
 
 class ReceiptStore(Protocol):
     """Append-only Proof-of-Intent hash chain. Owner: ledger workstream (bg/ledger)."""
@@ -60,7 +66,16 @@ class ReceiptStore(Protocol):
                result: BaseModel, summary: str) -> Receipt: ...
     def list(self, user_id: str | None = None) -> list[Receipt]: ...
     def get(self, receipt_id: str) -> Receipt | None: ...
-    def verify_chain(self) -> ChainVerification: ...
+
+    def verify_chain(self, anchor: ReceiptAnchor | None = None) -> ChainVerification:
+        """Recompute every link. With an anchor (customer-held copy of an earlier head): also check
+        its signature, that receipt `anchor.seq` still exists and still has `anchor.receipt_hash`.
+        That detects truncation and full rewrites that the chain alone cannot."""
+        ...
+
+    def anchor(self) -> ReceiptAnchor | None:
+        """Signed anchor for the current head (None when the chain is empty)."""
+        ...
 
 
 class PolicyEngine(Protocol):
@@ -89,7 +104,11 @@ class ContentGuard(Protocol):
 class IntentParser(Protocol):
     """Natural language -> typed intents. Owner: agent workstream (bg/agent)."""
 
-    def parse(self, text: str, *, beneficiary_names: list[str]) -> ParsedRequest: ...
+    def parse(self, text: str, *, beneficiary_names: list[str],
+              pending_question: str | None = None) -> ParsedRequest:
+        """`pending_question` is the agent's last unanswered clarification, so a bare '50 euros'
+        can be read as ProvideDetail. Implementations must accept and may ignore it."""
+        ...
 
 
 class Orchestrator(Protocol):
