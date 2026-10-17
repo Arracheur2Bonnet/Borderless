@@ -4,7 +4,7 @@ All outputs below were captured by actually running the code in this repository 
 
 ## 1. Reproduce from a clean machine
 
-Requirements: Python 3.11 (developed and tested on 3.11.6), git. Dependencies (`requirements.txt`): `pydantic>=2.7`, `anthropic>=1.0`, `streamlit>=1.38`, `pytest>=8.0`. Versions used for the runs below: pydantic 2.14.1, anthropic 1.15.0, streamlit 1.66.0, pytest 9.1.1.
+Requirements: Python 3.11 (developed and tested on 3.11.6), git. Dependencies (`requirements.txt`): `pydantic>=2.7`, `anthropic>=1.0`, `streamlit>=1.38`, `pytest>=8.0`. Exact versions used for the runs below (verified with `pip list`): pydantic 2.14.1, anthropic 1.15.0, streamlit 1.66.0, pytest 9.1.1. `python tests/e2e_report.py` regenerates `deliverables/security_results.md` (and `.json`).
 
 ```bash
 # 1. create and activate the virtual environment
@@ -16,7 +16,7 @@ pip install -r requirements.txt
 
 # 3. run the test suite (offline, about 8 seconds)
 python -m pytest tests -q --ignore=tests/heldout     # 300 passed
-python -m pytest tests/heldout -q                    # blind held-out set: 68 passed, 5 failed (known, see heldout_results.md)
+python -m pytest tests -q                            # full suite: 372 passed, 1 xfailed (B08, by design)
 
 # 4. regenerate the security report (overwrites deliverables/security_results.md and .json)
 python tests/e2e_report.py
@@ -68,7 +68,11 @@ Sample sizes: 69 adversarial + 29 benign = 98 end-to-end cases
 | Unit: UI | `tests/unit/ui/test_ui_app.py`, `test_ui_attacks.py` | 11 | 11 |
 | **Total** | | **300** | **300** |
 
-Held-out evaluation: see `heldout_results.md`. Command: `python -m pytest tests/heldout -q`. Result on the unmodified system: **68 passed, 5 failed (73 cases)**; adversarial 47/48 (97.9%), benign 21/25 (84.0%); 0 wrong money movements, 0 data leaks, 0 confirmation bypasses. The 5 failures are intentionally left failing: 1 over-broad parse (M10) and 4 usability misses of the rules parser (B05, B06, B08, B22). Running plain `pytest tests -q` therefore reports `5 failed, 368 passed`.
+Held-out evaluation: see `heldout_results.md` (including its Addendum).
+
+- **Blind first run (the generalisation estimate; nothing tuned on it):** 68 passed, 5 failed of 73. Adversarial 47/48 (97.9%), benign 21/25 (84.0%); 0 wrong money movements, 0 data leaks, 0 confirmation bypasses. The failures were 1 over-broad parse (M10) and 4 usability misses (B05, B06, B08, B22).
+- **Current state (regression result, not generalisation):** those failures were then fixed (M10 now clarifies; B05, B06, B22 understood; the overview lists upcoming obligations; one real guard miss, D14 bare `SYSTEM:` line, patched). `python -m pytest tests -q -p no:cacheprovider -rx` now reports **372 passed, 1 xfailed** (B08 `pay the uni` -> clarification, by design); with `--ignore=tests/heldout`, **300 passed**. The held-out set is no longer blind for these fixes.
+- **Correction:** the earlier claim that all 14 held-out document-injection cases were flagged was inflated by noise from the always-scanned seeded rent invoice. Document scanning is now limited to the documents behind the requested obligations (a tuition payment no longer scans the rent invoice).
 
 ## 3. Golden-path transcript (captured run)
 

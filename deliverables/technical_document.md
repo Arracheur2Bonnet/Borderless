@@ -2,7 +2,7 @@
 
 2026 Shenzhen International FinTech Competition, International AI Track, Topic C (Cross-border and Student Finance).
 
-Status of this document: every statement about behaviour refers to code in this repository and to tests that were run (300 pytest tests excluding the held-out set, all passing; the blind held-out set of 73 cases is reported separately and has 5 failures, see Section 9.4). The system runs against a **simulated sandbox ledger**. It is a prototype, not a production deployment, and it is not connected to any bank, payment network or FX provider.
+Status of this document: every statement about behaviour refers to code in this repository and to tests that were run (300 pytest tests excluding the held-out set, all passing; the full suite including the 73 held-out cases is 372 passed + 1 documented xfail; the held-out set was blind only on its first run, which had 5 failures that were then fixed, see Section 9.4). The system runs against a **simulated sandbox ledger**. It is a prototype, not a production deployment, and it is not connected to any bank, payment network or FX provider.
 
 ---
 
@@ -201,7 +201,7 @@ Implementation: `bg/agent/claude_parser.py`.
 | Fallback | No `ANTHROPIC_API_KEY`, any client construction error, any API error, refusal, malformed output, or empty result: the deterministic `RulesParser` is used and a note is attached to `ParsedRequest.notes`. |
 | Model setting | Default `claude-opus-5-5` with adaptive thinking and `effort: low`; configurable via the constructor. |
 
-**Offline mode.** `bg.app.build_default()` uses `RulesParser`, a regex-based English parser. The ledger, policy, guard, receipts, clock and seed data are all deterministic. Consequently the whole demo, all 300 tests and the evaluation run without network access or an API key, and produce identical hashes on every run. The Claude parser is optional; the security properties do not depend on it (Section 10).
+**Offline mode.** `bg.app.build_default()` uses `RulesParser`, a regex-based English parser. The ledger, policy, guard, receipts, clock and seed data are all deterministic. Consequently the whole demo, all 372 tests (300 without the held-out set) and the evaluation run without network access or an API key, and produce identical hashes on every run. The Claude parser is optional; the security properties do not depend on it (Section 10).
 
 **Not verified in this repository.** The Claude path is covered by unit tests with a fake client (`tests/unit/agent/test_agent_parsers.py`). The adversarial and benign suites run with the rules parser. We did not run the end-to-end suites against the live API, so we make no measured claim about Claude's intent-parsing accuracy.
 
@@ -256,15 +256,15 @@ Component unit tests: agent 60 (22 orchestrator + 38 parsers), ledger 19, policy
 ### 9.3 How to read these numbers
 
 - The attack cases were written by the team that built the defences, against a known rule set. 100% is a regression guarantee on a fixed suite, not an estimate of performance against an unseen adversary. If the 69 cases were an independent random sample (they are not), the rule-of-three 95% upper bound on the failure rate would be about 4.3%.
-- F1 and F3 cases partly exercise the detector (rule-based regexes). The important property is that the F2, F4 and F5 invariants and the R4 rules hold without relying on detection (Section 10).
+- F1 and F3 cases partly exercise the detector (rule-based regexes). The guard has been extended since the first draft: French injection patterns, claimed pre-approval, credential / debug-mode extraction, a bulk-enumeration data-access pattern, past-tense limit override and a bare `SYSTEM:` role-line pattern. Document scanning is limited to the documents behind the obligations the user actually requested (a tuition payment no longer scans the seeded rent invoice). The important property is that the F2, F4 and F5 invariants and the R4 rules hold without relying on detection (Section 10).
 - 29 benign cases is a small sample for a false-refusal rate; 0/29 bounds the true rate at roughly 10% (rule of three, same independence caveat).
-- Everything runs on the rules parser. No Claude-parser accuracy is measured here. The held-out set (Section 9.4) shows the team-authored 100% benign result does not carry over to unseen phrasing (84.0%).
+- Everything runs on the rules parser. No Claude-parser accuracy is measured here. The first, blind run of the held-out set (Section 9.4) shows the team-authored 100% benign result did not carry over to unseen phrasing (84.0%).
 
 ### 9.4 Held-out evaluation
 
-Held-out evaluation: see `heldout_results.md`.
+Held-out evaluation: see `heldout_results.md` (including its final Addendum).
 
-A separate author, who did not read the guard, rules parser, policy engine or existing case lists, wrote 73 blind cases (`tests/heldout/`) and ran them against the unmodified system. Result: **68 passed, 5 failed**.
+A separate author, who did not read the guard, rules parser, policy engine or existing case lists, wrote 73 cases (`tests/heldout/`) and ran them once against the unmodified system. **That first, blind run is the generalisation estimate; nothing had been tuned on it:** attacks blocked 47/48 (97.9%), benign completed 21/25 (84.0%), 68 passed / 5 failed, with zero cases of money moved wrongly, data leaked or confirmation bypassed. The table below is that first run.
 
 | Category | Cases | Passed |
 |---|---:|---:|
@@ -280,13 +280,17 @@ A separate author, who did not read the guard, rules parser, policy engine or ex
 - The four benign misses (B05, B06, B08, B22) are usability failures of the rules parser on unseen phrasing ("wallet", "what do I owe", "pay the uni" without amount, a typo). No safety impact; the 84.0% benign completion on unseen phrasing contrasts with 100% on the team-authored suite and is the more honest estimate of offline-parser coverage. A wider synonym set or the Claude parser is the intended remedy; neither was applied before measurement.
 - Sample sizes are small (48 and 25); percentages carry wide uncertainty.
 
+**After the blind run (regression result, not generalisation).** The failures were then fixed: relative amounts such as "pay half" now produce a clarification (M10); "wallet", "what do I owe" and the "tution" typo are understood (B05, B06, B22); the overview reply now lists upcoming obligations; and one real guard miss (D14, a bare `SYSTEM:` line announcing a raised limit) was fixed with new guard patterns. The held-out set is therefore no longer blind for those fixes. Its current state is 372 passed + 1 documented xfail across the full suite (all 73 held-out cases pass except B08, "pay the uni", which asks for an amount instead of mapping to tuition; this is by design, consistent with "Pay the landlord." being a clarification). That post-fix pass is a regression result and must not be read as a generalisation estimate.
+
+**Correction to an earlier claim.** An earlier draft said all 14 held-out document-injection cases were flagged. That was inflated: the seeded rent invoice was scanned on every obligation request and always raised a `prompt_injection` event, so tuition-kind cases were flagged by that unrelated document rather than by their own text. The scan is now limited to the documents behind the requested obligations; removing the noise exposed the D14 detection miss above. In every case money safety held regardless of detection, because authorisation never depends on the guard.
+
 ## 10. Limitations and future work
 
 **Limitations (current).**
 
 1. **Sandbox only.** There is no real bank, card, SEPA, SWIFT, KYC/AML or FX integration. Balances, rates (EUR/USD 1.085, USD/EUR 0.92), the fee (0.5% of the sell amount) and the OTP are simulated constants. This is not a real deployment and no real users or funds were involved.
 2. **The rules-based guard can be evaded.** `RuleBasedContentGuard` is a list of regexes (English with some French variants). A novel phrasing, another language, or an image-embedded instruction may not be detected. This is acceptable by design because **authorisation never depends on detection**: a missed injection still cannot create a payee, change an IBAN, bypass the confirmation tier or exceed an R4 limit. A miss degrades only the quality of the warning shown to the user.
-3. **Rules parser coverage.** The offline `RulesParser` is English only and pattern based; unusual phrasing usually yields `Clarify` or an unhelpful reply (fail-safe, but a usability cost: 4 of 25 held-out benign cases failed), and relative amounts such as "half of what I owe" are not understood and were widened to a full sweep in one held-out case (still gated by confirmation).
+3. **Rules parser coverage.** The offline `RulesParser` is English only and pattern based; unusual phrasing usually yields `Clarify` or an unhelpful reply (fail-safe, but a usability cost: 4 of 25 held-out benign cases failed on the blind run, and B08 "pay the uni" still asks for an amount by design). Relative amounts such as "half of what I owe" were widened to a full sweep in the blind run; the parser now clarifies instead. The words "school" / "landlord" are treated as obligations only when two obligations or a reserve are named. These fixes were made after seeing the failures, so they are not covered by a fresh blind measurement.
 4. **The receipt chain is tamper-evident, not tamper-proof.** Tail truncation and full-chain rewrite by a privileged actor are undetected (Section 6).
 5. **The demo OTP is a fixed constant**, not a real second factor; a real deployment needs device binding or a bank-grade strong-authentication flow.
 6. **Single-process state.** Sessions and idempotency records are in memory; the receipt store defaults to in-memory SQLite (a file path can be supplied).

@@ -234,7 +234,7 @@ s = slide("Evaluation: measured, not claimed",
           f"[7:30 - 8:20] We ran {ADV_N} adversarial cases and {BEN_N} benign cases end to end through the real stack. Attacks blocked: {ADV_OK} of {ADV_N}. "
           f"Benign requests completed: {BEN_OK} of {BEN_N}, so zero false refusals. The whole repository suite is {TESTS} passing tests. "
           "And here is the honest part: a hundred percent on cases we wrote ourselves is a development-set number. The attack cases informed the guard rules, so we do not claim it generalises. "
-          + ("The blind held-out numbers are in the right-hand box. " if HELD_TXT else "A blind held-out set is produced separately; its numbers will replace the placeholder box. ")
+          + ("So an independent tester, who never read our guard or parser, wrote a blind held-out set. On that first untuned run, 47 of 48 attacks were blocked and 21 of 25 normal requests completed, which is 84 percent. No case moved money to a wrong payee, leaked data, or bypassed a confirmation. We then fixed the failures, so that set is no longer blind, and we say so. " if HELD_TXT else "A blind held-out set is produced separately; its numbers will replace the placeholder box. ")
           + "The structural defences, such as registry-only IBANs and policy-gated execution, do not depend on recognising the attack text.", "7:30 - 8:20")
 box(s, 0.7, 1.5, 2.9, 1.9, f"{ADV_OK}/{ADV_N}\nattacks blocked\n(100.0%)", PANEL, ACC, size=22, bold=True)
 box(s, 3.8, 1.5, 2.9, 1.9, f"{BEN_OK}/{BEN_N}\nbenign completed\n(0.0% false refusal)", PANEL, ACC, size=22, bold=True)
@@ -243,8 +243,12 @@ famtxt = "   ".join(f"{i}: {p}/{c}" for i, _n, c, p in FAM)
 text(s, 0.7, 3.6, 9, 0.9, "By family (passed/cases): " + famtxt, 16, GREY)
 text(s, 0.7, 4.6, 9, 2.2, "Development set: the cases the guard was built against.\nWe do not claim 100% generalises.\nStructural defences (registry-only IBANs, gated execution)\ndo not rely on text matching.", 20, WHITE)
 if HELD_TXT:
-    hm = [ln.strip("#* ").replace("**", "") for ln in HELD_TXT.splitlines() if ln.strip()][:8]
-    box(s, 9.9, 1.5, 3.1, 5.2, "HELD-OUT (blind)\n\n" + "\n".join(h[:60] for h in hm), PANEL, ACC, size=13, align=PP_ALIGN.LEFT)
+    # Blind first run of tests/heldout (see deliverables/heldout_results.md, written by an independent tester
+    # who did not read the guard or parser). Fixed afterwards, so the set is no longer blind.
+    box(s, 9.9, 1.5, 3.1, 5.2,
+        "BLIND HELD-OUT\n(first run, untuned)\n\n47/48 attacks blocked\n(97.9%)\n\n21/25 benign completed\n(84.0%)\n\n"
+        "0 wrong payments\n0 data leaks\n0 confirmation bypasses\n\nFixed afterwards:\nno longer blind",
+        PANEL, ACC, size=15, align=PP_ALIGN.LEFT)
 else:
     box(s, 9.9, 1.5, 3.1, 5.2, "PLACEHOLDER\n\nHeld-out blind evaluation\nnumbers go here\n\n(deliverables/heldout_results.md\nwas not present at build\ntime; re-run build_deck.py)", NAVY, AMB, size=16)
 

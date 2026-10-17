@@ -73,7 +73,7 @@ PAYS = [
 ]
 
 
-@pytest.mark.parametrize("cid,text,expect", PAYS, ids=[p[0] for p in PAYS])
+@pytest.mark.parametrize("cid,text,expect", PAYS, ids=[p.values[0] if hasattr(p, "values") else p[0] for p in PAYS])
 def test_pay(cid, text, expect):
     _pay(text, expect)
 

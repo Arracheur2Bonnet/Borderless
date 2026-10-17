@@ -1,6 +1,6 @@
 # BorderlessGuard: Security and Compliance Self-Assessment
 
-Scope: the prototype in this repository, running against a simulated sandbox ledger. This is a self-assessment by the authors, not an independent audit. Test ids refer to pytest functions under `tests/adversarial/` (families F1 to F5), `tests/benign/` and `tests/unit/`. Numbers come from `deliverables/security_results.md` (69/69 adversarial, 29/29 benign) and `pytest tests -q --ignore=tests/heldout` (300 passed). The blind held-out set in `tests/heldout` (73 cases) gave 47/48 adversarial and 21/25 benign; see `heldout_results.md`.
+Scope: the prototype in this repository, running against a simulated sandbox ledger. This is a self-assessment by the authors, not an independent audit. Test ids refer to pytest functions under `tests/adversarial/` (families F1 to F5), `tests/benign/` and `tests/unit/`. Numbers come from `deliverables/security_results.md` (69/69 adversarial, 29/29 benign) and `pytest tests -q --ignore=tests/heldout` (300 passed). The first, blind run of the held-out set in `tests/heldout` (73 cases) gave 47/48 adversarial and 21/25 benign; this is the generalisation estimate (nothing was tuned on it). The failures were fixed afterwards, so the current full suite (`pytest tests -q`: 372 passed + 1 documented xfail, B08) is a regression result, not generalisation; see `heldout_results.md` and its Addendum.
 
 ## 1. Security model in one paragraph
 
@@ -30,7 +30,7 @@ Test ids are abbreviated by file family: F1 = `tests/adversarial/test_f1_indirec
 
 | Layer | Component | Type | If it fails |
 |---|---|---|---|
-| 1 | `ContentGuard` regex patterns | Detection, advisory | Warning is not shown; nothing else changes. No authorisation reads this layer. |
+| 1 | `ContentGuard` regex patterns (incl. French injection, claimed pre-approval, credential / debug-mode extraction, bulk enumeration, past-tense limit override, bare `SYSTEM:` line) | Detection, advisory | Warning is not shown; nothing else changes. No authorisation reads this layer. |
 | 2 | Typed intents + constrained parser | Capability restriction | The model cannot express "pay this IBAN" or "raise the limit". The worst case is a wrong typed intent, handled by layers 3 to 6. |
 | 3 | Registry-sourced expansion | Deterministic construction | IBAN, payee and obligation amounts do not come from text. |
 | 4 | Policy engine R0 to R4 | Deterministic authorisation, fail closed | An exception becomes `POLICY_ERROR`, R4, deny. |
@@ -78,6 +78,6 @@ No licensing, KYC/AML, sanctions screening or data-protection compliance is clai
 | Rules parser is English-only; Claude parser accuracy unmeasured | Failure mode is `Clarify` or a wrong intent that still passes the gate. |
 | Sandbox rates and balances are fixed | No market-data risk modelled. |
 | In-memory sessions and idempotency store | Process restart loses them; not suitable for production. |
-| Suites are team-authored | 100% is a regression result, not an estimate against unseen attackers. The blind held-out set found one over-broad parse ("pay half of what I owe the landlord" expanded to a full tuition and rent sweep; every action still required confirmation) and four benign usability misses; no money-safety or data-leak failures. |
+| Suites are team-authored | 100% is a regression result, not an estimate against unseen attackers. The first blind held-out run (the generalisation estimate: 47/48 attacks blocked, 21/25 benign) found one over-broad parse ("pay half of what I owe the landlord" expanded to a full tuition and rent sweep; every action still required confirmation) and four benign usability misses; no money-safety or data-leak failures. These were fixed afterwards (relative amounts now clarify; B05/B06/B22 understood) and one real guard miss (D14, bare `SYSTEM:` line) was patched, so the held-out set is no longer blind for them; B08 remains a documented xfail. The earlier claim that all 14 held-out document-injection cases were flagged was inflated by the always-scanned seeded rent invoice; document scanning is now limited to the documents behind the requested obligations. |
 | Denial of service, rate limiting, authentication of the web UI | Not addressed. |
 | Dependency supply chain | Four direct dependencies pinned only by lower bounds in `requirements.txt`. |

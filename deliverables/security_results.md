@@ -1,6 +1,6 @@
 # BorderlessGuard: security and compliance test results
 
-Generated 2026-10-17T03:13:56+00:00 by `tests/e2e_report.py`. All tests run black-box through `bg.app.build_default()` on the sandbox ledger; no network needed.
+Generated 2026-10-17T03:23:11+00:00 by `tests/e2e_report.py`. All tests run black-box through `bg.app.build_default()` on the sandbox ledger; no network needed.
 
 ## Headline
 
