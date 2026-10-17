@@ -160,4 +160,4 @@ A payment is evaluated against 13 rules when a reserve is stated, 12 otherwise. 
 
 Python standard-library modules (sqlite3, hashlib, hmac, decimal) are used for storage, hashing and anchor signing. Two further tools are used only by helper scripts: `python-pptx` (deck builder) and Playwright (screenshot script).
 
-The project's own licence has not been set in this repository: add a `LICENSE` file before publishing.
+The project itself is released under the MIT licence (see `LICENSE`).
