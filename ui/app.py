@@ -151,7 +151,8 @@ def do_reject(action_id: str) -> None:
 
 # --------------------------------------------------------------------------- small renderers
 def md(text: str) -> str:
-    return (text or "").replace("$", "\\$")
+    # escape $ (LaTeX) and keep the agent's line breaks: markdown would merge single newlines
+    return (text or "").replace("$", "\\$").replace("\n", "  \n")
 
 
 def badge(text: str, color: str) -> str:
@@ -307,19 +308,19 @@ def render_sidebar(ov: dict) -> None:
         st.markdown("**Lina**, international student in France")
         bal = balance_by_currency(ov)
         eur, usd = bal.get("EUR", Decimal(0)), bal.get("USD", Decimal(0))
-        c1, c2 = st.columns(2)
-        c1.metric("EUR", f"{eur:,.2f}")
-        c2.metric("USD", f"{usd:,.2f}")
+        st.metric("EUR balance", f"{eur:,.2f}")
+        st.metric("USD balance", f"{usd:,.2f}")
         floor = DEMO_RESERVE_EUR
-        st.progress(float(min(max(eur / floor, Decimal(0)), Decimal(1))))
-        st.markdown(f"Reserve floor **{floor} EUR**: " + ("✅ above" if eur >= floor else "⚠️ below"))
+        ok = eur >= floor
+        st.markdown(f"Reserve floor **{floor:,.0f} EUR**: " + (badge("kept", "#16a34a") if ok else badge("below", "#dc2626")),
+                    unsafe_allow_html=True)
 
         st.markdown("**Registered payees**")
         for b in ov.get("beneficiaries", []):
             added = get(b, "added_at")
             new = added is not None and (DEMO_NOW - added) < NEW_BENEFICIARY_WINDOW
-            tag = " \U0001F195 new (<72h)" if new else ""
-            st.markdown(f"- {get(b, 'display_name')} `{iban_tail(get(b, 'iban'))}`{tag}")
+            tag = " " + badge("new payee &lt;72h", "#d97706") if new else ""
+            st.markdown(f"- {get(b, 'display_name')} `{iban_tail(get(b, 'iban'))}`{tag}", unsafe_allow_html=True)
         st.markdown("**Obligations due**")
         for o in ov.get("obligations", []):
             st.markdown(f"- {get(o, 'kind').title()}: {Decimal(str(get(o, 'amount'))):,.2f} {get(o, 'currency')} "

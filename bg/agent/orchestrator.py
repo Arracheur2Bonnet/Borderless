@@ -1016,16 +1016,20 @@ class _Orchestrator:
         assert d is not None
         lines: list[str] = []
         if isinstance(a, PaymentAction):
-            lines += [f"Recipient IBAN ends {a.iban[-4:]} (from your registry)", f"From account {a.from_account_id}"]
+            lines += [f"Recipient IBAN ends {a.iban[-4:]} (from your registry)"]
         elif isinstance(a, FxAction):
-            lines += [f"Rate {a.quote.rate} (quote {a.quote.quote_id})", f"Fee {_q(a.quote.fee):.2f} {a.quote.sell_currency}"]
+            lines += [f"Rate {a.quote.rate} {a.quote.buy_currency} per {a.quote.sell_currency}, "
+                      f"fee {_q(a.quote.fee):.2f} {a.quote.sell_currency} (quote {a.quote.quote_id})"]
         elif isinstance(a, AddBeneficiaryAction):
             lines += [f"IBAN ends {a.iban[-4:]}", "Payments to this payee need extra verification for 72 hours"]
         if sim is not None:
-            if sim.fee:
-                lines.append(f"Fee: {_q(sim.fee):.2f}")
-            lines += [f"Balance after: {acc} = {_q(v):.2f}" for acc, v in sim.balances_after.items()
-                      if sim.balances_before.get(acc) != v]
+            ccy: dict[str, str] = {}
+            if isinstance(a, PaymentAction):
+                ccy[a.from_account_id] = a.currency
+            elif isinstance(a, FxAction):
+                ccy = {a.from_account_id: a.quote.sell_currency, a.to_account_id: a.quote.buy_currency}
+            lines += [f"{ccy.get(acc, acc)} balance after: {_q(sim.balances_before.get(acc, v)):.2f} -> {_q(v):.2f}"
+                      for acc, v in sim.balances_after.items() if sim.balances_before.get(acc) != v]
         lines.append(d.explanation)
         return ConfirmationRequest(
             action_id=a.action_id, params_hash=params_hash(a),
