@@ -1,0 +1,7 @@
+# Optional helper tools. NOT needed to run the app, the tests or scripts/verify_all.py.
+#   deliverables/pitch/build_deck.py  -> python-pptx (pymupdf: optional, renders the exported deck PDF to PNG)
+#   scripts/screenshots.py            -> playwright (then: python -m playwright install chromium)
+-r requirements-lock.txt
+python-pptx==1.0.2
+pymupdf==1.28.2
+playwright==1.64.0

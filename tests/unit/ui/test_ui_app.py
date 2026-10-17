@@ -4,6 +4,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from bg.contracts.params import DEMO_OTP, MAX_OTP_ATTEMPTS
+from ui.util import unescape_md
 
 APP = os.path.join(os.path.dirname(__file__), "..", "..", "..", "ui", "app.py")
 
@@ -26,7 +27,8 @@ def _keys(t, prefix):
 
 
 def _text(t):
-    return " ".join(m.value for m in t.markdown) + " " + " ".join(c.value for c in t.caption)
+    """All visible markdown/caption text, with esc_md escaping undone (what the viewer reads)."""
+    return unescape_md(" ".join(m.value for m in t.markdown) + " " + " ".join(c.value for c in t.caption))
 
 
 def _say(t, text):
@@ -37,7 +39,10 @@ def _say(t, text):
 def test_first_render(at):
     assert any("BorderlessGuard" in x.value for x in at.title)
     assert len(at.tabs) == 3
-    assert "The LLM proposes. A deterministic policy authorises. A sandbox executes." in _text(at)
+    text = _text(at)
+    assert "The AI reads your request. Fixed rules and your approval move the money." in text
+    assert text.count("Fixed rules and your approval move the money") == 1     # slogan once, in the header
+    assert "SANDBOX · no real money" in text
     for k in ("ex_golden", "ex_afford", "ex_multiturn", "ex_maximum", "ex_data", "ex_big"):
         assert _btn(at, k)
     assert _btn(at, "ex_afford").label == "Can I afford to send 300 EUR to mom after my bills?"
@@ -52,7 +57,7 @@ def test_chat_bubbles_and_cards_under_agent_message(at):
     # the cards render inside the assistant bubble
     assert len([b for b in at.chat_message[1].button if b.key.startswith("approve_")]) == 3
     assert any(t.key and t.key.startswith("otp_") for t in at.text_input)
-    assert "Policy checks passed" in _text(at)
+    assert "Rules passed: " in _text(at)
 
 
 def test_approve_flow_otp_and_anchor(at):
@@ -66,9 +71,9 @@ def test_approve_flow_otp_and_anchor(at):
     assert not _keys(at, "approve_")
     assert len(at.success) >= 3
     assert at.session_state.customer_anchor.seq == 3
-    assert "Your receipt anchor:" in _text(at) and "#3 · " in _text(at) and "· signed" in _text(at)
+    assert "Your copy of the latest receipt:" in _text(at) and "#3 · " in _text(at) and "· signed" in _text(at)
     _btn(at, "verify_anchor").click().run()
-    assert any("Matches your anchor #3" in s.value for s in at.success)
+    assert any("Matches your copy (receipt #3" in s.value for s in at.success)
     _btn(at, "verify").click().run()
     assert any("Chain valid" in s.value for s in at.success)
 
@@ -81,7 +86,7 @@ def test_tamper_test_runs_on_a_copy(at):
     assert any("deletion is invisible" in w.value for w in at.warning)
     # the real chain is untouched
     _btn(at, "verify_anchor").click().run()
-    assert any("Matches your anchor #1" in s.value for s in at.success)
+    assert any("Matches your copy (receipt #1" in s.value for s in at.success)
 
 
 def test_otp_attempts_and_lockout(at):
@@ -104,7 +109,8 @@ def test_r4_denial_shows_rule(at):
     _btn(at, "ex_big").click().run()
     assert not at.exception
     text = _text(at)
-    assert "MAX_SINGLE_PAYMENT" in text and "BLOCKED by policy" in text
+    assert "MAX_SINGLE_PAYMENT" in text and "BLOCKED by the rules" in text
+    assert "above the 4,000 EUR per-payment cap" in text          # plain-language one-liner
 
 
 def test_injection_badge(at):

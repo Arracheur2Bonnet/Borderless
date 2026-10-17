@@ -1,0 +1,24 @@
+# Keep the build context small: source, tests, scripts and text deliverables only.
+.git
+.github
+.venv
+venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+*.db
+*.sqlite
+.env
+data/runtime
+# research material and binaries not needed to run or verify the demo
+*_files
+*.html
+*.pdf
+*.txt
+!requirements*.txt
+_extract.py
+docs
+deliverables/pitch
+deliverables/screenshots
+Dockerfile
+.dockerignore
