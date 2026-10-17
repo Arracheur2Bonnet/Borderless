@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+*.sqlite
+.env
+data/runtime/
+# research material, not part of the submission
+*_files/
+*.html
+*.pdf
+_extract.py
+deep-research.txt
+FinTechathon*.txt

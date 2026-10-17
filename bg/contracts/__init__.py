@@ -1,0 +1,1 @@
+"""BorderlessGuard shared contracts (frozen)."""
