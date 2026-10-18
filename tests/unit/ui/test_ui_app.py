@@ -109,7 +109,7 @@ def test_r4_denial_shows_rule(at):
     _btn(at, "ex_big").click().run()
     assert not at.exception
     text = _text(at)
-    assert "MAX_SINGLE_PAYMENT" in text and "BLOCKED by the rules" in text
+    assert "MAX_SINGLE_PAYMENT" in text and "No code or message can unlock this." in text
     assert "above the 4,000 EUR per-payment cap" in text          # plain-language one-liner
 
 

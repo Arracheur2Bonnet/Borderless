@@ -86,7 +86,7 @@ def _sanctions_name_hit(name: str) -> str | None:
     return None
 
 
-def _sanctions_rule(name: str | None, iban: str | None, what: str) -> RuleResult:
+def _sanctions_rule(name: str | None, iban: str | None, what: str, iban_invalid_denied: bool = False) -> RuleResult:
     """SANCTIONS_SCREEN (R4). Fails closed when the name is missing/empty, contains letters that cannot be
     screened against the Latin watchlist, or the IBAN is missing or invalid."""
     if name is None or not (_norm_name(name) or unscreenable_letters(name)):
@@ -113,6 +113,12 @@ def _sanctions_rule(name: str | None, iban: str | None, what: str) -> RuleResult
                   f"({''.join(odd[:5])}); manual sanctions review required")
     problem = iban_problem(iban)
     if problem is not None:
+        if iban_invalid_denied:
+            # The name and the screening form of the IBAN were checked above with no match. The invalid IBAN is
+            # already a hard deny under IBAN_VALID; failing here too would wrongly report a sanctions hit.
+            return _R("SANCTIONS_SCREEN", True, RiskLevel.R4,
+                      f"{what} name {name!r} and IBAN screened: no watchlist match (the IBAN itself is invalid, "
+                      f"see IBAN_VALID)")
         return _R("SANCTIONS_SCREEN", False, RiskLevel.R4, f"cannot screen {what} {name}: IBAN {problem}")
     nib = _norm_iban(iban)
     return _R("SANCTIONS_SCREEN", True, RiskLevel.R4,
@@ -417,7 +423,7 @@ class DeterministicPolicyEngine:
                f"no existing payee, alias or id looks like {a.display_name!r}" if clash is None else
                f"{a.display_name!r} looks the same as your existing payee {clash.display_name} "
                f"(name, alias or id); a second payee under that name would be ambiguous"),
-            _sanctions_rule(a.display_name, a.iban, "new payee"),
+            _sanctions_rule(a.display_name, a.iban, "new payee", iban_invalid_denied=True),
             _R("NEW_PAYEE_ACTION", False, RiskLevel.R3,
                f"adding a new payee ({a.display_name}, IBAN ending {_norm_iban(a.iban)[-4:]}) "
                f"always requires step-up"),

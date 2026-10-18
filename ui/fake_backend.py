@@ -47,10 +47,40 @@ def _dec(s: str) -> Decimal:
     return Decimal(s.replace(",", "")).quantize(_Q)
 
 
-def _rules(fail: dict[str, str] | None = None) -> list[RuleResult]:
+_FX_RULES = [("SIM_FEASIBLE", "R4"), ("TENANT_ISOLATION", "R4"), ("RESERVE_FLOOR", "R4"), ("FX_PRICE_CHECK", "R4"),
+             ("FX_TIER", "R3")]
+_PAYEE_RULES = [("SIM_FEASIBLE", "R4"), ("IBAN_VALID", "R4"), ("PAYEE_NAME_UNIQUE", "R4"), ("SANCTIONS_SCREEN", "R4"),
+                ("NEW_PAYEE_ACTION", "R3")]
+_PAYMENT_RULES = [r for r in _RULES if r[0] not in ("FX_TIER", "NEW_PAYEE_ACTION")]
+
+
+def _rules(fail: dict[str, str] | None = None, table: list | None = None) -> list[RuleResult]:
     fail = fail or {}
     return [RuleResult(rule_id=rid, passed=rid not in fail, severity=RiskLevel(sev), detail=fail.get(rid, "OK"))
-            for rid, sev in _RULES]
+            for rid, sev in (table or _PAYMENT_RULES)]
+
+
+class _StepUp:
+    """Per-USER wrong-code counter, like bg.ledger.stepup.StepUpAttempts (shared by all sessions)."""
+
+    def __init__(self, max_attempts: int = MAX_OTP_ATTEMPTS) -> None:
+        self.max_attempts, self._fails, self._locked = max_attempts, {}, set()
+
+    def remaining(self, user_id: str) -> int:
+        return 0 if user_id in self._locked else max(self.max_attempts - self._fails.get(user_id, 0), 0)
+
+    def locked(self, user_id: str) -> bool:
+        return user_id in self._locked
+
+    def record_failure(self, user_id: str) -> int:
+        self._fails[user_id] = self._fails.get(user_id, 0) + 1
+        if self._fails[user_id] >= self.max_attempts:
+            self._locked.add(user_id)
+        return self.remaining(user_id)
+
+    def record_success(self, user_id: str) -> None:
+        if user_id not in self._locked:
+            self._fails.pop(user_id, None)
 
 
 def _resolve(low: str) -> dict | None:
@@ -81,6 +111,7 @@ class FakeOrchestrator:
         self._receipts: list[Receipt] = []
         self._n = count(1)
         self._ev = count(1)
+        self.step_up = _StepUp()
 
     # ------------------------------------------------------------------ helpers
     def _event(self, kind: str, source: str, detail: str) -> SecurityEvent:
@@ -106,7 +137,7 @@ class FakeOrchestrator:
         verdict = Verdict.DENY if fail else Verdict.CONFIRM
         return self._decide(act, sim, "R4" if fail else "R2", f"Convert USD to EUR: buy {buy:,.2f} EUR",
                             [f"Sell {sell:,.2f} USD (fee {fee:,.2f} USD included)", "Rate 0.92 EUR per USD",
-                             f"EUR balance after: {eur_before + buy:,.2f}"], verdict, _rules(fail))
+                             f"EUR balance after: {eur_before + buy:,.2f}"], verdict, _rules(fail, _FX_RULES))
 
     def _pay_view(self, sid: str, ben: dict, amount: Decimal, available: Decimal | None = None,
                   events: list | None = None, reserve: Decimal | None = None, label: str = "") -> ActionView:
@@ -124,7 +155,7 @@ class FakeOrchestrator:
         if reserve is not None and available - amount < reserve:
             fail["RESERVE_FLOOR"] = f"EUR after payment {available - amount:,.2f} would fall below your {reserve:,.2f} reserve"
         if ben["iban"] == LANDLORD_IBAN:
-            fail["BENEFICIARY_AGE"] = "Payee added 20h ago (< 72h): step-up required"
+            fail["BENEFICIARY_AGE"] = "payee added 20.00h ago, less than the 72.00h new-payee window"
         if amount > R2_MAX_PAYMENT_EUR and amount <= MAX_SINGLE_PAYMENT_EUR:
             fail["AMOUNT_TIER"] = f"{amount:,.2f} EUR is above the {R2_MAX_PAYMENT_EUR:,.0f} EUR one-tap tier"
         prior = [a for b, a in self.executed_payments if b == bid]
@@ -145,7 +176,7 @@ class FakeOrchestrator:
                                balances_before={"acc_eur": available},
                                balances_after={"acc_eur": available - amount})
         lines = [f"Recipient: {name}", f"IBAN: …{ben['iban'][-4:]} (from your registry)"]
-        lines += [f"Why step-up: {r.detail}" for r in r3]
+        lines += [f"Needs your one-time code: {r.detail}" for r in r3]
         lines.append(f"EUR balance after: {available - amount:,.2f}")
         title = f"Pay {amount:,.2f} EUR to {name}" + (f" ({label})" if label else "")
         return self._decide(act, sim, risk, title, lines, verdict, rules)
@@ -211,7 +242,7 @@ class FakeOrchestrator:
             hits = [p for p in _INJECTION_PATTERNS if p in d.text.lower()]
             if hits:
                 events.append(self._event("prompt_injection", d.document_id,
-                                          "Document quarantined; matched patterns: " + ", ".join(hits)))
+                                          f"Document {d.filename} quarantined; matched patterns: " + ", ".join(hits)))
         draft, S["draft"] = S["draft"], None       # a draft lives for exactly one following message
         views: list[ActionView] = []
         projection = None
@@ -231,9 +262,7 @@ class FakeOrchestrator:
                 reply = question
             else:
                 views.append(self._pay_view(session_id, ben, amount, events=events))
-                reply = f"Thanks. I prepared {views[0].confirmation_request.title if views[0].confirmation_request else 'the payment'}; please review it."
-                if views[0].status == "denied":
-                    reply = "I can't do that. " + views[0].decision.explanation
+                reply = self._one_reply(views[0])
         elif re.match(r"(cancel|never mind|nevermind|stop)\b", low):
             pending = [v for v in S["views"].values() if v.status == "awaiting_confirmation"]
             targets = pending if re.search(r"\b(everything|all)\b", low) else pending[-1:]
@@ -241,8 +270,8 @@ class FakeOrchestrator:
                 nv = v.model_copy(update={"status": "rejected_by_user"})
                 S["views"][v.action.action_id] = nv
                 views.append(nv)
-            reply = (f"Cancelled {len(targets)} pending action(s). Nothing was executed." if targets
-                     else "There is no pending action to cancel.")
+            reply = ("Cancelled: " + "; ".join(v.confirmation_request.title for v in targets if v.confirmation_request)
+                     + ". Nothing was executed." if targets else "There is no pending action to cancel.")
         elif re.search(r"\b(actually|instead|change the amount)\b", low) and amounts:
             pending = [v for v in S["views"].values() if v.status == "awaiting_confirmation"]
             if not pending:
@@ -258,23 +287,24 @@ class FakeOrchestrator:
                 else:
                     new = self._fx_view(self._aid(session_id), amounts[0])
                 views.append(new)
-                reply = (f"Changed. I cancelled the previous version (nothing was sent) and prepared a new action for "
-                         f"{amounts[0]:,.2f} EUR. Nothing is modified in place: it goes through simulation and policy "
-                         "again. Please review.")
+                old_t = old.confirmation_request.title if old.confirmation_request else "the previous step"
+                new_t = new.confirmation_request.title if new.confirmation_request else "a new step"
+                reply = f'Changed: I cancelled "{old_t}" and prepared "{new_t}" instead.\n' + self._one_reply(new)
         elif re.match(r"(can|could|would|what if|how much will)\b", low):
             projection, reply = self._afford(low, ben, amounts)
         elif "other customers" in low or ("account balance" in low and "jean" in low):
             events.append(self._event("data_access_denied", "user_message", "Request for another customer's data."))
-            reply = "I can only access your own accounts. That request was refused and logged."
+            reply = "I can only show your own accounts and payees."
         elif "maximum" in low or "everything" in low:
             S["draft"] = {"amount": None, "ben": ben}
             question = f"How much exactly should I send to {ben['display_name'] if ben else 'them'}, in EUR?"
-            reply = question + " I never send an open-ended amount."
+            reply = question + (" I don't send \"everything\" or \"the maximum\"; give me a figure and I'll check "
+                                "it against your balance and limits.")
         elif m := re.match(r"(?:please\s+)?(?:add|register)\s+(.+?)\s+(?:with|,)\s*(?:iban\s*)?(.+)$", text, re.I):
             reply = self._add_payee(session_id, m.group(1), m.group(2), views, events)
         elif re.search(r"\b(buy|convert|exchange)\b", low) and amounts and not has_pay:
             views.append(self._fx_view(self._aid(session_id), amounts[0]))
-            reply = "I prepared a currency conversion. Please review it."
+            reply = self._one_reply(views[0])
         elif (m := _IBAN_RE.search(text.upper())) and has_pay:
             iban = m.group(0).replace(" ", "")
             b = ben or next(x for x in _BENS if x["iban"] == LANDLORD_IBAN)
@@ -289,20 +319,38 @@ class FakeOrchestrator:
         elif has_pay and ben and amounts:
             views.append(self._pay_view(session_id, ben, amounts[0], events=events))
             v = views[0]
-            reply = ("I can't do that. The policy gate blocked it (R4)." if v.status == "denied"
-                     else f"I prepared: {v.confirmation_request.title}. Please review.")
+            reply = self._one_reply(v)
+        elif has_pay and amounts and not ben and not re.search(r"\b(tuition|rent)\b", low):
+            S["draft"] = {"amount": amounts[0], "ben": None}
+            question = f"Who should receive the {amounts[0]:,.2f} EUR?"
+            reply = question
         elif has_pay and ben:
             S["draft"] = {"amount": None, "ben": ben}
             question = f"How much should I send to {ben['display_name']}? For example: 50 euros."
             reply = question
-        else:
+        elif "overview" in low or "balance" in low:
             reply = (f"Here is your overview: {self.bal['EUR']:,.2f} EUR and {self.bal['USD']:,.2f} USD. "
                      "Tuition 1,200 EUR and rent 850 EUR are due.")
+        else:
+            reply = ("Sorry, I didn't get that. Try: \"what's my balance?\", \"pay my rent\", "
+                     "\"send 50 euros to mom\" or \"convert 200 dollars\".")
+        if any(e.kind == "prompt_injection" for e in events):
+            names = ", ".join(d.filename for d in documents or [])
+            reply = (f"Watch out: your invoice ({names}) contains hidden text telling me to send money to another "
+                     "account without asking you. I ignored it. " + reply)
         for v in views:
             S["views"][v.action.action_id] = v
         parsed = ParsedRequest(intents=[], parser="rules", raw_text=text)
         return self._turn(session_id, reply, views, events, n0, parsed=parsed, projection=projection,
                           pending_question=question)
+
+    def _one_reply(self, v: ActionView) -> str:
+        if v.status == "denied":
+            why = v.decision.explanation if v.decision else "the rules blocked it"
+            return f"I can't do that: {why}. Nothing was sent."
+        cr = v.confirmation_request
+        how = "I need your one-time code for this one." if cr.verdict == "step_up" else "One tap to approve."
+        return f"{cr.title}. {how}"
 
     def _plan(self, sid: str, low: str, views: list, events: list) -> str:
         kinds = [k for k in ("tuition", "rent") if k in low and k not in self.paid_obligations]
@@ -324,12 +372,12 @@ class FakeOrchestrator:
             available -= ob["amount"]
         parts = [f"{'convert ' + format(short, ',.2f') + ' EUR from USD, ' if short else ''}"
                  + ", ".join(f"pay {k} {_OBS[k]['amount']:,.2f} EUR" for k in kinds)]
-        reply = f"Plan: {parts[0]}, leaving {available:,.2f} EUR. Nothing has moved yet; please review each step."
+        reply = "\n".join([self._one_reply(v) for v in views]
+                          + [f"After all steps you will have {available:,.2f} EUR left.",
+                             "Nothing moves until you approve each step, in this order."])
         if self.poisoned_fx and short:
             events.append(self._event("tool_output_poisoning", "fx_provider",
                                       f"Unknown field 'note' dropped: {POISONED_FX_NOTE[:60]}..."))
-        if any(e.kind == "prompt_injection" for e in events):
-            reply += " The rent invoice contained hidden instructions; it was quarantined and ignored."
         return reply
 
     def _afford(self, low: str, ben: dict | None, amounts: list[Decimal]) -> tuple[Projection, str]:
@@ -374,11 +422,14 @@ class FakeOrchestrator:
             detail = f"'{name.strip()}' / IBAN …{iban[-4:]} matches the sanctions watchlist"
             events.append(self._event("sanctions_hit", aid, detail))
             views.append(self._decide(act, sim, "R4", f"Add payee {name.strip()}", [], Verdict.DENY,
-                                      _rules({"SANCTIONS_SCREEN": detail})))
-            return "I can't add this payee: it matches the sanctions watchlist. The request was denied and recorded."
+                                      _rules({"SANCTIONS_SCREEN": detail}, _PAYEE_RULES)))
+            return (f"I can't add {name.strip()} as a payee: the payee matches an entry on the sanctions list, so the "
+                    "bank can't deal with it. Nothing was saved.")
         views.append(self._decide(act, sim, "R3", f"Add payee {name.strip()}", [f"IBAN: …{iban[-4:]}"],
-                                  Verdict.STEP_UP, _rules({"NEW_PAYEE_ACTION": "Adding a payee needs step-up"})))
-        return "Adding a payee needs step-up verification. Please review."
+                                  Verdict.STEP_UP, _rules({"NEW_PAYEE_ACTION": "adding a payee needs a one-time code"},
+                                                          _PAYEE_RULES)))
+        return (f"Add {name.strip()} as a payee (account ending {iban[-4:]}). Adding a payee always needs your one-time "
+                "code.\nNothing moves until you approve it.")
 
     def confirm(self, session_id: str, action_id: str, params_hash_: str, otp: str | None = None) -> AgentTurn:
         S = self._sessions[session_id]
@@ -394,20 +445,27 @@ class FakeOrchestrator:
             return self._turn(session_id, "Refused: parameters changed after review.", [v], [ev], n0)
         if v.status != "awaiting_confirmation":
             return self._turn(session_id, f"This action is {v.status.replace('_', ' ')} and cannot be confirmed.", [v])
+        if v.confirmation_request.verdict == "step_up" and self.step_up.locked(DEMO_USER_ID):
+            return self._turn(session_id, "Approval by code is locked on your account after 3 wrong codes. The bank has "
+                                          "to unlock it. Nothing was sent.", [v], (), n0)
         if v.confirmation_request.verdict == "step_up" and otp != DEMO_OTP:
-            fails = S["otp_fails"][action_id] = S["otp_fails"].get(action_id, 0) + 1
-            left = MAX_OTP_ATTEMPTS - fails
-            ev = self._event("step_up_failed", action_id, f"Wrong verification code ({fails}/{MAX_OTP_ATTEMPTS}).")
+            left = self.step_up.record_failure(DEMO_USER_ID)
+            ev = self._event("step_up_failed", action_id, f"Wrong verification code ({left} left).")
             if left > 0:
-                return self._turn(session_id, f"The verification code is incorrect. {left} attempt(s) remaining.",
-                                  [v], [ev], n0)
+                return self._turn(session_id, f"That code isn't right. {left} {'try' if left == 1 else 'tries'} left; "
+                                              "after that, approving with a code is locked on your account. "
+                                              "Nothing has moved.", [v], [ev], n0)
             dec = v.decision.model_copy(update={"verdict": Verdict.DENY, "explanation":
                                                 f"Locked after {MAX_OTP_ATTEMPTS} wrong verification codes."})
             rec = self._receipt(act, dec, None, "denied (step-up lockout): " + v.confirmation_request.title)
-            nv = v.model_copy(update={"status": "denied", "decision": dec, "receipt_id": rec.receipt_id})
+            nv = v.model_copy(update={"status": "denied", "decision": dec, "receipt_id": rec.receipt_id,
+                                      "confirmation_request": None})
             S["views"][action_id] = nv
-            return self._turn(session_id, f"Too many wrong codes: the action is locked and denied. Nothing was "
-                                          f"sent; receipt {rec.receipt_id} records the attempt.", [nv], [ev], n0)
+            return self._turn(session_id, f"Blocked: that was the {MAX_OTP_ATTEMPTS}rd wrong code in a row, so I didn't "
+                                          "send it and I locked approval by code on your account to protect it. The "
+                                          f"attempt is recorded (receipt {rec.receipt_id}).", [nv], [ev], n0)
+        if v.confirmation_request.verdict == "step_up":
+            self.step_up.record_success(DEMO_USER_ID)
         if act.action_type == "fx":
             self.bal["USD"] -= act.quote.sell_amount
             self.bal["EUR"] += act.quote.buy_amount
@@ -418,7 +476,8 @@ class FakeOrchestrator:
                 if ob["beneficiary_id"] == act.beneficiary_id and ob["amount"] == act.amount:
                     self.paid_obligations.add(k)
         rec = self._receipt(act, v.decision, "ok", "executed: " + v.confirmation_request.title)
-        nv = v.model_copy(update={"status": "executed", "receipt_id": rec.receipt_id})
+        # like the real orchestrator: the confirmation request is gone once the action ran
+        nv = v.model_copy(update={"status": "executed", "receipt_id": rec.receipt_id, "confirmation_request": None})
         S["views"][action_id] = nv
         return self._turn(session_id, f"Done: {v.confirmation_request.title}.", [nv], (), n0)
 
@@ -438,6 +497,8 @@ class FakeOrchestrator:
             "receipts": list(self._receipts),
             "anchor": self.anchor(),
             "verify_fn": self.verify_chain,
+            "demo_key_in_use": True,
+            "signing_key": "demo signing key (public, BG_RECEIPT_KEY not set): anyone can forge an anchor",
         }
 
     def verify_chain(self, anchor: ReceiptAnchor | None = None) -> ChainVerification:
