@@ -30,6 +30,7 @@ from bg.contracts.models import (
 
 from bg.ledger.stepup import StepUpAttempts
 
+from .grounding import GroundingContext, Repair, ground_intents, is_question, own_sanctions_hit, sanctions_hits
 from .rules_parser import RulesParser, is_affordability_question, payment_draft_hint
 
 _CENT = Decimal("0.01")
@@ -207,6 +208,7 @@ class _Turn:
     projection: Projection | None = None
     question: str | None = None
     explained: set[str] = field(default_factory=set)   # event ids already explained in plain words
+    plain_clarify: set[int] = field(default_factory=set)   # ids of Clarify intents written by grounding: shown as is
 
 
 class _Orchestrator:
@@ -294,6 +296,20 @@ class _Orchestrator:
         parsed = self.parser.parse(text, beneficiary_names=names,
                                    pending_question=draft.question if draft else None)
         parsed = self._questions_never_pay(parsed)
+        parsed, repairs = self._ground(s, parsed, GroundingContext(
+            text=text or "", beneficiaries=bens, draft_ref=draft.ref if draft else None,
+            draft_amount=draft.amount if draft else None))
+        for r in repairs:
+            t.notes.append(r.note)
+            if r.replaced_by is not None:
+                t.plain_clarify.add(id(r.replaced_by))
+            self._audit("grounding", s, parser=parsed.parser, intent=r.intent, field=r.field, reason=r.reason,
+                        before=r.before, after=r.after)
+            if r.event:
+                ev = self._event(s, r.event, "user_message", r.event_detail)
+                t.events.append(ev)
+                t.explained.add(ev.event_id)
+        parsed = self._sanctions_on_sources(s, parsed, text or "", list(documents or []), t)
         # AUDIT-9: the raw message is not logged (it can hold a code or bank details); a hash and length
         # identify it, and the parsed, masked intents carry what the step did.
         self._audit("parse", s, parser=parsed.parser,
@@ -560,6 +576,9 @@ class _Orchestrator:
             quote = _rate_answer(text or "")
             if quote:
                 t.info.append(quote)
+        elif isinstance(intent, Clarify) and id(intent) in t.plain_clarify:
+            t.info.append(intent.question)
+            self._audit("clarify", s, question=intent.question)
         elif isinstance(intent, Clarify):
             self._clarify_from_parser(s, intent, t, text, names)
         elif isinstance(intent, Unsupported):
@@ -930,11 +949,26 @@ class _Orchestrator:
         return intents
 
     def _questions_never_pay(self, parsed: ParsedRequest) -> ParsedRequest:
-        """Deterministic net under any parser: a question about money is simulated, never paid."""
-        if not is_affordability_question(parsed.raw_text):
+        """Deterministic net under any parser: a question about money is answered read-only, never acted on.
+        Affordability questions become a simulation; rate questions the rate answer; any other question that
+        ends in '?' and opens with an interrogative becomes a clarification."""
+        acting = (Pay, PayObligations, FxConvert, AddBeneficiary)
+        if not any(isinstance(i, acting) for i in parsed.intents):
             return parsed
-        if not any(isinstance(i, (Pay, PayObligations, FxConvert)) for i in parsed.intents):
-            return parsed
+        afford = is_affordability_question(parsed.raw_text) and any(
+            isinstance(i, (Pay, PayObligations, FxConvert)) for i in parsed.intents)
+        if not afford:
+            if not (is_affordability_question(parsed.raw_text) or is_question(parsed.raw_text)):
+                return parsed
+            rest = [i for i in parsed.intents if not isinstance(i, acting)]
+            if _rate_answer(parsed.raw_text) is not None:
+                head: Any = ReadOverview()
+                note = "The message is a question, so it was answered with the rate only; nothing was converted."
+            else:
+                head = Clarify(question="That reads as a question, so I didn't do anything. If you want me to act, "
+                                        "tell me what to do, for example \"send 50 euros to mom\".")
+                note = "The message is a question, so no action was proposed."
+            return parsed.model_copy(update={"intents": [head, *rest], "notes": [*parsed.notes, note]})
         kinds: list[str] = []
         ref, amount, cur, reserve = None, None, "EUR", None
         kept = []
@@ -945,7 +979,7 @@ class _Orchestrator:
             elif isinstance(i, Pay):
                 if amount is None and i.amount_mode == "exact":
                     ref, amount, cur = i.beneficiary_ref, i.amount, i.currency
-            elif isinstance(i, FxConvert):
+            elif isinstance(i, (FxConvert, AddBeneficiary)):
                 continue
             else:
                 kept.append(i)
@@ -953,6 +987,45 @@ class _Orchestrator:
                                    currency=cur, keep_reserve=reserve)  # type: ignore[arg-type]
         return parsed.model_copy(update={"intents": [check, *kept], "notes": [
             *parsed.notes, "The message is a question, so it was answered with a simulation only."]})
+
+    # ------------------------------------------------------------------ grounding (every parser)
+    def _ground(self, s: _Session, parsed: ParsedRequest, ctx: GroundingContext) -> tuple[ParsedRequest, list[Repair]]:
+        intents, repairs = ground_intents(list(parsed.intents), ctx)
+        if not repairs:
+            return parsed, []
+        return parsed.model_copy(update={"intents": intents,
+                                         "notes": [*parsed.notes, *(f"grounding: {r.field}: {r.reason}" for r in repairs)]}), repairs
+
+    def _sanctions_on_sources(self, s: _Session, parsed: ParsedRequest, text: str, docs: list[UntrustedDocument],
+                              t: _Turn) -> ParsedRequest:
+        """Sanctions screen on what the user wrote and on the documents they supplied, whatever a parser
+        extracted from them. A hit means no payee is added and nothing is paid this turn."""
+        sources = [("your message", "user_message", text)] + [
+            (f"the document {d.filename or d.document_id}", d.document_id, d.text or "") for d in docs]
+        found = [(label, src, e) for label, src, body in sources for e in sanctions_hits(body)]
+        if not found:
+            return parsed
+        blocked = (Pay, PayObligations, AddBeneficiary, Correct, ProvideDetail)
+        # A new payee whose own name or IBAN is on the list is left to the policy (SANCTIONS_SCREEN denies it and
+        # writes the receipt, the established path); everything else of the blocked kinds is dropped here.
+        to_policy = [i for i in parsed.intents if isinstance(i, AddBeneficiary) and own_sanctions_hit(i.display_name, i.iban)]
+        kept = [i for i in parsed.intents if not isinstance(i, blocked) or any(i is p for p in to_policy)]
+        dropped = [i.kind for i in parsed.intents if isinstance(i, blocked) and not any(i is p for p in to_policy)]
+        if to_policy and not dropped:
+            return parsed
+        for label, src, entry in dict.fromkeys(found):
+            ev = self._event(s, "sanctions_hit", src,
+                             f"{label} mentions '{entry}', which is on the sanctions watchlist; "
+                             "no payee was added and nothing was paid in this turn.")
+            t.events.append(ev)
+            t.explained.add(ev.event_id)
+            self._audit("grounding", s, parser=parsed.parser, intent=",".join(dropped) or "none", field="source_text",
+                        reason="sanctions watchlist entry found in " + label, before=entry, after=None)
+        label, _src, entry = found[0]
+        t.info.append(f"I can't add a payee or send any payment this time: {label} mentions \"{entry}\", which is "
+                      "on the sanctions list, so the bank can't deal with it. Nothing was added or sent.")
+        return parsed.model_copy(update={"intents": kept, "notes": [
+            *parsed.notes, "grounding: sanctions watchlist entry found in the source text"]})
 
     # ------------------------------------------------------------------ correct / cancel
     def _pending(self, s: _Session) -> list[_Rec]:

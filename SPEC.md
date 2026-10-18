@@ -156,3 +156,20 @@ parser `bg.agent.LocalLLMParser` (Qwen served by Ollama, stdlib HTTP, schema-con
 validation as ClaudeParser, falls back to the rules parser with parser "rules" and a note). `build_default` reads
 `BG_PARSER` (`rules` default / `local` / `claude`) and `BG_LOCAL_MODEL` only when no parser is passed. The LLM still
 only produces typed intents.
+
+## v5 additions (2026-10-18, grounding of parser output)
+Backward compatible. The protection must not depend on the parser, so `bg/agent/grounding.py` is applied to EVERY
+parser's intents before expansion (rules parser included; it never triggers a repair on rules output).
+- Sanctions on source text: the policy engine's name screen and the IBAN watchlist are run on the user's message and on
+  every user-supplied document. A hit emits `sanctions_hit`, explains it, and drops Pay, PayObligations, AddBeneficiary,
+  Correct and ProvideDetail for that turn. A new payee whose own name or IBAN is listed still goes to the policy
+  (SANCTIONS_SCREEN denies it and writes the receipt, as before).
+- Field grounding: amounts (formats 1,200 / 1200.00 / 1.200,00 / 1 200 / 1.5k / spelled-out English numbers), payee
+  references (name, alias or id, or a known translation, or the open draft's), IBANs and obligation kinds (kind words
+  in several languages) must be in the user's text or the draft; otherwise the field is dropped and the user is asked.
+  A new payee's display name must be the name as typed: a shortened or altered one is replaced by the typed name,
+  or the user is asked. An IBAN for a new payee that is not in the message is refused (`beneficiary_mismatch`).
+- Question guard: a message that is a question (affordability, or ending in `?` and opening with an interrogative) never
+  yields an action: affordability question -> AffordabilityCheck, rate question -> rate answer, other -> clarification.
+- Audit: new step `"grounding"` with `parser`, `intent`, `field`, `reason`, `before`, `after` (IBANs masked); a short note
+  is added to the reply. No security event except for sanctions and IBAN issues.
