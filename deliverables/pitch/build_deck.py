@@ -163,7 +163,13 @@ for num, body in re.findall(r"^### S(\d+) [^\n]*\n(.*?)(?=^### |\Z)", _sp, re.M 
     spoken = " ".join(ln[2:] for ln in body.splitlines() if ln.startswith("> "))
     spoken = re.sub(r"\[[^\]]*\]", "", spoken)
     SCRIPT[int(num)] = re.sub(r"\s+", " ", spoken).strip()
-assert sorted(SCRIPT) == list(range(1, 15)), f"speaker_script.md must have S1..S14, got {sorted(SCRIPT)}"
+assert sorted(SCRIPT) == list(range(1, 16)), f"speaker_script.md must have S1..S15, got {sorted(SCRIPT)}"
+# The backup pptx has 14 slides; the script (and the HTML keynote) has 15. S12 (rules vs Qwen) has no slide of its
+# own here: its words go into the notes of slide 11 (evaluation), and S13..S15 move to slides 12..14.
+_S = dict(SCRIPT)
+SCRIPT = {k: _S[k] for k in range(1, 11)}
+SCRIPT[11] = _S[11] + " " + _S[12]
+SCRIPT.update({12: _S[13], 13: _S[14], 14: _S[15]})
 
 # =========================================================================== layout helpers
 FONT = {False: ImageFont.truetype("C:/Windows/Fonts/calibri.ttf", 100),

@@ -196,7 +196,7 @@ for sid_, body in re.findall(r"^### (S\w+?) [^\n]*\n(.*?)(?=^### |\Z)", SCRIPT, 
 
 # slide index (1-based) -> script section; None = slide added in the keynote (notes proposed below)
 SLIDE_TO_SECTION = {1: "S1", 2: "S2", 3: "S3", 4: "S4", 5: "S5", 6: "S6", 7: "S7", 8: "S8", 9: "S9", 10: "S10",
-                    11: "S11", 12: "S11b", 13: "S12", 14: "S13", 15: "S14"}
+                    11: "S11", 12: "S12", 13: "S13", 14: "S14", 15: "S15"}
 PROPOSED = {
     "S11b": [
         [("do", "PROPOSED words, not yet in speaker_script.md. Click once per column.")],

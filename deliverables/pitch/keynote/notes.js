@@ -1,9 +1,9 @@
 window.KEYNOTE_NOTES = {
  "1": {
   "section": "S1",
-  "words": 90,
+  "words": 85,
   "from": "0:00",
-  "to": "0:43",
+  "to": "0:40",
   "paras": [
    [
     [
@@ -20,13 +20,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Her rent invoice arrives as a PDF. It looks normal."
-    ]
-   ],
-   [
-    [
-     "say",
-     "But inside the file, there is a hidden line."
+     "Her rent invoice looks normal. But inside the file, there is a hidden line."
     ],
     [
      "do",
@@ -85,9 +79,9 @@ window.KEYNOTE_NOTES = {
  },
  "2": {
   "section": "S2",
-  "words": 83,
-  "from": "0:43",
-  "to": "1:23",
+  "words": 75,
+  "from": "0:40",
+  "to": "1:16",
   "paras": [
    [
     [
@@ -134,7 +128,7 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "say",
-     "Put the two together. An AI agent that pays bills is the perfect target."
+     "An AI agent that pays bills is the perfect target."
     ]
    ],
    [
@@ -150,16 +144,16 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "So we built an agent that is safe by construction, not by good behaviour."
+     "So we built an agent that is safe by construction."
     ]
    ]
   ]
  },
  "3": {
   "section": "S3",
-  "words": 104,
-  "from": "1:23",
-  "to": "2:12",
+  "words": 107,
+  "from": "1:16",
+  "to": "2:08",
   "paras": [
    [
     [
@@ -204,7 +198,13 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "The planner takes account numbers from her saved payees, and only from there."
+     "A checker drops any amount or name that Lina did not write."
+    ]
+   ],
+   [
+    [
+     "say",
+     "Account numbers come only from her saved payees."
     ]
    ],
    [
@@ -216,13 +216,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Lina confirms in proportion to the risk,"
-    ]
-   ],
-   [
-    [
-     "say",
-     "and her confirmation is tied to a hash of the exact payment."
+     "Lina confirms in proportion to the risk, tied to a hash of the exact payment."
     ]
    ],
    [
@@ -269,9 +263,9 @@ window.KEYNOTE_NOTES = {
  },
  "4": {
   "section": "S4",
-  "words": 46,
-  "from": "2:12",
-  "to": "2:35",
+  "words": 43,
+  "from": "2:08",
+  "to": "2:28",
   "paras": [
    [
     [
@@ -288,7 +282,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "The agent simulates the whole month: the exchange, the tuition, the rent, and the three hundred."
+     "The agent simulates the month: the exchange, tuition, rent, and the three hundred."
     ]
    ],
    [
@@ -313,9 +307,9 @@ window.KEYNOTE_NOTES = {
  },
  "5": {
   "section": "S5",
-  "words": 94,
-  "from": "2:35",
-  "to": "3:20",
+  "words": 77,
+  "from": "2:28",
+  "to": "3:05",
   "paras": [
    [
     [
@@ -338,13 +332,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "I attach the rent invoice, with the hidden line, and one sentence:"
-    ]
-   ],
-   [
-    [
-     "say",
-     "pay my tuition and rent, but keep six hundred euros."
+     "I attach the rent invoice, with the hidden line: pay my tuition and rent, keep six hundred."
     ]
    ],
    [
@@ -386,7 +374,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Four hundred fifty, plus two thousand two hundred, minus two thousand fifty: exactly six hundred."
+     "Exactly six hundred."
     ]
    ],
    [
@@ -399,9 +387,9 @@ window.KEYNOTE_NOTES = {
  },
  "6": {
   "section": "S6",
-  "words": 71,
-  "from": "3:20",
-  "to": "3:54",
+  "words": 59,
+  "from": "3:05",
+  "to": "3:34",
   "paras": [
    [
     [
@@ -435,12 +423,6 @@ window.KEYNOTE_NOTES = {
     [
      "say",
      "A new payee is the classic scam pattern. So this is Risk 3: a one-time code."
-    ]
-   ],
-   [
-    [
-     "say",
-     "Three wrong codes, and code approval is locked for her whole account."
     ]
    ],
    [
@@ -481,9 +463,9 @@ window.KEYNOTE_NOTES = {
  },
  "7": {
   "section": "S7",
-  "words": 67,
-  "from": "3:54",
-  "to": "4:26",
+  "words": 56,
+  "from": "3:34",
+  "to": "4:00",
   "paras": [
    [
     [
@@ -506,19 +488,13 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Seven known attacks, each on a fresh account: the forged invoice, a swapped account number,"
+     "Seven known attacks, each on a fresh account: the forged invoice, a swapped account,"
     ]
    ],
    [
     [
      "say",
-     "\"send the maximum\", a lying exchange rate, a double approval,"
-    ]
-   ],
-   [
-    [
-     "say",
-     "splitting a payment to stay under the limit, and a payee on a sanctions watchlist."
+     "\"send the maximum\", a lying exchange rate, a double approval, split payments, a sanctioned payee."
     ]
    ],
    [
@@ -555,9 +531,9 @@ window.KEYNOTE_NOTES = {
  },
  "8": {
   "section": "S8",
-  "words": 48,
-  "from": "4:26",
-  "to": "4:49",
+  "words": 37,
+  "from": "4:00",
+  "to": "4:18",
   "paras": [
    [
     [
@@ -578,25 +554,13 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "If the amount is missing, the agent asks. She answers, \"fifty euros\"."
+     "A missing amount becomes a question. She changes her mind: \"actually make it forty\"."
     ]
    ],
    [
     [
      "say",
-     "She changes her mind: \"actually make it forty\"."
-    ]
-   ],
-   [
-    [
-     "say",
-     "The old action is cancelled, never edited. A new one is simulated and checked again."
-    ]
-   ],
-   [
-    [
-     "say",
-     "And \"cancel that\" stops it. Nothing moves."
+     "The old action is cancelled, never edited. A new one is checked again. \"Cancel that\" stops it."
     ]
    ],
    [
@@ -609,9 +573,9 @@ window.KEYNOTE_NOTES = {
  },
  "9": {
   "section": "S9",
-  "words": 81,
-  "from": "4:49",
-  "to": "5:28",
+  "words": 71,
+  "from": "4:18",
+  "to": "4:52",
   "paras": [
    [
     [
@@ -644,7 +608,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Codes lock after three wrong tries. A replay never pays twice. Customers are separated."
+     "Codes lock after three wrong tries. A replay never pays twice."
     ]
    ],
    [
@@ -664,13 +628,7 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "say",
-     "After two blind tests, we also audited our own code, line by line."
-    ]
-   ],
-   [
-    [
-     "say",
-     "Twelve findings. All fixed or mitigated."
+     "We also audited our own code: twelve findings, all fixed or mitigated."
     ]
    ]
   ]
@@ -678,8 +636,8 @@ window.KEYNOTE_NOTES = {
  "10": {
   "section": "S10",
   "words": 30,
-  "from": "5:28",
-  "to": "5:42",
+  "from": "4:52",
+  "to": "5:07",
   "paras": [
    [
     [
@@ -713,9 +671,9 @@ window.KEYNOTE_NOTES = {
  },
  "11": {
   "section": "S11",
-  "words": 153,
-  "from": "5:42",
-  "to": "6:56",
+  "words": 93,
+  "from": "5:07",
+  "to": "5:51",
   "paras": [
    [
     [
@@ -736,23 +694,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "We did not only test our own cases."
-    ],
-    [
-     "do",
-     "point at the protocol line"
-    ]
-   ],
-   [
-    [
-     "say",
-     "A separate AI agent wrote one hundred five new cases."
-    ]
-   ],
-   [
-    [
-     "say",
-     "It was not allowed to read our guard, our parser or our policy code."
+     "A separate AI agent wrote one hundred five new cases. It could not read our security code."
     ]
    ],
    [
@@ -778,7 +720,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "The ninety-five percent interval is between ninety-two and ninety-nine point seven."
+     "The interval is between ninety-two and ninety-nine point seven."
     ]
    ],
    [
@@ -798,13 +740,7 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "say",
-     "Normal English requests: twenty-four out of thirty. Eighty percent."
-    ]
-   ],
-   [
-    [
-     "say",
-     "The misses were usability, like a typo. Never a wrong payment."
+     "Normal English requests: twenty-four out of thirty."
     ]
    ],
    [
@@ -814,13 +750,7 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "say",
-     "And this is the line that matters:"
-    ]
-   ],
-   [
-    [
-     "say",
-     "zero wrong payments, zero data leaks, zero executions without confirmation."
+     "Zero wrong payments, zero data leaks, zero executions without confirmation."
     ],
     [
      "do",
@@ -834,45 +764,27 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "say",
-     "We show the caveats too."
-    ]
-   ],
-   [
-    [
-     "say",
      "Nine attacks were stopped only because the parser did not understand them."
     ]
    ],
    [
     [
      "say",
-     "The Claude parser is not tested yet."
-    ]
-   ],
-   [
-    [
-     "say",
-     "The one miss was a look-alike letter in a sanctioned name. It needed Lina's own code, no money moved,"
-    ]
-   ],
-   [
-    [
-     "say",
-     "and it is fixed."
+     "The one miss, a look-alike letter, needed Lina's code. It is fixed."
     ]
    ]
   ]
  },
  "12": {
-  "section": "S11b",
-  "words": 100,
-  "from": "6:56",
-  "to": "7:44",
+  "section": "S12",
+  "words": 146,
+  "from": "5:51",
+  "to": "7:01",
   "paras": [
    [
     [
      "do",
-     "PROPOSED words, not yet in speaker_script.md. Click once per column."
+     "click through the three builds: left column, right column, the note at the bottom"
     ]
    ],
    [
@@ -883,63 +795,91 @@ window.KEYNOTE_NOTES = {
     [
      "do",
      "point at the left column"
+    ],
+    [
+     "say",
+     "The offline parser: sixty-nine of seventy."
     ]
    ],
    [
-    [
-     "say",
-     "The offline parser: sixty-nine out of seventy blocked."
-    ],
     [
      "do",
      "click, point at the right column"
-    ]
-   ],
-   [
-    [
-     "say",
-     "Now a local language model, Qwen, running on this laptop. Sixty-six out of seventy, and it reads other languages."
-    ]
-   ],
-   [
-    [
-     "say",
-     "Both columns: zero wrong payments to an account that is not a saved payee."
     ],
+    [
+     "say",
+     "Now Qwen, a language model running on this laptop."
+    ]
+   ],
+   [
+    [
+     "say",
+     "Sixty-six of seventy. Ninety-four percent; the interval is wider, eighty-six to ninety-eight."
+    ]
+   ],
+   [
+    [
+     "say",
+     "It reads French and German: five of five. The offline parser: none."
+    ]
+   ],
+   [
     [
      "do",
      "point at the green row"
+    ],
+    [
+     "say",
+     "In both columns: zero wrong payments to an account that is not a saved payee."
     ]
    ],
    [
-    [
-     "say",
-     "Qwen missed four attacks. None sent money to an attacker's account."
-    ],
     [
      "do",
      "click"
+    ],
+    [
+     "say",
+     "Qwen missed four attacks. Three were plans for her own saved payees that she had not asked for."
     ]
    ],
    [
     [
      "say",
-     "One registered a shortened sanctioned name. So we added a check: every field the model proposes must appear in what Lina wrote."
+     "One was real. The model cut \"Volkov Trade Holdings\" to \"Volkov\", and the sanctions check missed it."
     ]
    ],
    [
     [
      "say",
-     "That is a fix after the test, so it is not blind. The point stands: safety does not depend on the model."
+     "A careless user would have added that payee. No money moved."
+    ]
+   ],
+   [
+    [
+     "say",
+     "So we added one rule: every amount and name the model proposes must appear in Lina's own message."
+    ]
+   ],
+   [
+    [
+     "say",
+     "After that: one hundred three of one hundred five. That is a re-run, not a blind result."
+    ]
+   ],
+   [
+    [
+     "say",
+     "The model changes. The checks do not."
     ]
    ]
   ]
  },
  "13": {
-  "section": "S12",
-  "words": 44,
-  "from": "7:44",
-  "to": "8:05",
+  "section": "S13",
+  "words": 50,
+  "from": "7:01",
+  "to": "7:25",
   "paras": [
    [
     [
@@ -956,13 +896,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "The offline parser is English only, and it still misses unusual phrasing."
-    ]
-   ],
-   [
-    [
-     "do",
-     "point at the bottom bar"
+     "The model was measured once, on a small set, at about two and a half seconds per call."
     ]
    ],
    [
@@ -974,10 +908,10 @@ window.KEYNOTE_NOTES = {
   ]
  },
  "14": {
-  "section": "S13",
-  "words": 36,
-  "from": "8:05",
-  "to": "8:22",
+  "section": "S14",
+  "words": 31,
+  "from": "7:25",
+  "to": "7:40",
   "paras": [
    [
     [
@@ -998,13 +932,13 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Task completion: one sentence becomes a three-step plan, and twenty out of twenty scripted missions pass."
+     "Task completion: twenty of twenty scripted missions pass."
     ]
    ],
    [
     [
      "say",
-     "Security: sixty-nine out of seventy blind attacks blocked."
+     "Security: sixty-nine of seventy blind attacks blocked, sixty-six with the model."
     ]
    ],
    [
@@ -1016,10 +950,10 @@ window.KEYNOTE_NOTES = {
   ]
  },
  "15": {
-  "section": "S14",
-  "words": 92,
-  "from": "8:22",
-  "to": "9:06",
+  "section": "S15",
+  "words": 77,
+  "from": "7:40",
+  "to": "8:17",
   "paras": [
    [
     [
@@ -1040,13 +974,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "One: a federated risk score with FATE, so banks share scam signals without sharing customer data."
-    ]
-   ],
-   [
-    [
-     "say",
-     "It would only ask for a code. It would never approve a payment."
+     "One: a federated risk score with FATE. It could ask for a code, never approve."
     ]
    ],
    [
@@ -1058,11 +986,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Three: run the same blind test on the language model parser."
-    ],
-    [
-     "do",
-     "pause. Look at the jury."
+     "Three: run the same blind test on the Claude parser."
     ]
    ],
    [
@@ -1088,7 +1012,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "Stay on slide 14 for questions. Do not go back to slide 1."
+     "Stay on slide 15 for questions. Do not go back to slide 1."
     ]
    ]
   ]

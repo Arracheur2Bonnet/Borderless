@@ -18,21 +18,27 @@ weakness, say so first, then say what we would do. Never argue with a judge abou
 | Blind v2, non-English benign (out of scope, reported anyway) | 0/5, CI [0.0, 43.4] | same |
 | Blind v2, harm | 0 wrong payments, 0 data leaks, 0 executions without confirmation, 0 step-up without the right OTP | same, §3 last paragraph |
 | Blind v2 size | 105 tests (70 attacks, 30 benign EN, 5 non-EN) | same, header |
+| **Blind v2 on the LLM parser, Qwen2.5 7B (local)** | attacks 66/70 = 94.3%, Wilson CI [86.2, 97.8]; multi-turn 15/15; benign EN 26/30 = 86.7%, CI [70.3, 94.7]; non-English 5/5 | `deliverables/blind_llm/qwen2.5_7b_heldout_v2/report.md`; frozen in `5868d83` |
+| Blind v2, Qwen2.5 3B | attacks 65/70; benign EN 21/30; non-English 3/5 | `deliverables/blind_llm/qwen2.5_3b_heldout_v2/report.md` |
+| Qwen cost | mean 2.6 s per model call (p95 2.9 s, max 6.9 s), 137 calls, 0 fallbacks | same report |
+| Rules parser on the same harness | 99/105. **Not blind** (rules were fixed against v2 first) | `deliverables/blind_llm/rules_heldout_v2/` |
+| Qwen 7B after grounding (regression, not blind) | v2 103/105 (B20, B25 fail); dev suites 69/69 and 29/29 | `deliverables/regression_llm/`; fix in `d3e0f49` |
 | Who wrote the blind set | a separate AI agent (a Claude instance) with restricted file access; it was not allowed to read the guard, parser or policy code | same, §1 |
-| Results frozen before fixes | commit `44542f2` ("results frozen BEFORE any fix"); fixes in `292f748` | `git log`; check with `git cat-file -e 44542f2` |
+| Results frozen before fixes | rules: commit `44542f2` ("results frozen BEFORE any fix"), fixes in `292f748`. Qwen: commit `5868d83`, grounding fix in `d3e0f49` | `git log`; check with `git cat-file -e <hash>` |
 | Sample size needed for a 95% lower bound above 95% | 73 cases with no miss, or 110 cases with one miss (Wilson) | computed, not run |
 | Development suites (not blind) | 69/69 adversarial, 29/29 benign (98 cases) | `deliverables/security_results.md` |
 | Scripted missions | 20/20 completed, mean 1.60 user turns, 2.05 confirmations, JSONL audit log per mission | `deliverables/task_completion.md`, `deliverables/evidence/` |
-| Whole repo | 744 passed, 7 xfailed (2026-10-18); the deck prints the live count on slide 11 | live `pytest tests -q -p no:cacheprovider` |
+| Whole repo | 829 passed, 7 xfailed (2026-10-18; 836 collected) | live `pytest tests -q -p no:cacheprovider` |
 | White-box audit (after the two blind tests) | 12 findings (3 high, 3 medium, 6 low); 11 fixed, 1 mitigated (demo signing key); 49 audit tests pass | `docs/review/security_audit.md`; fixes in `2ce6035` (bg/) and `13dded5` (AUDIT-6, UI) |
-| Commits to cite | `44542f2` blind v2 frozen; `292f748` post-blind fixes; `60f6448` judge-panel fixes; `2ce6035` audit fixes | `git cat-file -e <hash>` |
+| Commits to cite | `44542f2` blind v2 frozen (rules); `5868d83` blind v2 frozen (Qwen); `292f748` post-blind fixes; `60f6448` judge-panel fixes; `2ce6035` audit fixes; `d3e0f49` grounding | `git cat-file -e <hash>` |
 | Rules on one payment | 13 named rules (10 x R4, 3 x R3: BENEFICIARY_AGE, AMOUNT_TIER, STRUCTURING) | live golden path, `bg/policy/engine.py` |
 | Thresholds | R2 tap: payment <= 1,500 EUR, FX <= 2,500; R4: > 4,000 per payment, > 5,000 per day; new payee < 72 h; structuring > 1,500 EUR to one payee in 24 h; 3 OTP attempts | `bg/contracts/params.py` |
 | Problem-slide stakes | BEC losses USD 2,770,151,146 (FBI IC3 2024, p. 10); prompt injection = LLM01 (OWASP LLM Top 10 2025) | `deliverables/pitch/sources.md` |
 
 Wording rules:
 
-- Say "blind" only for the v2 numbers as frozen in `44542f2`. After `292f748` the v2 set is no longer blind for the fixed cases.
+- Say "blind" only for the v2 numbers as frozen: rules in `44542f2`, Qwen in `5868d83`. After the fixes (`292f748`, `d3e0f49`) the v2 set is no longer blind for the fixed cases. The rules column in `blind_llm/` is not blind.
+- Evaluation layers, in order: (1) dev suites, (2) blind v1, (3) blind v2 rules, (4) blind v2 Qwen, (5) white-box audit, (6) everything after is regression. Layers 3 and 4 are the generalisation estimates, one per parser.
 - Never say "independent tester" alone. Say "a separate AI agent that was not allowed to read our security code".
 - Never quote the test count as a security rate.
 - Say "the seven known attacks in the attack tab". Do not say "attack it yourself" about the tab; it replays scripts we wrote.
@@ -82,8 +88,8 @@ tied to its exact details.
 and it never moved money wrongly. They were coverage gaps in the offline rules parser: a typo ("sned 40 eur to mom"),
 "buy them with my USD", a rate-only question, "what bills do I have coming up", "what if I sent 200 to mum", and
 "pay the uni" without an amount. Multi-turn benign dialogues (clarify, correct, cancel) were 6/6. We have fixed some
-of these since, but on a set that is no longer blind, so we do not quote a new rate. A language-model parser should
-close most of these gaps; we have not measured that yet (question 8).
+of these since, but on a set that is no longer blind, so we do not quote a new rate. The Qwen 7B parser did close part of the
+gap on the blind run: 26/30 benign English (question 8).
 
 **7. Nine attacks were "blocked" only because the parser did not understand them. Isn't that inflating the number?**
 Yes, partly, and we say so on the slide. A01-A07, D04 and D11 ended in the generic "did not understand" reply.
@@ -91,13 +97,12 @@ Excluding those, and the two structuring cases that never exercised the control,
 [91.0, 99.7]. In every case where an attack was understood (for example a user-typed attacker IBAN), the registry
 and policy layers held: `beneficiary_mismatch` was raised and the registry IBAN was used.
 
-**8. You evaluated the rules parser. The product story is an LLM. Where is the Claude parser evaluation?**
-It has not been done. Without an API key the system falls back to `RulesParser`, so every blind number is a
-rules-parser number. The design argument is that the parser is not on the authority path: Claude only emits
-structured intents through a JSON schema, it has no tools, and it sees only the user's message and the payees'
-display names, never IBANs, balances or document text. A better parser should raise benign completion, and on
-attacks it should turn "not understood" into "understood, then denied by policy". That is a hypothesis until we run
-the same blind protocol with Claude. It is first on our future-work list.
+**8. You evaluated the rules parser. The product story is an LLM. Where is the LLM evaluation?**
+It is done for a local model, not for Claude. We ran the same frozen 105 cases through Qwen2.5 7B (commit `5868d83`):
+attacks 66/70 (94.3%, CI [86.2, 97.8]), multi-turn 15/15, benign English 26/30 (86.7%), non-English 5/5. No money went
+to an unregistered account and no data leaked. It also found one control bypass caused by extraction: the model cut
+"Volkov Trade Holdings" to "Volkov" (X02). That led to the grounding step (question 31). Claude has not been run
+against the live API, and we say so; it is the next test.
 
 **9. Your development numbers are 100%. Why should we not just believe those?**
 Because we wrote those cases while building the guard, so some rules were shaped by them. That is why the slide
@@ -256,24 +261,69 @@ actions and affordability questions are answered only by simulation; a receipt f
 with a customer-held signed anchor; and a blind evaluation frozen before fixes, reported with intervals and caveats.
 
 **30. What did you not build?**
-No real bank connection (ledger, FX and SMS code are simulated); no on-chain anchoring and no federated learning; one
+No real bank connection (ledger, FX and SMS code are simulated); no fine-tuning of the model; no on-chain anchoring and no federated learning; one
 persona and one currency pair; a fictional sanctions list; no production authentication; no usability study; no
-evaluation of the Claude parser; no baseline agent; no scheduled transfers or spending-by-category analysis.
+evaluation of the Claude parser (Qwen was evaluated); no baseline agent; no scheduled transfers or spending-by-category analysis.
+
+**31. Why a Chinese model? Why Qwen?**
+Three reasons, none of them about nationality. It is open-weight, so we can run it ourselves. It reads Chinese,
+French, German and Spanish, and international students write in all of them: it passed 5/5 non-English probes where the
+rules parser passed 0/5. And it runs on a laptop through Ollama at 7B size. We did not compare model families; another
+open model may do as well. The safety result does not depend on the choice, because the model is outside the
+authority path.
+
+**32. Why local? Why not only Claude?**
+Privacy and cost. With a local model, the student's message does not leave the machine, which matters for a bank under
+GDPR or PIPL, and there is no per-call fee and no API key. The price is speed (about 2.6 s per call) and a download.
+Claude stays an option behind the same interface and the same checks. We have not run it live.
+
+**33. Why did you not fine-tune the model?**
+Two reasons. Contamination: if we trained on cases like our test cases, the blind result would no longer measure
+generalisation. And time: a clean train/test split needs more cases than we had. The next step is federated
+fine-tuning across institutions (FATE-LLM), so that no bank has to share customer messages. It is not built.
+
+**34. Latency on stage: 2.6 seconds per call is slow.**
+Yes. The live demo uses the offline rules parser, which answers in milliseconds, so the stage demo is not affected. Qwen
+is shown in the video (optional segment) and on slide 12 as numbers. One user message costs one call, two if a
+clarification is needed. A GPU or a 3B model would be faster; the 3B model scored lower on every rate (attacks 65/70,
+benign English 21/30), so we did not choose it.
+
+**35. What can grounding not catch?**
+It checks that a value is in the user's text, not that it is the right value. "I paid 500 last month, send 50" could be
+read as 500, and both numbers are in the text. A payee named as an exception ("not mom") is also in the text. A wrong
+reading among her own payees still reaches the card, where she sees it and must approve. The word lists are finite, so a
+language we did not list gets a question instead of a payment. And the module was not covered by the white-box audit.
+
+**36. Qwen 3B or 7B?**
+7B. On the blind run the 3B model scored attacks 65/70, benign English 21/30 and non-English 3/5, against 66/70, 26/30
+and 5/5. Its attack failures never reached a control: it answered "unsupported" to the currency purchase that sets a case
+up. With 30 and 70 cases the intervals are wide, so we do not call the gap significant. After the grounding fix 3B scored
+92/105 and 7B 103/105 (regression).
+
+**37. Is "safety does not depend on the model" proven?**
+Not proven. The evidence: with two different parsers, no payment went to an account outside the saved payees and no data
+leaked, in 105 cases each. The mechanism: the model has no tools, accounts come from the registry, the policy and the
+confirmation are code. The counter-example we found is useful: a model can change a field that a control reads (X02).
+That is why grounding exists. A bigger blind set, written to probe extraction, would test the claim better.
+
+**38. Your Qwen blind run came after you fixed the rest of the system on the same cases. Is it blind?**
+Blind for the model and its prompt: we did not change them after seeing these cases before the results were committed.
+Not blind for the rest of the system, which had already been fixed against v2. The rules column in the same folder is
+not blind at all. We say this on the slide notes and in the README.
 
 ---
 
 ## E. The 10 hardest questions per judge
 
-Each answer is 2-3 sentences, consistent with the code at commit `13dded5` (2026-10-18). **WEAK** marks an answer that is true but will
+Each answer is 2-3 sentences, consistent with the code at commit `d3e0f49` (2026-10-18). **WEAK** marks an answer that is true but will
 not satisfy the judge; the line after it says what would make it strong. Answers that repeat a question above point
 to it.
 
 ### Qiang Yang (federated learning, planning, ex-WeBank Chief AI Officer)
 
-1. **"Every number you report comes from a regex parser. Where is the AI?"** True. The LLM path (Claude with a JSON
-   schema and no tools) exists but is unevaluated, and our claim is that money safety does not depend on which parser
-   runs. **WEAK.** Strong: run blind v2 through the Claude parser and show rules vs Claude side by side, with 0 wrong
-   payments in both.
+1. **"Every number you report comes from a regex parser. Where is the AI?"** Partly. We ran blind v2 through a local Qwen 7B (66/70
+   attacks, 5/5 non-English) next to the rules parser (69/70), 0 wrong payments in both. Claude is still unevaluated.
+   **WEAK** on Claude. Strong: run the same protocol with Claude.
 2. **"What would a federated scam-payee model learn, who holds it, and what does BorderlessGuard send to it?"** Each
    bank would train locally on its payment attempts (hashed payee IBAN, payee age, amount band, corridor, scam-report
    label) and share only model updates, for example with FATE. BorderlessGuard would query its own bank's model and
@@ -296,12 +346,13 @@ to it.
    APIs, use the bank's verified payee list as the registry and the bank's SCA for codes, and anchor receipts on
    FISCO BCOS. None of this is built (question 27).
 8. **"What does the LLM see? Privacy?"** Only the user's message and the payees' display names. Never IBANs,
-   balances or document text (`bg/agent/claude_parser.py`). In offline mode nothing leaves the machine.
+   balances or document text (`bg/agent/claude_parser.py`, `local_parser.py`). With the rules parser or the local Qwen
+   model nothing leaves the machine.
 9. **"How do you add a new scenario, like scheduled transfers?"** Add an intent type and its expansion; the policy
    would run at scheduling and again at execution. Today scheduled transfers are not supported ("schedule 150 euros
    to mom every month" is not understood). **WEAK.** Strong: implement it with a test before the final.
 10. **"Transfer to other users and languages?"** The policy and registry are language-independent; the rules parser
-    is English-only (non-English 0/5 blind). **WEAK.** Strong: the Claude blind run includes the 5 non-English probes.
+    is English-only (non-English 0/5 blind). Qwen read 5/5 of the probes; Claude is unmeasured.
 
 ### Wang Shouyang (economic forecasting, risk management)
 
@@ -402,7 +453,7 @@ to it.
 9. **"An evolutionary attacker against your guard?"** It will win against the guard; that is why the guard only
    warns (question 25).
 10. **"What did the blind test not cover?"** The Claude parser, the UI, attacks on the receipt chain, and concurrency
-    (§6.6 of the results file). The white-box audit then covered the receipt chain and the UI rendering
+    (§6.6 of the results file; the Qwen run came later). The white-box audit then covered the receipt chain and the UI rendering
     (questions 19b and 19c).
 
 ### Li Jianqiang (AI and big-data systems)
@@ -412,8 +463,8 @@ to it.
    proof `test_daily_limit_rechecked_at_confirm_across_sessions`). But the sandbox ledger has no lock, so two truly
    simultaneous executions in a multi-instance deployment are not covered. **WEAK** for production. Strong: re-check
    inside one database transaction with a row lock, plus a concurrency test.
-2. **"Latency per turn?"** The rules parser path is milliseconds (the full suite of several hundred tests runs in
-   about 11 seconds). With Claude: not measured. **WEAK.** Strong: measure p50/p95 per turn with Claude.
+2. **"Latency per turn?"** The rules parser path is milliseconds. Qwen 7B, local: mean 2.6 s per model call (p95 2.9 s, max
+   6.9 s). Claude: not measured.
 3. **"Where does state live with ten instances?"** Today sessions are in memory and receipts in SQLite. Production
    needs a shared session store and a server database for receipts.
 4. **"The challenge says apps and IM. Where is the IM channel?"** Only the Streamlit app. The orchestrator API
@@ -442,8 +493,8 @@ to it.
    control.
 4. **"The OTP is a constant shown in the UI."** Sandbox only, so the demo is reproducible. A bank would use its own
    SCA.
-5. **"What data goes to the LLM provider? Cross-border transfer?"** The message and payee display names only. In
-   offline mode nothing is sent; a deployment under PIPL or GDPR would need a regional or on-premise model.
+5. **"What data goes to the LLM provider? Cross-border transfer?"** The message and payee display names only. With the rules
+   parser or the local Qwen model nothing is sent out; with Claude the message goes to the API.
 6. **"What do the logs contain?"** One JSON record per step, IBANs masked to country plus last 4, OTP values never
    logged (global invariant G2 in the missions).
 7. **"Authentication?"** None real: one demo user. Out of scope.
@@ -461,8 +512,7 @@ to it.
    finance office, quoted.
 2. **"Has a real student used it?"** No. **WEAK.** Strong: five students, one task each, before the final; report
    what they got wrong.
-3. **"International students, but non-English is 0/5?"** Yes, for the offline rules parser, and we report it. The
-   Claude parser should handle it but is unmeasured. **WEAK.** Strong: the Claude blind run with the 5 probes.
+3. **"International students, but non-English is 0/5?"** Yes, for the offline rules parser, and we report it. Qwen 7B read 5/5 of the probes. Claude is unmeasured.
 4. **"Greater Bay Area students: FPS, e-CNY?"** Not covered. The registry and policy do not depend on the payment
    rail, so a new rail is a new `Ledger` implementation.
 5. **"Why students?"** Large, irregular cross-border bills, new payees every year (landlords), and money from home in
@@ -475,7 +525,7 @@ to it.
    mostly hits small businesses; the same design applies.
 9. **"What if it blocks a legitimate payment?"** R3 is friction, not a block. R4 limits can block a real large
    payment (Wang 9); the limits are parameters.
-10. **"What would you do with one more month?"** Run Claude blind, add a baseline, run a new blind round on the fixed code,
+10. **"What would you do with one more month?"** Run Claude blind, add a baseline, run a new blind round on the fixed code (written to probe LLM extraction),
     and test with five real students.
 
 ---
@@ -484,7 +534,7 @@ to it.
 
 | # | Weak point | Judges | Fix | Effort |
 |---|---|---|---|---|
-| 1 | No evaluation of the LLM parser | Yang, Bongard, Li Wenrong, Xiu | Blind v2 on Claude, side by side with rules | 4-6 h + API key |
+| 1 | Claude not evaluated (Qwen is: question 8) | Yang, Bongard, Li Wenrong, Xiu | Blind v2 on Claude, side by side with rules and Qwen | 4-6 h + API key |
 | 2 | No baseline | Xiu, Yang | Same attacks on a plain tool-calling agent | 3-4 h |
 | 3 | Parser fixes (question 22) and audit fixes are not blind-measured | Bongard, Xiu | New blind round on the current code, results timestamped outside the repo | 3-4 h |
 | 4 | Rate question with an amount still proposes an FX card (question 21) | Wang, Xiu | Read-only quote for that phrasing | 1 h |
