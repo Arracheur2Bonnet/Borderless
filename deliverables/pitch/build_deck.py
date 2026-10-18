@@ -32,7 +32,7 @@ from pptx.util import Inches, Pt
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-SHOTS = ROOT / "deliverables/screenshots"
+SHOTS = ROOT / "deliverables/screenshots/dark"   # final UI, dark (matches the keynote)
 sys.path.insert(0, str(ROOT))
 
 NAVY, PANEL, PANEL2 = RGBColor(0x0B, 0x1B, 0x33), RGBColor(0x14, 0x2B, 0x4D), RGBColor(0x1C, 0x38, 0x60)
@@ -64,6 +64,15 @@ NONUNDERSTOOD = re.search(r"A01-A07, D04 and D11 \((\d+) cases\) ended in the ge
 need(HV2, "X08-homoglyph")
 HV2_TOTAL = re.search(r"Result: \*\*(\d+) tests", HV2)[1]
 assert ATT[0] == "69/70" and BEN[0] == "24/30", "held-out v2 headline changed: re-check slide wording"
+
+import json as _json
+_q = _json.loads(read("deliverables/blind_llm/qwen2.5_7b_heldout_v2/report.json"))
+_res = {r["case"].split("::")[1]: r["status"] for r in _q["results"]}
+_att = [k for k in _res if "attack" in k or "structuring" in k or "otp_bruteforce" in k or "test_R0" in k or "test_O0" in k]
+QWEN_ATT = f"{sum(_res[k] == 'passed' for k in _att)}/{len(_att)}"
+QWEN_BEN = f"{sum(v == 'passed' for k, v in _res.items() if k.startswith('test_benign[B'))}/30"
+assert QWEN_ATT == "66/70" and QWEN_BEN == "26/30", (QWEN_ATT, QWEN_BEN)
+assert _q["fallback_rate"] == 0.0
 
 SEC = read("deliverables/security_results.md")
 DEV_ADV = re.search(r"\((\d+/\d+) adversarial cases\)", SEC)[1]
@@ -315,7 +324,7 @@ text(s, 0.75, 2.55, 6.4, 1.9, "An AI agent that moves a student's money across b
 text(s, 0.75, 4.75, 6.4, 0.9, SLOGAN, 20, ACC, True)
 text(s, 0.75, 6.3, 11.0, 0.45, "2026 Shenzhen FinTech Competition  ·  International AI Track  ·  Topic C: "
      "Cross-border & Student Finance", 16, GREY)
-shot(s, "01_home.png", (480, 60, 1740, 540), 7.45, 1.35, w=5.6)
+shot(s, "01_home.png", (574, 80, 1650, 620), 7.45, 1.35, w=5.6)
 shot(s, "04_executed.png", (0, 50, 300, 320), 7.45, 3.75, w=2.3)
 text(s, 9.95, 3.8, 3.1, 1.8, "Live sandbox app.\nOne sentence in;\nEUR 600.00 reserve kept.", 18, GREY)
 
@@ -483,7 +492,7 @@ box(s, 0.6, 4.28, 12.15, 0.62, "0 wrong payments  ·  0 data leaks  ·  0 execut
     GRN, size=21, color=NAVY, bold=True)
 box(s, 0.6, 5.05, 6.85, 1.85, "", PANEL)
 text(s, 0.72, 5.08, 6.65, 1.8,
-     f"**Caveats**\n{NONUNDERSTOOD} attacks stopped only by \"not understood\"\nClaude parser not evaluated (rules parser only)\n"
+     f"**Caveats**\n{NONUNDERSTOOD} attacks stopped only by \"not understood\"\nQwen 7B local, blind: {QWEN_ATT} attacks; Claude untested\n"
      f"The 1 miss: homoglyph sanctions bypass, now fixed", 18, WHITE)
 box(s, 7.6, 5.05, 5.15, 1.85, "", PANEL)
 text(s, 7.72, 5.08, 4.95, 1.8,
@@ -531,9 +540,9 @@ box(s, 0.6, 6.05, 12.15, 0.75, "Evidence in the repo: heldout_v2_results.md · t
 s = slide("What we would build next with WeBank")
 text(s, 0.6, 1.2, 12.2, 0.6, SLOGAN.replace("Fixed rules", "**Fixed rules**").replace("your approval", "**your approval**"),
      24, WHITE, True)
-asks = [("FATE", "risk score shared across banks: scam signals, not customer data; it can only ask for a code"),
+asks = [("FATE", "federated risk score and fine-tuning of the local model: scam signals, not customer data; it can only ask for a code"),
         ("FISCO BCOS", "anchor each receipt-chain head on a consortium chain, so Lina no longer needs her own copy"),
-        ("Blind test v3", "same protocol on the Claude parser, plus a plain LLM agent as a baseline")]
+        ("Blind test again", "same protocol on the Claude parser; the local Qwen parser is already measured")]
 for i, (h, b) in enumerate(asks):
     y = 1.95 + i * 0.82
     box(s, 0.6, y, 2.4, 0.7, h, ACC, size=20, color=NAVY, bold=True)
