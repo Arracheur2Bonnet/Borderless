@@ -1,6 +1,6 @@
 """Capture demo screenshots of the Streamlit UI on the REAL backend (offline mode).
 
-    ./.venv/Scripts/python scripts/screenshots.py [out_dir]
+    ./.venv/Scripts/python scripts/screenshots.py [out_dir] [light|dark] [WIDTHxHEIGHT]
 
 Starts `streamlit run ui/app.py` headless, drives it with Playwright (Chromium) at 1920x1080 (the video
 resolution) and saves PNGs. Used for the deck, the technical document and the video storyboard; it is also a
@@ -21,7 +21,9 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "deliverables" / "screenshots"
 PORT = 8599
 URL = f"http://localhost:{PORT}"
-VIEWPORT = {"width": 1920, "height": 1080}
+SCHEME = sys.argv[2] if len(sys.argv) > 2 else "light"
+_W, _H = (sys.argv[3] if len(sys.argv) > 3 else "1920x1080").split("x")
+VIEWPORT = {"width": int(_W), "height": int(_H)}
 
 
 def wait_ready(timeout: float = 60) -> None:
@@ -148,8 +150,8 @@ def main() -> int:
         wait_ready()
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            free_story(browser.new_page(viewport=VIEWPORT))
-            guided_story(browser.new_page(viewport=VIEWPORT))
+            free_story(browser.new_page(viewport=VIEWPORT, color_scheme=SCHEME))
+            guided_story(browser.new_page(viewport=VIEWPORT, color_scheme=SCHEME))
     finally:
         proc.terminate()
     return 0

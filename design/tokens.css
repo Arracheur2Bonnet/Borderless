@@ -1,0 +1,151 @@
+/* BorderlessGuard design tokens. One source for the Streamlit app (ui/) and the keynote.
+   Inspired by Apple's Human Interface Guidelines (restraint, hierarchy, one accent). System fonts only.
+   Light is the default; dark follows prefers-color-scheme, and [data-theme] forces either one. */
+
+:root {
+  /* ---- colour roles: surfaces ---- */
+  --bg-canvas: #f5f5f7;            /* page background */
+  --bg-surface: #ffffff;           /* elevated: cards, bubbles, inputs */
+  --bg-grouped: #f2f2f4;           /* inset groups inside a surface */
+  --bg-sidebar: #ececef;
+  --bg-material: rgba(255, 255, 255, 0.72);   /* translucent bar: guided bar, sticky header */
+  --sep: rgba(60, 60, 67, 0.14);               /* hairline separators */
+  --sep-strong: rgba(60, 60, 67, 0.28);
+
+  /* ---- colour roles: labels ---- */
+  --label: #1d1d1f;                /* primary */
+  --label-2: #5f5f64;              /* secondary, 5.9:1 on white */
+  --label-3: #6e6e73;              /* tertiary, still 4.9:1 on white: captions only */
+  --on-accent: #ffffff;
+
+  /* ---- one accent ---- */
+  --accent: #0066cc;               /* text and links, 5.6:1 on white */
+  --accent-fill: #0071e3;          /* filled buttons, white text 4.6:1 */
+  --accent-hover: #0062c8;
+  --accent-tint: rgba(0, 113, 227, 0.10);
+
+  /* ---- semantic roles: each has a fill, a text colour that passes AA on its tint, and a tint ---- */
+  --success: #248a3d;
+  --success-text: #1a6e30;
+  --success-tint: rgba(36, 138, 61, 0.12);
+  --warning: #c25a00;
+  --warning-text: #8f4300;
+  --warning-tint: rgba(255, 149, 0, 0.16);
+  --danger: #d70015;
+  --danger-text: #b0000f;
+  --danger-tint: rgba(215, 0, 21, 0.09);
+  --info: #0066cc;
+  --info-text: #0055aa;
+  --info-tint: rgba(0, 113, 227, 0.10);
+  --neutral-text: #4c4c51;
+  --neutral-tint: rgba(60, 60, 67, 0.10);
+
+  /* ---- type ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  /* size / line-height pairs */
+  --fs-caption: 12px;   --lh-caption: 16px;
+  --fs-footnote: 13px;  --lh-footnote: 18px;
+  --fs-subhead: 14px;   --lh-subhead: 20px;
+  --fs-body: 16px;      --lh-body: 24px;
+  --fs-headline: 17px;  --lh-headline: 24px;     /* semibold */
+  --fs-title3: 20px;    --lh-title3: 28px;
+  --fs-title2: 24px;    --lh-title2: 32px;
+  --fs-title1: 32px;    --lh-title1: 40px;
+  --fs-display: 44px;   --lh-display: 48px;      /* amount hero and keynote titles */
+  --fw-regular: 400;  --fw-medium: 500;  --fw-semibold: 600;  --fw-bold: 700;
+  --tracking-tight: -0.022em;                    /* titles */
+  --tracking-caps: 0.06em;                       /* small uppercase labels */
+
+  /* ---- spacing: 4-pt base, 8-pt rhythm ---- */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px;  --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px;  --s-8: 64px;
+
+  /* ---- radii ---- */
+  --r-sm: 8px;  --r-md: 12px;  --r-lg: 18px;  --r-xl: 24px;  --r-pill: 999px;
+
+  /* ---- shadows ---- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --blur-material: saturate(180%) blur(20px);
+
+  /* ---- motion ---- */
+  --dur-fast: 120ms;  --dur-base: 220ms;  --dur-slow: 400ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* ---- focus ---- */
+  --focus-ring: 0 0 0 4px rgba(0, 113, 227, 0.38);
+  --focus-outline: 2px solid #0071e3;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-canvas: #000000;
+    --bg-surface: #1c1c1e;
+    --bg-grouped: #2c2c2e;
+    --bg-sidebar: #111113;
+    --bg-material: rgba(28, 28, 30, 0.72);
+    --sep: rgba(235, 235, 245, 0.16);
+    --sep-strong: rgba(235, 235, 245, 0.30);
+
+    --label: #f5f5f7;
+    --label-2: #b4b4ba;
+    --label-3: #98989f;
+    --on-accent: #ffffff;
+
+    --accent: #4da3ff;
+    --accent-fill: #0a74e6;
+    --accent-hover: #2689f0;
+    --accent-tint: rgba(10, 132, 255, 0.20);
+
+    --success: #30d158;
+    --success-text: #5be07f;
+    --success-tint: rgba(48, 209, 88, 0.16);
+    --warning: #ff9f0a;
+    --warning-text: #ffb340;
+    --warning-tint: rgba(255, 159, 10, 0.18);
+    --danger: #ff453a;
+    --danger-text: #ff6961;
+    --danger-tint: rgba(255, 69, 58, 0.18);
+    --info: #4da3ff;
+    --info-text: #6cb4ff;
+    --info-tint: rgba(10, 132, 255, 0.20);
+    --neutral-text: #c7c7cc;
+    --neutral-tint: rgba(235, 235, 245, 0.12);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --focus-ring: 0 0 0 4px rgba(77, 163, 255, 0.5);
+    --focus-outline: 2px solid #4da3ff;
+
+    color-scheme: dark;
+  }
+}
+
+/* Forced dark (keynote toggle, tests): identical values to the media query above. */
+:root[data-theme="dark"] {
+  --bg-canvas: #000000;  --bg-surface: #1c1c1e;  --bg-grouped: #2c2c2e;  --bg-sidebar: #111113;
+  --bg-material: rgba(28, 28, 30, 0.72);
+  --sep: rgba(235, 235, 245, 0.16);  --sep-strong: rgba(235, 235, 245, 0.30);
+  --label: #f5f5f7;  --label-2: #b4b4ba;  --label-3: #98989f;
+  --accent: #4da3ff;  --accent-fill: #0a74e6;  --accent-hover: #2689f0;  --accent-tint: rgba(10, 132, 255, 0.20);
+  --success: #30d158;  --success-text: #5be07f;  --success-tint: rgba(48, 209, 88, 0.16);
+  --warning: #ff9f0a;  --warning-text: #ffb340;  --warning-tint: rgba(255, 159, 10, 0.18);
+  --danger: #ff453a;  --danger-text: #ff6961;  --danger-tint: rgba(255, 69, 58, 0.18);
+  --info: #4da3ff;  --info-text: #6cb4ff;  --info-tint: rgba(10, 132, 255, 0.20);
+  --neutral-text: #c7c7cc;  --neutral-tint: rgba(235, 235, 245, 0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --focus-ring: 0 0 0 4px rgba(77, 163, 255, 0.5);  --focus-outline: 2px solid #4da3ff;
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms; }
+}

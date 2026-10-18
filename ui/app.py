@@ -26,6 +26,7 @@ from bg.contracts.params import (  # noqa: E402
 )
 from ui import guided  # noqa: E402
 from ui.attacks import ATTACKS, run_attack  # noqa: E402
+from ui.theme import ICON, RISK, STATUS, load_css, pill  # noqa: E402
 from ui.util import (  # noqa: E402
     anchor_label, balance_by_currency, esc_html, esc_md, get, humanize, iban_tail, money, quick_replies,
     receipt_label, short, to_dec, truncation_demo, why_line,
@@ -35,33 +36,19 @@ st.set_page_config(page_title="BorderlessGuard (sandbox)", page_icon="\U0001F6E1
 
 # Said once, in the header. The video closes on a different line.
 PITCH = "The AI reads your request. Fixed rules and your approval move the money."
-# Accessible palette: white text on each colour is >= 4.5:1, and every badge also carries an icon and a word.
-RISK_STYLE = {
-    "R0": ("👁", "Read-only", "#475569"),
-    "R1": ("↩", "Reversible", "#1d4ed8"),
-    "R2": ("✓", "One tap", "#15803d"),
-    "R3": ("🔑", "Code needed", "#b45309"),
-    "R4": ("⛔", "Blocked", "#b91c1c"),
-}
-STATUS_STYLE = {
-    "awaiting_confirmation": ("⏳", "Waiting for you", "#1d4ed8"), "executed": ("✓", "Done", "#15803d"),
-    "denied": ("⛔", "Blocked", "#b91c1c"), "rejected_by_user": ("✕", "Cancelled", "#475569"),
-    "replayed": ("↺", "Duplicate ignored", "#6d28d9"), "failed": ("✕", "Failed", "#b91c1c"),
-    "proposed": ("…", "Proposed", "#475569"),
-}
 EVENT_PLAIN = {
-    "beneficiary_mismatch": ("⚠️", "Bank details did not match",
+    "beneficiary_mismatch": ("", "Bank details did not match",
                              "The account number in the message differs from the saved payee. The saved account is used."),
-    "tool_output_poisoning": ("🧪", "Exchange-rate feed tried to give orders",
+    "tool_output_poisoning": ("", "Exchange-rate feed tried to give orders",
                               "Its extra text was dropped. Only the price was used, and you still approve every step."),
-    "replay_blocked": ("↺", "Duplicate approval ignored", "This was already done. No money moved twice."),
-    "data_access_denied": ("🔒", "Not your data", "I can only show your own accounts. The request was logged."),
-    "param_tamper": ("⛔", "Approval did not match", "The details changed after you reviewed them, so it was refused."),
-    "jailbreak_attempt": ("🛡", "Attempt to override the rules", "Ignored. The rules are enforced by code, not by the AI."),
-    "step_up_failed": ("🔑", "Wrong code", "The attempt was counted."),
-    "structuring_suspected": ("🔍", "Possible split payment",
+    "replay_blocked": ("", "Duplicate approval ignored", "This was already done. No money moved twice."),
+    "data_access_denied": ("", "Not your data", "I can only show your own accounts. The request was logged."),
+    "param_tamper": ("", "Approval did not match", "The details changed after you reviewed them, so it was refused."),
+    "jailbreak_attempt": ("", "Attempt to override the rules", "Ignored. The rules are enforced by code, not by the AI."),
+    "step_up_failed": ("", "Wrong code", "The attempt was counted."),
+    "structuring_suspected": ("", "Possible split payment",
                               "Several payments to the same person add up over the one-tap limit, so a code is needed."),
-    "sanctions_hit": ("⛔", "Sanctions watchlist match", "This payee cannot be added or paid."),
+    "sanctions_hit": ("", "Sanctions watchlist match", "This payee cannot be added or paid."),
 }
 AFFORD_TEXT = "Can I afford to send 300 EUR to mom after my bills?"
 # (button key, label, message sent). Keys are stable: the video script and the tests refer to them.
@@ -76,52 +63,6 @@ EXAMPLES = [
 ]
 DOC_LABELS = {"doc_tuition_nov": "Attach tuition invoice", "doc_rent_nov": "Attach rent invoice (forged)"}
 MAX_UPLOAD_CHARS = 20_000
-
-CSS = """
-<style>
-.block-container {padding-top: 1.6rem; padding-bottom: 2rem; max-width: 1400px;}
-html, body, [class*="css"] {font-size: 17px;}
-.stAppDeployButton, [data-testid="stStatusWidget"] {display: none;}
-h1 {margin-bottom: 0 !important; padding-bottom: 0 !important;}
-.bg-pitch {font-size: 1.15rem; font-weight: 600; color: #0f766e; margin: 0.1rem 0 0.1rem 0;}
-.bg-sub {font-size: 0.95rem; color: #475569;}
-.bg-badge {color: #fff; padding: 3px 11px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;
-           white-space: nowrap; display: inline-block; margin: 2px 3px 2px 0;}
-.bg-sandbox {background: #fef3c7; color: #78350f; border: 1px solid #f59e0b; padding: 4px 12px; border-radius: 8px;
-             font-weight: 700; font-size: 0.9rem; display: inline-block; margin-bottom: 6px;}
-.bg-title {font-size: 1.18rem; font-weight: 700; margin: 0 0 4px 0; line-height: 1.5;}
-.bg-why {font-size: 1.05rem; font-weight: 600; margin: 2px 0 6px 0;}
-.bg-kv {display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 4px 22px;
-        font-size: 1rem; margin: 6px 0 6px 0;}
-.bg-kv .k {color: #475569; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em;}
-.bg-kv .v {font-weight: 600;}
-.bg-anchor {font-family: ui-monospace, monospace; font-size: 1.05rem; padding: 6px 12px; border-radius: 8px;
-            border: 1px solid #0f766e; display: inline-block;}
-.bg-steps {display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px 0;}
-.bg-step {padding: 4px 10px; border-radius: 14px; font-size: 0.86rem; font-weight: 600; border: 2px solid #cbd5e1;
-          color: #475569; background: #fff;}
-.bg-step.done {background: #15803d; border-color: #15803d; color: #fff;}
-.bg-step.now {border-color: #1d4ed8; color: #1d4ed8;}
-.bg-step.bad {background: #b91c1c; border-color: #b91c1c; color: #fff;}
-.bg-caption {font-size: 1.12rem; font-weight: 600; color: #0f172a; margin: 2px 0;}
-div:has(> .st-key-guided_bar) {position: sticky; top: 3.6rem; z-index: 50;}
-.st-key-guided_bar { background: #f8fafc; border: 2px solid #1d4ed8 !important;
-                border-radius: 12px; padding: 10px 14px 6px 14px;}
-.g-target {scroll-margin-top: 330px;}
-button[kind="primary"] {background-color: #0f766e !important; border-color: #0f766e !important; color: #fff !important;}
-button[kind="primary"]:hover {background-color: #115e59 !important; border-color: #115e59 !important;}
-.st-key-welcome {background: #f0fdfa; border-color: #99f6e4 !important;}
-[class*="st-key-card_R0_"] {border-left: 7px solid #475569 !important;}
-[class*="st-key-card_R1_"] {border-left: 7px solid #1d4ed8 !important;}
-[class*="st-key-card_R2_"] {border-left: 7px solid #15803d !important;}
-[class*="st-key-card_R3_"] {border-left: 7px solid #b45309 !important;}
-[class*="st-key-card_R4_"] {border-left: 7px solid #b91c1c !important;}
-[class*="st-key-card_muted_"] {border-left: 7px solid #94a3b8 !important; opacity: 0.7;}
-[class*="st-key-projection"] {border-left: 7px solid #0f766e !important;}
-[class*="st-key-chips"] button {border-radius: 18px !important; border-color: #0f766e !important; color: #0f766e !important;}
-</style>
-"""
-
 
 # --------------------------------------------------------------------------- backend wiring
 def make_backend(poisoned_fx: bool = False, use_claude: bool = False):
@@ -241,23 +182,19 @@ def do_reject(action_id: str) -> None:
 
 
 # --------------------------------------------------------------------------- small renderers
-def badge(icon: str, text: str, color: str) -> str:
-    return f"<span class='bg-badge' style='background:{color}'>{esc_html(icon)} {esc_html(text)}</span>"
-
-
 def risk_value(level) -> str:
     return level.value if isinstance(level, RiskLevel) else str(level)
 
 
 def risk_badge(level) -> str:
     lv = risk_value(level)
-    icon, label, color = RISK_STYLE.get(lv, ("", lv, "#475569"))
-    return badge(icon, f"{label} · {lv}", color)
+    icon, label, tone = RISK.get(lv, ("eye", lv, "neutral"))
+    return pill(icon, f"{label} · {lv}", tone)
 
 
 def status_badge(status: str) -> str:
-    icon, label, color = STATUS_STYLE.get(status, ("", status, "#475569"))
-    return badge(icon, label, color)
+    icon, label, tone = STATUS.get(status, ("clock", status, "neutral"))
+    return pill(icon, label, tone)
 
 
 def payees_by_id(ov: dict) -> dict:
@@ -311,7 +248,7 @@ def kv_html(rows: list[tuple[str, str]]) -> str:
 
 def render_rules(decision) -> None:
     for r in decision.rules:
-        icon = "✅ passed" if r.passed else ("⛔ failed" if r.severity == RiskLevel.R4 else "🔑 needs a code")
+        icon = "Passed" if r.passed else ("Failed" if r.severity == RiskLevel.R4 else "Needs a code")
         rid = str(r.rule_id).replace("`", "")
         st.markdown(f"{icon} · `{rid}` ({r.severity.value}): {esc_md(humanize(r.detail))}")
 
@@ -344,6 +281,20 @@ def last_pending_id() -> str | None:
     return pend[-1] if pend else None
 
 
+WHY_STYLE = {"✅": ("check", "ok"), "🔑": ("key", "warn"), "⛔": ("block", "bad"), "🔒": ("lock", "bad")}
+
+
+def amount_hero(av) -> str:
+    a = av.action
+    if a.action_type == "payment":
+        amt, cur = a.amount, a.currency
+    elif a.action_type == "fx":
+        amt, cur = a.quote.buy_amount, a.quote.buy_currency
+    else:
+        return ""
+    return f"<div class='bg-amount'>{esc_html(f'{to_dec(amt):,.2f}')}<small>{esc_html(cur)}</small></div>"
+
+
 def render_card(av, payees: dict) -> None:
     s = st.session_state
     aid = av.action.action_id
@@ -351,18 +302,20 @@ def render_card(av, payees: dict) -> None:
     locked = av.status == "denied" and bool(s.otp_fails.get(aid)) and code_budget()[1]
     lvl = "R4" if av.status == "denied" else risk_value(d.risk_level if d else (cr.risk_level if cr else "R0"))
     tone = "muted" if av.status == "rejected_by_user" else lvl
-    with st.container(border=True, key=f"card_{tone}_{aid}"):
+    with st.container(border=False, key=f"card_{tone}_{aid}"):
         if s.get("g_target") == ("card", aid):
             st.markdown("<div class='g-target'></div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='bg-title'>{esc_html(action_title(av, payees))}</div>"
-                    + risk_badge(lvl) + ("" if av.status == "denied" else status_badge(av.status)),
-                    unsafe_allow_html=True)
         icon, why = why_line(av, payees, DEMO_NOW, locked=locked)
-        st.markdown(f"<div class='bg-why'>{esc_html(icon)} {esc_html(why)}</div>", unsafe_allow_html=True)
+        why_icon, why_tone = WHY_STYLE.get(icon, ("check", "ok"))
+        meta = risk_badge(lvl) + ("" if av.status == "denied" else status_badge(av.status))
+        st.markdown(f"<div class='bg-card-meta'>{meta}</div>"
+                    f"<div class='bg-card-title'>{esc_html(action_title(av, payees))}</div>{amount_hero(av)}"
+                    f"<div class='bg-why {why_tone}'>{ICON[why_icon]}<span>{esc_html(why)}</span></div>",
+                    unsafe_allow_html=True)
         if av.status == "denied":
             if locked:
                 st.markdown("**LOCKED: too many wrong codes**")
-                st.error(f"\U0001F512 Locked after {MAX_OTP_ATTEMPTS} wrong verification codes. Nothing was sent; "
+                st.error(f"Locked after {MAX_OTP_ATTEMPTS} wrong verification codes. Nothing was sent; "
                          f"the attempt is recorded in receipt {receipt_label(av.receipt_id)}.")
         else:
             st.markdown(kv_html(action_details(av, payees)), unsafe_allow_html=True)
@@ -378,13 +331,13 @@ def render_card(av, payees: dict) -> None:
         if av.status == "awaiting_confirmation" and cr:
             render_pending_controls(aid, av, cr)
         elif av.status == "executed":
-            st.success(f"✓ Done in the sandbox. Receipt {receipt_label(av.receipt_id)}")
+            st.success(f"Done in the sandbox. Receipt {receipt_label(av.receipt_id)}")
         elif av.status == "replayed":
-            st.info("↺ Already done: duplicate ignored, no money moved twice.")
+            st.info("Already done: duplicate ignored, no money moved twice.")
         elif av.status == "rejected_by_user":
-            st.caption("✕ Cancelled by you. Nothing was sent.")
+            st.caption("Cancelled by you. Nothing was sent.")
         elif av.status == "failed":
-            st.error("✕ Execution failed. Nothing was sent.")
+            st.error("Execution failed. Nothing was sent.")
 
 
 def code_budget() -> tuple[int, bool]:
@@ -405,14 +358,14 @@ def render_pending_controls(aid: str, av, cr) -> None:
     if cr.verdict == "step_up":
         left, code_locked = code_budget()
         what = "Adding a payee" if av.action.action_type == "add_beneficiary" else "This payment"
-        st.warning(f"🔑 {what} needs your one-time code.")
+        st.warning(f"{what} needs your one-time code.")
         o1, o2 = st.columns([2, 3])
         otp = o1.text_input("SMS verification code", key=f"otp_{aid}", type="password", disabled=code_locked,
                             help=f"Simulated SMS code for the demo: {DEMO_OTP}")
-        o2.markdown(f"\U0001F4F1 Simulated SMS: your code is **{DEMO_OTP}**  \n"
+        o2.markdown(f"Simulated SMS: your code is **{DEMO_OTP}**  \n"
                     f"Attempts remaining: **{left} of {MAX_OTP_ATTEMPTS}** (counted for your account, not per payment)")
         if code_locked:
-            st.error(f"\U0001F512 Approval by code is locked on your account after {MAX_OTP_ATTEMPTS} wrong codes. "
+            st.error(f"Approval by code is locked on your account after {MAX_OTP_ATTEMPTS} wrong codes. "
                      "The bank has to unlock it (in this demo: Reset demo).")
         elif s.otp_fails.get(aid):
             st.error(f"Wrong code. {left} attempt(s) left before approval by code is locked on your account.")
@@ -447,15 +400,15 @@ def render_pending_controls(aid: str, av, cr) -> None:
 
 
 def render_projection(p, key: str) -> None:
-    with st.container(border=True, key=f"projection_{key}"):
-        st.markdown("<div class='bg-title'>📊 Projection: simulated, nothing proposed or sent</div>",
+    with st.container(border=False, key=f"projection_{key}"):
+        st.markdown(f"<div class='bg-card-heading'>{ICON['chart']}Projection: simulated, nothing proposed or sent</div>",
                     unsafe_allow_html=True)
         floor = get(p, "reserve_floor_eur")
-        tags = [badge("✓", "Reserve kept", "#15803d") if get(p, "reserve_ok") else badge("⚠", "Reserve breached", "#b91c1c")]
+        tags = [pill("check", "Reserve kept", "ok") if get(p, "reserve_ok") else pill("alert", "Reserve breached", "bad")]
         if not get(p, "feasible"):
-            tags.append(badge("⛔", "Not enough money", "#b91c1c"))
-        st.markdown(" ".join(tags) + (f" &nbsp; your reserve: <b>{esc_html(money(floor))}</b>" if floor is not None
-                                      else ""), unsafe_allow_html=True)
+            tags.append(pill("block", "Not enough money", "bad"))
+        st.markdown(" ".join(tags) + (f"<span class='bg-sub'>Your reserve: <b>{esc_html(money(floor))}</b></span>"
+                                      if floor is not None else ""), unsafe_allow_html=True)
         now, after = get(p, "balances_now", {}), get(p, "balances_after", {})
         curs = list(dict.fromkeys([*now, *after]))
         cols = st.columns(len(curs) or 1)
@@ -471,14 +424,14 @@ def render_events(events, names: dict[str, str]) -> None:
     for e in events:
         if e.kind == "prompt_injection":
             fname = names.get(e.source, "the attached document")
-            st.error(f"\U0001F9EB **Untrusted document, quarantined:** {esc_md(fname)}  \n"
+            st.error(f"**Untrusted document, quarantined:** {esc_md(fname)}  \n"
                      "It contains hidden instructions addressed to the AI. They were ignored: the document is read "
                      "as data only, and any payment uses the account saved for the payee.")
         elif e.kind == "step_up_failed":
             continue                       # shown on the card itself (attempt counter)
         else:
-            icon, title, plain = EVENT_PLAIN.get(e.kind, ("🚨", "Security check", ""))
-            st.warning(f"{icon} **{title}.** {plain}")
+            icon, title, plain = EVENT_PLAIN.get(e.kind, ("", "Security check", ""))
+            st.warning(f"**{title}.** {plain}")
 
 
 def render_event_details(events, names: dict[str, str]) -> None:
@@ -494,31 +447,39 @@ def render_event_details(events, names: dict[str, str]) -> None:
 def render_sidebar(ov: dict) -> None:
     s = st.session_state
     with st.sidebar:
-        st.markdown("## \U0001F6E1 BorderlessGuard")
-        st.markdown("**Lina**, international student in France")
         bal = balance_by_currency(ov)
         eur, usd = bal.get("EUR", Decimal(0)), bal.get("USD", Decimal(0))
-        st.metric("EUR balance", f"{eur:,.2f}")
-        st.metric("USD balance", f"{usd:,.2f}")
         floor = DEMO_RESERVE_EUR
         ok = eur >= floor
-        st.markdown(f"Reserve to keep: **{money(floor)}** " + (badge("✓", "kept", "#15803d") if ok
-                                                              else badge("⚠", "below", "#b91c1c")),
-                    unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='bg-side-brand'><span class='bg-logo'>{ICON['shield_check']}</span>BorderlessGuard</div>"
+            "<div class='bg-account'><div class='bg-avatar'>L</div><div><div class='n'>Lina</div>"
+            "<div class='d'>International student in France</div></div></div>"
+            "<div class='bg-side-label'>Accounts</div>"
+            "<div class='bg-group'>"
+            f"<div class='bg-row'><span class='k'>EUR balance</span><span class='v'>{eur:,.2f}</span></div>"
+            f"<div class='bg-row'><span class='k'>USD balance</span><span class='v'>{usd:,.2f}</span></div>"
+            f"<div class='bg-row small'><span class='k'>Reserve to keep</span><span class='v'>{esc_html(money(floor))}</span></div>"
+            "<div class='bg-row small'><span class='k'>Reserve status</span><span class='v'>"
+            + (pill("check", "kept", "ok", "sm") if ok else pill("alert", "below", "bad", "sm")) + "</span></div></div>",
+            unsafe_allow_html=True)
         with st.expander("Saved payees and bills due", expanded=not s.guided):
+            rows = []
             for b in ov.get("beneficiaries", []):
                 added = get(b, "added_at")
                 age = (DEMO_NOW - added) if added is not None else None
                 new = age is not None and age < NEW_BENEFICIARY_WINDOW
-                tag = " " + badge("🆕", f"new · added {int(age.total_seconds() // 3600)} h ago", "#b45309") if new else ""
-                st.markdown(f"{esc_html(get(b, 'display_name'))} <code style='white-space:nowrap'>"
-                            f"{esc_html(iban_tail(get(b, 'iban')))}</code>{tag}",
-                            unsafe_allow_html=True)
+                tag = pill("clock", f"new · added {int(age.total_seconds() // 3600)} h ago", "warn", "sm") if new else ""
+                rows.append(f"<div class='bg-payee'><div class='nm'>{esc_html(get(b, 'display_name'))}</div>"
+                            f"<div class='meta'><code>{esc_html(iban_tail(get(b, 'iban')))}</code>{tag}</div></div>")
             for o in ov.get("obligations", []):
                 due = get(o, "due_date")
-                st.markdown(f"📅 {esc_md(str(get(o, 'kind')).title())}: **{money(get(o, 'amount'), get(o, 'currency'))}** "
-                            f"due {due.strftime('%d %b %Y') if hasattr(due, 'strftime') else esc_md(due)}")
-        st.divider()
+                due_s = due.strftime('%d %b %Y') if hasattr(due, 'strftime') else str(due)
+                rows.append(f"<div class='bg-payee'><div class='nm'>{esc_html(str(get(o, 'kind')).title())}: "
+                            f"{esc_html(money(get(o, 'amount'), get(o, 'currency')))}</div>"
+                            f"<div class='meta'>due {esc_html(due_s)}</div></div>")
+            st.markdown("".join(rows), unsafe_allow_html=True)
+        st.markdown("<div class='bg-side-label'>Demo controls</div>", unsafe_allow_html=True)
         st.toggle("Guided demo (6 steps)", key="guided", on_change=start_guided,
                   help="One click per step. Every step runs the real agent, rules and sandbox ledger.")
         have_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
@@ -528,22 +489,24 @@ def render_sidebar(ov: dict) -> None:
             st.caption("No ANTHROPIC_API_KEY found: using the offline rules parser.")
         st.toggle("Lying exchange-rate feed", key="poisoned", on_change=reset_backend,
                   help="The simulated exchange-rate provider slips instructions into its response.")
-        if st.button("Reset demo", key="reset"):
+        if st.button("Reset demo", key="reset", width="stretch"):
             reset_backend()
             st.rerun()
 
 
 # --------------------------------------------------------------------------- header
 def render_header() -> None:
-    left, right = st.columns([3, 2], vertical_alignment="bottom")
+    left, right = st.columns([4, 1.4], vertical_alignment="top")
     with left:
-        st.title("\U0001F6E1 BorderlessGuard")
+        st.title("BorderlessGuard")
         st.markdown(f"<div class='bg-pitch'>{esc_html(PITCH)}</div>"
                     "<div class='bg-sub'>Pays an international student's bills across currencies, "
-                    "and asks before anything moves.</div>", unsafe_allow_html=True)
-    with right:
-        st.markdown("<div style='text-align:right'><span class='bg-sandbox'>🧪 SANDBOX · no real money</span><br>"
+                    "and asks before anything moves.</div>"
+                    "<div class='bg-legend'><span class='bg-legend-label'>Risk levels</span>"
                     + " ".join(risk_badge(lv) for lv in ("R0", "R2", "R3", "R4")) + "</div>", unsafe_allow_html=True)
+    with right:
+        st.markdown("<div style='text-align:right;padding-top:6px'>"
+                    + pill("flask", "SANDBOX · no real money", "warn", "sandbox") + "</div>", unsafe_allow_html=True)
 
 
 # --------------------------------------------------------------------------- guided demo
@@ -604,23 +567,24 @@ def render_guided() -> None:
     s = st.session_state
     n = len(guided.STEPS)
     with st.container(key="guided_bar"):
-        pills = []
+        cells = []
         for i, stp in enumerate(guided.STEPS):
             obs = s.g_obs.get(stp.key)
             cls = ("done" if obs.ok else "bad") if obs else ("now" if i == s.g_done else "")
-            mark = ("✓ " if obs.ok else "✕ ") if obs else ""
-            pills.append(f"<span class='bg-step {cls}'>{mark}{i + 1}. {esc_html(stp.title)}</span>")
-        st.markdown("<div class='bg-steps'><b>🎬 Guided demo</b>&nbsp; " + "".join(pills) + "</div>",
-                    unsafe_allow_html=True)
+            mark = (ICON["check"] if obs.ok else ICON["x"]) if obs else str(i + 1)
+            cells.append(f"<div class='bg-step {cls}'><span class='n'>{mark}</span><span>{esc_html(stp.title)}</span></div>")
+        st.markdown(f"<div class='bg-guided-head'>{ICON['play']}Guided demo</div>"
+                    f"<div class='bg-stepper'>{''.join(cells)}</div>", unsafe_allow_html=True)
         if s.g_done == 0:
             st.markdown("<div class='bg-caption'>Six clicks tell the whole story. Each step runs the real agent, "
                         "rules and sandbox ledger: nothing is pre-recorded.</div>", unsafe_allow_html=True)
         else:
             stp = guided.STEPS[s.g_done - 1]
             obs = s.g_obs[stp.key]
-            st.markdown(f"<div class='bg-caption'>Step {s.g_done}/{n} · {esc_html(stp.caption)}</div>",
-                        unsafe_allow_html=True)
-            st.markdown(" &nbsp; ".join(f"{'✅' if ok else '❌'} {esc_md(txt)}" for ok, txt in obs.facts))
+            st.markdown(f"<div class='bg-caption'>Step {s.g_done}/{n} · {esc_html(stp.caption)}</div>"
+                        "<div class='bg-facts'>"
+                        + "".join(pill("check" if ok else "x", txt, "ok" if ok else "bad") for ok, txt in obs.facts)
+                        + "</div>", unsafe_allow_html=True)
             if not obs.ok:
                 st.warning("This step did not go as the story expects. Shown above is what the backend actually "
                            "returned. Restart the guided demo to try again.")
@@ -633,7 +597,7 @@ def render_guided() -> None:
                 s.g_done += 1
                 st.rerun()
         else:
-            c1.success("✓ Guided demo complete. Details: Receipts and Attack test tabs.")
+            c1.success("Guided demo complete. Details: Receipts and Attack test tabs.")
         c2.button("↺ Restart guided demo", key="guided_restart", width="stretch", on_click=start_guided)
 
 
@@ -663,12 +627,12 @@ def render_examples() -> None:
         dcols = st.columns([1, 1, 1])
         for i, d in enumerate(SEED_DOCUMENTS):
             done = d["document_id"] in s.attached
-            if dcols[i].button(("✅ " if done else "\U0001F4CE ") + DOC_LABELS.get(d["document_id"], d["filename"]),
+            if dcols[i].button(("✓ " if done else "") + DOC_LABELS.get(d["document_id"], d["filename"]),
                                key=f"attach_{d['document_id']}", width="stretch"):
                 if not done:
                     s.attached.append(d["document_id"])
                 st.rerun()
-        with dcols[2].popover("📤 Upload your own invoice (.txt)", width="stretch"):
+        with dcols[2].popover("Upload your own invoice (.txt)", width="stretch"):
             up = st.file_uploader("Invoice text file. It is treated as untrusted data.", type=["txt"],
                                   key=f"upload_{s.upload_gen}")
             if up is not None:
@@ -682,10 +646,12 @@ def render_examples() -> None:
 
 
 def render_welcome() -> None:
-    with st.container(border=True, key="welcome"):
-        st.markdown("**👋 Hi Lina.** Ask me to pay your bills, send money home, convert currency, or check "
-                    "\"can I afford…?\" first. I simulate every plan, fixed rules check it, and nothing moves until "
-                    "you approve it. Invoices you attach are read as data, never as orders.")
+    with st.container(border=False, key="welcome"):
+        st.markdown(f"<div class='bg-welcome-icon'>{ICON['hand']}</div><div class='bg-welcome-title'>Hi Lina.</div>"
+                    "<div class='bg-welcome-text'>Ask me to pay your bills, send money home, convert currency, or "
+                    "check \"can I afford…?\" first. I simulate every plan, fixed rules check it, and nothing moves "
+                    "until you approve it. Invoices you attach are read as data, never as orders.</div>",
+                    unsafe_allow_html=True)
 
 
 def tab_assistant() -> None:
@@ -694,7 +660,7 @@ def tab_assistant() -> None:
         render_examples()
     if s.attached:
         names = doc_names()
-        st.caption("📎 Sent with your next message, as untrusted data: "
+        st.caption("Sent with your next message, as untrusted data: "
                    + ", ".join(esc_md(names.get(a, a)) for a in s.attached))
     if not s.history:
         render_welcome()
@@ -704,13 +670,14 @@ def tab_assistant() -> None:
     docs_by_id = {d["document_id"]: d for d in all_docs()}
     last_assistant = max((i for i, h in enumerate(s.history) if h["role"] == "assistant"), default=-1)
     for i, h in enumerate(s.history):
-        with st.chat_message(h["role"]):
+        with st.chat_message(h["role"], avatar=":material/shield:" if h["role"] == "assistant" else None):
             if s.get("g_target") == ("msg", i):
                 st.markdown("<div class='g-target'></div>", unsafe_allow_html=True)
-            st.markdown(esc_md(humanize(h["text"])) if h["role"] == "assistant" else esc_md(h["text"]))
+            with st.container(key=f"bubble_{i}"):
+                st.markdown(esc_md(humanize(h["text"])) if h["role"] == "assistant" else esc_md(h["text"]))
             for doc_id in h.get("docs", []):
                 d = docs_by_id.get(doc_id, {"filename": doc_id, "text": ""})
-                with st.expander(f"📎 {esc_md(d['filename'])} (untrusted: shown as plain text)"):
+                with st.expander(f"{esc_md(d['filename'])} (untrusted: shown as plain text)"):
                     st.code(d["text"], language=None, wrap_lines=True)
             render_events(h.get("events", []), names)
             if h.get("projection") is not None:
@@ -728,7 +695,7 @@ def tab_assistant() -> None:
                 render_chips(h, list(ov_payees.values()))
             render_event_details(h.get("events", []), names)
             if h.get("anchor") is not None:
-                st.caption(f"\U0001F9FE Your copy of the latest receipt: {anchor_label(h['anchor'])}")
+                st.caption(f"Your copy of the latest receipt: {anchor_label(h['anchor'])}")
 
     hint = ("Answer the agent's question, e.g. 50 euros" if s.pending_question
             else "Ask BorderlessGuard… or correct: \"actually make it 40\", \"cancel that\"")
@@ -773,9 +740,9 @@ def set_verify_result(res, anchor) -> None:
 def tab_proof(ov: dict) -> None:
     s = st.session_state
     receipts = ov.get("receipts", [])
-    st.markdown("Every action, done **or** refused, gets a receipt. Each receipt records what you asked, the exact "
-                "payment, the simulation, the rules' decision and your approval, and is linked to the previous one, "
-                "so history cannot be edited quietly.")
+    st.markdown("<div class='bg-lede'>Every action, done <b>or</b> refused, gets a receipt. Each receipt records "
+                "what you asked, the exact payment, the simulation, the rules' decision and your approval, and is "
+                "linked to the previous one, so history cannot be edited quietly.</div>", unsafe_allow_html=True)
     anchor = s.customer_anchor
     if anchor is not None:
         st.markdown(f"Your copy of the latest receipt: <span class='bg-anchor'>{esc_html(anchor_label(anchor))}</span>",
@@ -786,15 +753,18 @@ def tab_proof(ov: dict) -> None:
         st.caption("No copy yet: you get one after the first receipt is written.")
     key_info = ov.get("signing_key")
     if key_info:
-        (st.warning if ov.get("demo_key_in_use") else st.caption)(f"🔏 Receipts signed with: {esc_md(key_info)}")
+        (st.warning if ov.get("demo_key_in_use") else st.caption)(f"Receipts signed with: {esc_md(key_info)}")
     if not receipts:
-        st.info("🧾 No receipts yet. Approve an action (or let the rules refuse one) to create the first receipt.")
-    rows = [{"#": get(r, "seq"), "What happened": humanize(get(r, "summary")),
-             "Approved by you": "yes" if get(r, "confirmation_hash") else "no",
-             "Fingerprint": short(get(r, "receipt_hash")), "Links to": short(get(r, "prev_receipt_hash"))}
-            for r in receipts]
-    if rows:
-        st.dataframe(rows, width="stretch", hide_index=True)
+        st.info("No receipts yet. Approve an action (or let the rules refuse one) to create the first receipt.")
+    if receipts:
+        body = "".join(
+            f"<tr><td class='num'>{esc_html(get(r, 'seq'))}</td><td>{esc_html(humanize(get(r, 'summary')))}</td>"
+            f"<td>{pill('check', 'Approved', 'ok', 'sm') if get(r, 'confirmation_hash') else pill('block', 'Refused', 'bad', 'sm')}</td>"
+            f"<td class='mono'>{esc_html(short(get(r, 'receipt_hash')))}</td>"
+            f"<td class='mono'>{esc_html(short(get(r, 'prev_receipt_hash')))}</td></tr>" for r in receipts)
+        st.markdown("<table class='bg-table'><thead><tr><th>#</th><th>What happened</th><th>Approved by you</th>"
+                    "<th>Fingerprint</th><th>Links to</th></tr></thead><tbody>" + body + "</tbody></table>",
+                    unsafe_allow_html=True)
     fn = ov.get("verify_fn")
     c1, c2, _ = st.columns([1, 1.4, 2])
     if c1.button("Check the chain", key="verify", width="stretch", disabled=not receipts):
@@ -847,9 +817,9 @@ def run_attacks(attacks) -> None:
 
 def render_attack_result(res) -> None:
     a = res.attack
-    with st.container(border=True, key=f"atk_{a.key}"):
-        head = badge("✓", "BLOCKED", "#15803d") if (res.blocked and not res.error) else badge("✕", "NOT BLOCKED", "#b91c1c")
-        st.markdown(f"{head} &nbsp; <b>{esc_html(a.name)}</b>", unsafe_allow_html=True)
+    with st.container(border=False, key=f"atk_{a.key}"):
+        head = pill("check", "BLOCKED", "ok") if (res.blocked and not res.error) else pill("x", "NOT BLOCKED", "bad")
+        st.markdown(f"<div class='bg-atk-head'>{head}<span>{esc_html(a.name)}</span></div>", unsafe_allow_html=True)
         st.markdown(f"**Attack:** {esc_md(a.description or a.user_text)}")
         st.code(a.script, language=None, wrap_lines=True)
         st.markdown(f"**Expected defence:** {esc_md(a.expected_defence)}")
@@ -873,7 +843,9 @@ def tab_attacks() -> None:
     done = [results[a.key] for a in ATTACKS if a.key in results]
     if done:
         n = sum(r.blocked and not r.error for r in done)
-        st.markdown(f"### {'✅' if n == len(done) else '❌'} {n} / {len(done)} blocked")
+        good = n == len(done)
+        st.markdown(f"<div class='bg-score {'' if good else 'bad'}'><span class='ic'>{ICON['check' if good else 'x']}</span>"
+                    f"{n} / {len(done)} blocked</div>", unsafe_allow_html=True)
     else:
         st.info("No attack run yet. Click **Run all** or pick one attack.")
     for a in ATTACKS:
@@ -885,7 +857,7 @@ def tab_attacks() -> None:
 def main() -> None:
     init_state()
     s = st.session_state
-    st.markdown(CSS, unsafe_allow_html=True)
+    st.markdown(load_css(), unsafe_allow_html=True)
     ov = s.backend.overview(s.session_id)
     render_sidebar(ov)
     render_header()
