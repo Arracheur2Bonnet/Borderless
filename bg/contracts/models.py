@@ -14,6 +14,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Currency = Literal["EUR", "USD"]
 
+# v3: every amount that crosses a component boundary is bounded (AUDIT-7/8). At most 12 integer digits and
+# 6 decimals: a 30-digit "amount" is rejected by the contract instead of overflowing Decimal arithmetic later.
+# Sub-cent amounts (1.005) are still representable so the agent can ask about them instead of rounding.
+Amount = Annotated[Decimal, Field(max_digits=18, decimal_places=6, allow_inf_nan=False)]
+
 
 class Frozen(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -67,10 +72,10 @@ class FxQuote(Frozen):
     quote_id: str
     sell_currency: Currency
     buy_currency: Currency
-    sell_amount: Decimal             # total debited from the sell account, fee included
-    buy_amount: Decimal              # credited to the buy account
+    sell_amount: Amount              # total debited from the sell account, fee included
+    buy_amount: Amount               # credited to the buy account
     rate: Decimal                    # buy units per 1 sell unit
-    fee: Decimal                     # in sell currency, included in sell_amount
+    fee: Amount                      # in sell currency, included in sell_amount
     expires_at: datetime
 
 
@@ -85,7 +90,7 @@ class PayObligations(Frozen):
     """'Pay my tuition and rent, keep 600 EUR' -> expanded into actions by deterministic code."""
     kind: Literal["pay_obligations"] = "pay_obligations"
     obligation_kinds: list[Literal["tuition", "rent"]]
-    keep_reserve: Decimal | None = None
+    keep_reserve: Amount | None = None
     reserve_currency: Currency = "EUR"
 
 
@@ -93,14 +98,14 @@ class FxConvert(Frozen):
     kind: Literal["fx_convert"] = "fx_convert"
     sell_currency: Currency
     buy_currency: Currency
-    buy_amount: Decimal
+    buy_amount: Amount
 
 
 class Pay(Frozen):
     kind: Literal["pay"] = "pay"
     beneficiary_ref: str             # what the user said: "mom", "landlord", "b_univ"
     amount_mode: Literal["exact", "all", "unspecified"] = "exact"
-    amount: Decimal | None = None    # required when amount_mode == "exact"
+    amount: Amount | None = None     # required when amount_mode == "exact"
     currency: Currency = "EUR"
     iban_hint: str | None = None     # an IBAN typed by the user; never trusted over the registry
     memo: str = ""
@@ -130,15 +135,15 @@ class AffordabilityCheck(Frozen):
     kind: Literal["affordability_check"] = "affordability_check"
     obligation_kinds: list[Literal["tuition", "rent"]] = []
     beneficiary_ref: str | None = None
-    amount: Decimal | None = None
+    amount: Amount | None = None
     currency: Currency = "EUR"
-    keep_reserve: Decimal | None = None
+    keep_reserve: Amount | None = None
 
 
 class ProvideDetail(Frozen):
     """Answer to the agent's last clarification question: '50 euros', 'to mom'."""
     kind: Literal["provide_detail"] = "provide_detail"
-    amount: Decimal | None = None
+    amount: Amount | None = None
     currency: Currency | None = None
     beneficiary_ref: str | None = None
 
@@ -146,7 +151,7 @@ class ProvideDetail(Frozen):
 class Correct(Frozen):
     """Change a pending, not yet executed action: 'actually make it 40', 'send it to mom instead'."""
     kind: Literal["correct"] = "correct"
-    amount: Decimal | None = None
+    amount: Amount | None = None
     currency: Currency | None = None
     beneficiary_ref: str | None = None
 
@@ -181,7 +186,7 @@ class PaymentAction(Frozen):
     from_account_id: str
     beneficiary_id: str
     iban: str                        # copied from the registry, never from text
-    amount: Decimal
+    amount: Amount
     currency: Currency
     obligation_id: str | None = None
     memo: str = ""

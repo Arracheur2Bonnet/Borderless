@@ -2,16 +2,22 @@
 actions from the registry, the policy gate authorises, the ledger executes."""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from enum import Enum
 from typing import Any, Callable
 
 from pydantic import BaseModel
 
 from bg.contracts import params
+from bg.contracts.canonical import (
+    iban_problem, is_whole_cents, money, name_skeleton, normalize_iban, parse_amount, q2,
+)
 from bg.contracts.hashing import params_hash, sha256_hex
 from bg.contracts.interfaces import ContentGuard, IntentParser, Ledger, PolicyEngine, ReceiptStore
 from bg.contracts.models import (
@@ -22,6 +28,8 @@ from bg.contracts.models import (
     SimulationResult, Unsupported, UntrustedDocument, Verdict,
 )
 
+from bg.ledger.stepup import StepUpAttempts
+
 from .rules_parser import RulesParser, is_affordability_question, payment_draft_hint
 
 _CENT = Decimal("0.01")
@@ -29,8 +37,19 @@ AuditSink = Callable[[dict], None]
 
 # policy rule id -> security event kind raised when that rule fails
 _FLAG_RULES = {"STRUCTURING": "structuring_suspected", "SANCTIONS_SCREEN": "sanctions_hit"}
-_IBAN_TEXT_RE = re.compile(r"\b[A-Za-z]{2}\d{2}(?:[ ]?[A-Za-z0-9]{2,4}){3,8}\b")
-_OTP_TEXT_RE = re.compile(r"(?<![\w.])\d{6}(?![\w.])")
+# Audit redaction (AUDIT-9). IBANs written with spaces, '-' or '.' between groups; a 6-digit code even when a
+# full stop follows it ("my code is 246810."). Hex hashes and ids are protected by the \w look-arounds.
+_IBAN_TEXT_RE = re.compile(r"\b[A-Za-z]{2}\d{2}(?:[ .\-]?[A-Za-z0-9]{2,4}){3,8}\b")
+_OTP_TEXT_RE = re.compile(r"(?<![\w.])\d{6}(?!\w)")
+# What a hidden instruction in a document asks for (used only to describe the attack to the user).
+_INJ_AMOUNT = re.compile(r"\b(?:transfer|send|wire|remit|move|pay|vire[zr]?|envoie[zr]?|transf[èe]re[zr]?)\s+"
+                         r"(?:the\s+|a\s+total\s+of\s+|imm[ée]diatement\s+)?"
+                         r"(?:(EUR|USD|€|\$)\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\s*(EUR|USD|€|\$|euros?|dollars?))", re.I)
+_ANY_IBAN_TEXT = re.compile(r"\b[A-Z]{2}[0-9]{2}(?:[ .\-]?[A-Z0-9]{4}){2,7}(?:[ .\-]?[A-Z0-9]{1,4})?\b")
+_COUNTRY = {"GB": "a UK", "FR": "a French", "DE": "a German", "AE": "a UAE", "MA": "a Moroccan", "ES": "a Spanish",
+            "IT": "an Italian", "NL": "a Dutch", "BE": "a Belgian", "CH": "a Swiss", "IE": "an Irish",
+            "PT": "a Portuguese", "LT": "a Lithuanian", "CY": "a Cypriot", "TR": "a Turkish"}
+_ZERO_WIDTH = re.compile("[\u00ad\u034f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]")
 
 
 _RATE_Q = re.compile(r"\b(rate|exchange rate|how much (?:is|are|would|will)|worth|give me|get me|in (?:eur|euros?|usd|dollars?))\b",
@@ -48,42 +67,61 @@ def _rate_answer(text: str) -> str | None:
     m = _RATE_AMT.search(text)
     if not m:
         if re.search(r"\brate\b", text, re.I):
-            return (f"Today's sandbox rate: 1 USD = {usd_eur} EUR, plus a {fee * 100:.1f}% fee on the amount "
-                    "converted. This is information only: nothing was converted.")
+            return (f"Today's rate: 1 USD = {usd_eur} EUR, plus a {fee * 100:.1f}% fee on the amount converted. "
+                    "Nothing was converted.")
         return None
-    amount = _q(Decimal(m.group(1).replace(",", "")))
+    parsed = parse_amount(m.group(1))
+    if parsed is None:
+        return "That amount is too large for me to work with. Try a smaller figure, for example 200 USD."
+    amount = _q(parsed)
     sell = "USD" if m.group(2).lower() in ("usd", "dollar", "dollars", "$") else "EUR"
     buy = "EUR" if sell == "USD" else "USD"
     rate = params.FX_RATES[(sell, buy)]
     received = _q(amount / (Decimal(1) + fee) * rate)
-    return (f"{amount:.2f} {sell} would give about {received:.2f} {buy} at {rate} {buy} per {sell}, after the "
-            f"{fee * 100:.1f}% fee. This is information only: nothing was converted. Say 'convert' to do it.")
+    return (f"{money(amount)} {sell} would give you about {money(received)} {buy} at {rate} {buy} per {sell}, after "
+            f"the {fee * 100:.1f}% fee. Nothing was converted; say \"convert\" if you want to do it.")
 
 
 def _q(x: Decimal) -> Decimal:
-    return x.quantize(_CENT)
+    """The one rounding rule (ROUND_HALF_UP, shared with ledger and policy). Only applied to amounts that are
+    already whole cents or to computed values; a user amount with sub-cent digits is clarified, never rounded."""
+    return q2(x)
 
 
 def _m(x: Decimal) -> str:
-    return f"{_q(x):.2f}"
+    """The one money display format: thousands separators, two decimals."""
+    return money(x)
 
 
 def _norm_iban(s: str) -> str:
-    return "".join(s.split()).upper()
+    return normalize_iban(s)
+
+
+def _sub_cent_question(amount: Decimal, currency: str, what: str = "send") -> str:
+    lo, hi = amount.quantize(_CENT, rounding=ROUND_FLOOR), amount.quantize(_CENT, rounding=ROUND_CEILING)
+    options = f"{_m(lo)} or {_m(hi)} {currency}" if lo > 0 else f"{_m(hi)} {currency}"
+    return (f"{format(amount, 'f')} {currency} has more than two decimals, and I only {what} whole cents. "
+            f"Did you mean {options}?")
 
 
 # ---------------------------------------------------------------------- audit redaction
 def _mask_ibans(text: str) -> str:
     def rep(m: re.Match) -> str:
-        groups = m.group(0).split(" ")
-        while len(groups) > 1 and groups[-1].isalpha():     # do not swallow trailing words
-            groups.pop()
-        cand = "".join(groups)
+        raw = m.group(0)
+        toks = re.findall(r"[ .\-]|[A-Za-z0-9]+", raw)
+        while len(toks) > 1 and (toks[-1] in (" ", ".", "-") or (toks[-1].isalpha() and toks[-2] in (" ", ".", "-"))):
+            toks.pop()                                      # do not swallow a trailing word ("... 55 instead")
+        kept = "".join(toks)
+        cand = "".join(t for t in toks if t not in (" ", ".", "-"))
         if not 15 <= len(cand) <= 34:
-            return m.group(0)
-        rest = m.group(0)[len(" ".join(groups)):]
-        return "****" + cand[-4:].upper() + rest
+            return raw
+        return "****" + cand[-4:].upper() + raw[len(kept):]
     return _IBAN_TEXT_RE.sub(rep, text)
+
+
+def _redact(text: str) -> str:
+    s = _ZERO_WIDTH.sub("", unicodedata.normalize("NFKC", text))
+    return _OTP_TEXT_RE.sub("******", _mask_ibans(s))
 
 
 def _safe(value: Any, key: str | None = None) -> Any:
@@ -104,7 +142,7 @@ def _safe(value: Any, key: str | None = None) -> Any:
         return value.value
     if isinstance(value, bool) or value is None or isinstance(value, (int, float)):
         return value
-    return _OTP_TEXT_RE.sub("******", _mask_ibans(str(value)))
+    return _redact(str(value))
 
 
 # ---------------------------------------------------------------------- session state
@@ -168,12 +206,17 @@ class _Turn:
     receipts: list[Receipt] = field(default_factory=list)
     projection: Projection | None = None
     question: str | None = None
+    explained: set[str] = field(default_factory=set)   # event ids already explained in plain words
 
 
 class _Orchestrator:
     def __init__(self, ledger: Ledger, receipts: ReceiptStore, policy: PolicyEngine, guard: ContentGuard,
-                 parser: IntentParser | None, now: datetime, audit_sink: AuditSink | None = None) -> None:
+                 parser: IntentParser | None, now: datetime, audit_sink: AuditSink | None = None,
+                 step_up: StepUpAttempts | None = None) -> None:
         self.ledger, self.receipts, self.policy, self.guard = ledger, receipts, policy, guard
+        # AUDIT-3: wrong one-time codes are counted per user in a store shared by every session (the ledger's
+        # by default), so a new action, a correction or a new session never gets a fresh budget.
+        self.step_up = step_up or getattr(ledger, "step_up", None) or StepUpAttempts()
         self.parser = parser or RulesParser()
         self.now = now
         self.audit_sink = audit_sink
@@ -190,27 +233,55 @@ class _Orchestrator:
     def overview(self, session_id: str) -> dict[str, Any]:
         s = self._sess(session_id)
         dump = lambda xs: [x.model_dump(mode="python") for x in xs]  # noqa: E731
-        anchor = self.receipts.anchor()
+        anchor = self._anchor(s.user_id)
+        demo_key = bool(getattr(self.receipts, "demo_key_in_use", False))
+        user = s.user_id
         return {
             "accounts": dump(self.ledger.get_accounts(s.user_id)),
             "beneficiaries": dump(self.ledger.get_beneficiaries(s.user_id)),
             "obligations": dump(self.ledger.get_obligations(s.user_id)),
             "receipts": dump(self.receipts.list(s.user_id)),
+            # AUDIT-10: the anchor and the verifier cover this customer's own chain only
             "anchor": anchor.model_dump(mode="python") if anchor is not None else None,
-            "verify_fn": self._verify,
+            "verify_fn": lambda a=None: self._verify(a, user),
+            # AUDIT-12: say plainly when receipts are signed with the public demo key
+            "demo_key_in_use": demo_key,
+            "signing_key": ("demo signing key (public, BG_RECEIPT_KEY not set): anyone can forge an anchor; "
+                            "a deployment sets its own key") if demo_key else "bank signing key (BG_RECEIPT_KEY)",
         }
 
-    def _verify(self, anchor: ReceiptAnchor | dict | None = None) -> ChainVerification:
-        """Verify the receipt chain, optionally against a customer-held anchor (model or plain dict)."""
-        if anchor is None:
-            return self.receipts.verify_chain()
-        if not isinstance(anchor, ReceiptAnchor):
-            anchor = ReceiptAnchor.model_validate(anchor)
-        return self.receipts.verify_chain(anchor)
+    def _anchor(self, user_id: str) -> ReceiptAnchor | None:
+        try:
+            return self.receipts.anchor(user_id=user_id)        # type: ignore[call-arg]
+        except TypeError:                                       # a store without per-customer chains
+            return self.receipts.anchor()
+
+    def _verify(self, anchor: ReceiptAnchor | dict | None = None, user_id: str | None = None) -> ChainVerification:
+        """Verify the customer's receipt chain, optionally against a customer-held anchor (model or plain dict).
+        A malformed anchor is reported as invalid, never raised (AUDIT-11)."""
+        if anchor is not None and not isinstance(anchor, ReceiptAnchor):
+            try:
+                anchor = ReceiptAnchor.model_validate(anchor)
+            except Exception:
+                return ChainVerification(valid=False, length=0, detail="anchor is malformed")
+        try:
+            return self.receipts.verify_chain(anchor, user_id=user_id)   # type: ignore[call-arg]
+        except TypeError:
+            return self.receipts.verify_chain(anchor)
 
     def handle_message(self, session_id: str, text: str,
                        documents: list[UntrustedDocument] | None = None) -> AgentTurn:
         s = self._sess(session_id)
+        try:
+            return self._handle_message(s, session_id, text, documents)
+        except Exception as exc:   # fail closed: bad data (a crafted document, a parser bug) never crashes the chat
+            self._audit("clarify", s, error=type(exc).__name__)
+            return AgentTurn(session_id=session_id,
+                             assistant_text="Sorry, I couldn't process that safely, so I did nothing and nothing was "
+                                            "sent. Please rephrase it, for example \"send 50 euros to mom\".")
+
+    def _handle_message(self, s: "_Session", session_id: str, text: str,
+                        documents: list[UntrustedDocument] | None) -> AgentTurn:
         s.turn += 1
         s.reserve = None   # a reserve applies to the actions of the request that stated it
         t = _Turn(events=list(self.guard.scan_user_message(text)))
@@ -223,7 +294,10 @@ class _Orchestrator:
         parsed = self.parser.parse(text, beneficiary_names=names,
                                    pending_question=draft.question if draft else None)
         parsed = self._questions_never_pay(parsed)
-        self._audit("parse", s, parser=parsed.parser, text=text,
+        # AUDIT-9: the raw message is not logged (it can hold a code or bank details); a hash and length
+        # identify it, and the parsed, masked intents carry what the step did.
+        self._audit("parse", s, parser=parsed.parser,
+                    text_sha256=hashlib.sha256((text or "").encode("utf-8")).hexdigest(), text_chars=len(text or ""),
                     intents=[i.model_dump(mode="python") for i in parsed.intents], notes=parsed.notes,
                     pending_question=draft.question if draft else None)
         intents = self._apply_draft(s, draft, list(parsed.intents), t)
@@ -251,25 +325,27 @@ class _Orchestrator:
                 t.events.append(self._event(s, "prompt_injection", d.document_id,
                                             "Hidden instructions found in document; quarantined and treated as data only. "
                                             f"Patterns: {', '.join(scan.matched_patterns) or 'n/a'}"))
-                t.notes.append(f"The document {d.filename or d.document_id} contained hidden instructions. "
-                               "I quarantined it and ignored them; it is treated as data only.")
+                t.notes.append(self._injection_note(s, d, scan, wanted))
             # A swapped IBAN with no instruction text is the classic invoice fraud: tell the user explicitly.
             doc_iban = (scan.extracted or {}).get("iban")
-            registered = {b.iban for b in self.ledger.get_beneficiaries(s.user_id)}
-            if doc_iban and doc_iban not in registered:
-                t.events.append(self._event(s, "beneficiary_mismatch", d.document_id,
-                                            f"Document IBAN ending {doc_iban[-4:]} is not a registered payee IBAN."))
-                t.notes.append(f"Warning: {d.filename or d.document_id} asks for payment to an account ending "
-                               f"{doc_iban[-4:]}, which is not registered for any of your payees. I will only pay the "
-                               "IBAN registered for the payee. If the payee really changed bank, add the new account "
-                               "as a payee first (one-time-code verification).")
+            registered = {_norm_iban(b.iban) for b in self.ledger.get_beneficiaries(s.user_id)}
+            if doc_iban and _norm_iban(doc_iban) not in registered:
+                ev = self._event(s, "beneficiary_mismatch", d.document_id,
+                                 f"Document IBAN ending {doc_iban[-4:]} is not a registered payee IBAN.")
+                t.events.append(ev)
+                t.explained.add(ev.event_id)
+                t.notes.append(f"Careful: {d.filename or d.document_id} asks for payment to an account ending "
+                               f"{doc_iban[-4:]}, which isn't saved for any of your payees. I only pay the account on "
+                               "file. Banks never change account details by email: if the payee says they changed "
+                               "bank, call them on a number you already know, then add the new account as a payee "
+                               "(that needs your one-time code).")
             # An inflated amount is data too: the registry obligation is what gets paid, and the user is told.
-            doc_amount = (scan.extracted or {}).get("amount")
+            doc_amount = parse_amount((scan.extracted or {}).get("amount"))
             due = [o for o in self.ledger.get_obligations(s.user_id) if not wanted or o.kind in wanted]
-            if doc_amount and due and all(_q(Decimal(doc_amount)) != _q(o.amount) for o in due):
-                expected = ", ".join(f"{o.kind} {_q(o.amount):.2f} {o.currency}" for o in due)
-                t.notes.append(f"Note: {d.filename or d.document_id} states {doc_amount}, which does not match what "
-                               f"you owe on record ({expected}). I only pay the amount on record.")
+            if doc_amount is not None and due and all(doc_amount != o.amount for o in due):
+                expected = ", ".join(f"{o.kind} {_m(o.amount)} {o.currency}" for o in due)
+                t.notes.append(f"Note: {d.filename or d.document_id} says {_m(doc_amount)}, but what you owe on record "
+                               f"is {expected}. I only pay the amount on record.")
 
         proposals: list[tuple[Any, ProposedAction, str]] = []   # (intent, action, title)
         if any(isinstance(i, PayObligations) for i in intents):
@@ -286,7 +362,6 @@ class _Orchestrator:
                 prev = s.records.get(action.action_id)
                 rec = _Rec(action=action, intent=intent, title=title, sim=sim, reserve=s.reserve,
                            plan_id=plan_id, plan_pos=pos,
-                           # a re-sent request keeps the wrong-code count of the same (locked) action
                            otp_failures=prev.otp_failures if prev is not None else 0)
                 s.records[action.action_id] = rec
                 r = self._decide(s, rec, t.events)
@@ -296,10 +371,10 @@ class _Orchestrator:
 
         for e in t.events:
             self._remember(s, e)
-        reply = self._compose(t)
+        reply = self._compose(t, s)
         return AgentTurn(session_id=session_id, assistant_text=reply, parsed=parsed, actions=t.views,
                          security_events=t.events, receipts=t.receipts, projection=t.projection,
-                         anchor=self.receipts.anchor() if t.receipts else None,
+                         anchor=self._anchor(s.user_id) if t.receipts else None,
                          pending_question=s.draft.question if s.draft else None)
 
     def confirm(self, session_id: str, action_id: str, params_hash_: str, otp: str | None = None) -> AgentTurn:
@@ -308,13 +383,13 @@ class _Orchestrator:
         rec = s.records.get(action_id)
         if rec is None:
             self._audit("confirm", s, action_id=action_id, outcome="unknown_action")
-            return self._turn(s, f"I cannot find an action with id {action_id} in this session. Nothing was done.")
+            return self._turn(s, "I can't find that step in this conversation, so nothing was done.")
         if params_hash_ != params_hash(rec.action):
             events.append(self._event(s, "param_tamper", action_id,
                                       "The approval hash does not match the action parameters; approval refused."))
             self._audit("confirm", s, action_id=action_id, outcome="param_tamper")
-            return self._turn(s, "Refused: the approval does not match the exact parameters of this action "
-                                 "(possible tampering). Nothing was executed.", [self._view(rec)], events)
+            return self._turn(s, "I refused that approval: it doesn't match the exact details you were shown, which "
+                                 "can mean it was tampered with. Nothing was sent.", [self._view(rec)], events)
 
         if rec.status == "executed" or rec.status == "replayed":
             self._audit("confirm", s, action_id=action_id, outcome="replay")
@@ -326,11 +401,13 @@ class _Orchestrator:
                                       "Repeated confirmation of an already executed action; no money moved again."))
             receipt = self._append(s, rec, None, res, f"REPLAY blocked: {rec.title}")
             view = self._view(rec).model_copy(update={"status": "replayed", "receipt_id": receipt.receipt_id})
-            return self._turn(s, f"This action was already executed ({rec.title}). I did not move money again; "
-                                 "the repeat was recorded as a replay.", [view], events, [receipt])
+            return self._turn(s, f"That was already done ({self._plain(rec)}), so I didn't move the money again. "
+                                 "The repeat is recorded.", [view], events, [receipt])
         if rec.status != "awaiting_confirmation":
             self._audit("confirm", s, action_id=action_id, outcome=f"not_pending:{rec.status}")
-            return self._turn(s, f"This action is {rec.status.replace('_', ' ')} and cannot be confirmed.",
+            state = {"denied": "was blocked", "rejected_by_user": "was cancelled", "failed": "failed"}.get(
+                rec.status, f"is {rec.status.replace('_', ' ')}")
+            return self._turn(s, f"That step {state}, so it can't be approved any more. Nothing was sent.",
                               [self._view(rec)])
 
         # Plan ordering: a step that only fails because an earlier step of the same plan is still pending
@@ -342,22 +419,25 @@ class _Orchestrator:
             if first is not None:
                 self._audit("confirm", s, action_id=action_id, outcome="waiting_for_earlier_step",
                             earlier_action_id=first.action.action_id)
-                return self._turn(s, f"Please confirm \"{first.title}\" first: this step depends on it. "
-                                     f"Nothing was executed and \"{rec.title}\" is still waiting for you.",
+                return self._turn(s, f"Please approve \"{first.title}\" first: this step depends on it. "
+                                     f"Nothing was sent, and \"{rec.title}\" is still waiting for you.",
                                   [self._view(rec), self._view(first)], events)
 
         prior = rec.decision
         was_step_up = prior is not None and prior.verdict == Verdict.STEP_UP
         verified = False
         if was_step_up:
+            if self.step_up.locked(s.user_id):
+                return self._otp_locked(s, rec, events)
             if not otp:
                 self._audit("confirm", s, action_id=action_id, outcome="otp_missing")
-                left = params.MAX_OTP_ATTEMPTS - rec.otp_failures
-                return self._turn(s, "This step needs your one-time code. Enter the 6-digit code we sent you "
-                                     f"({left} attempt{'s' if left != 1 else ''} left). Nothing has moved.",
+                left = self.step_up.remaining(s.user_id)
+                return self._turn(s, "This one needs your one-time code. Enter the 6-digit code we sent you "
+                                     f"({left} {'try' if left == 1 else 'tries'} left). Nothing has moved.",
                                   [self._view(rec)])
-            if otp != params.DEMO_OTP:
+            if not hmac.compare_digest(str(otp).encode("utf-8"), params.DEMO_OTP.encode("utf-8")):
                 return self._otp_failed(s, rec, events)
+            self.step_up.record_success(s.user_id)
             verified = True
 
         sim = self._simulate(s, [rec.action])[0]
@@ -372,57 +452,77 @@ class _Orchestrator:
             rec.creq = self._creq(rec)
             self._audit("await_confirmation", s, action_id=action_id, verdict="step_up",
                         params_hash=rec.creq.params_hash)
-            return self._turn(s, "This action now needs step-up verification. Enter your one-time code to continue.",
-                              [self._view(rec)], events)
+            return self._turn(s, "Something changed since this was proposed, so it now needs your one-time code. "
+                                 "Enter it to continue. Nothing has moved.", [self._view(rec)], events)
         method = "step_up_otp" if verified else "tap"
         self._audit("confirm", s, action_id=action_id, outcome="approved", method=method)
         conf = Confirmation(action_id=action_id, params_hash=params_hash_, method=method, confirmed_at=self.now)  # type: ignore[arg-type]
         receipt = self._execute(s, rec, conf, events)
         if rec.status == "executed":
-            text = f"Done: {rec.title}. Recorded in your Proof-of-Intent chain (receipt {receipt.receipt_id})."
+            text = f"Done: {self._done(rec)}. Receipt {receipt.receipt_id} is in your signed history."
             nxt = self._next_in_plan(s, rec)
             if nxt is not None:
-                text += f" Next step: confirm \"{nxt.title}\"."
+                text += f" Next: approve \"{nxt.title}\"."
         elif rec.status == "replayed":
-            text = f"This action had already been executed ({rec.title}); no money moved again."
+            text = f"That was already done ({self._plain(rec)}), so no money moved again."
         else:
-            text = f"The action failed: {rec.title}. {self._last_error(rec)}"
+            text = f"That didn't go through: {self._plain(rec)}. {self._last_error(rec)} Nothing was sent."
         return self._turn(s, text, [self._view(rec)], events, [receipt])
 
     def reject(self, session_id: str, action_id: str) -> AgentTurn:
         s = self._sess(session_id)
         rec = s.records.get(action_id)
         if rec is None:
-            return self._turn(s, f"I cannot find an action with id {action_id}.")
+            return self._turn(s, "I can't find that step in this conversation.")
         if rec.status != "awaiting_confirmation":
-            return self._turn(s, f"This action is {rec.status.replace('_', ' ')}; there is nothing to cancel.",
+            return self._turn(s, "That step isn't waiting for approval, so there is nothing to cancel.",
                               [self._view(rec)])
         self._reject_rec(s, rec, "rejected")
-        return self._turn(s, f"Cancelled: {rec.title}. Nothing was executed.", [self._view(rec)])
+        return self._turn(s, f"Cancelled: {rec.title}. Nothing was sent.", [self._view(rec)])
 
     # ------------------------------------------------------------------ OTP lockout
     def _otp_failed(self, s: _Session, rec: _Rec, events: list[SecurityEvent]) -> AgentTurn:
+        left = self.step_up.record_failure(s.user_id)
         rec.otp_failures += 1
-        left = params.MAX_OTP_ATTEMPTS - rec.otp_failures
+        used = self.step_up.failures(s.user_id)
         aid = rec.action.action_id
         events.append(self._event(s, "step_up_failed", aid,
-                                  f"Wrong one-time code ({rec.otp_failures} of {params.MAX_OTP_ATTEMPTS} attempts)."))
-        self._audit("confirm", s, action_id=aid, outcome="otp_wrong", failures=rec.otp_failures, attempts_left=max(left, 0))
+                                  f"Wrong one-time code ({used} of {params.MAX_OTP_ATTEMPTS} attempts for this "
+                                  "customer)."))
+        self._audit("confirm", s, action_id=aid, outcome="otp_wrong", failures=used, attempts_left=left)
         if left > 0:
-            return self._turn(s, f"That code is incorrect. You have {left} attempt{'s' if left != 1 else ''} left "
-                                 "before this action is locked. Nothing has moved.", [self._view(rec)], events)
+            return self._turn(s, f"That code isn't right. {left} {'try' if left == 1 else 'tries'} left; after that, "
+                                 "approving with a code is locked on your account. Nothing has moved.",
+                              [self._view(rec)], events)
+        r = self._lock_rec(s, rec)
+        return self._turn(s, f"Blocked: that was the {_ordinal(params.MAX_OTP_ATTEMPTS)} wrong code in a row, so I "
+                             f"didn't {self._plain(rec)} and I locked approval by code on your account to protect it. "
+                             f"The attempt is recorded (receipt {r.receipt_id}). The bank has to unlock it before you "
+                             "can approve with a code again.", [self._view(rec)], events, [r])
+
+    def _lock_rec(self, s: _Session, rec: _Rec) -> Receipt:
         prior = rec.decision
         assert prior is not None
         lock = RuleResult(rule_id="STEP_UP_LOCKOUT", passed=False, severity=RiskLevel.R4,
-                          detail=f"{params.MAX_OTP_ATTEMPTS} wrong one-time codes; action locked")
+                          detail=f"{params.MAX_OTP_ATTEMPTS} wrong one-time codes for this customer; "
+                                 "step-up approval locked until reset")
         rec.decision = PolicyDecision(
-            action_id=aid, risk_level=RiskLevel.R4, verdict=Verdict.DENY, rules=[*prior.rules, lock],
+            action_id=rec.action.action_id, risk_level=RiskLevel.R4, verdict=Verdict.DENY, rules=[*prior.rules, lock],
             policy_version=prior.policy_version,
-            explanation=f"Step-up verification failed {params.MAX_OTP_ATTEMPTS} times; the action is locked.")
-        r = self._deny(s, rec)
-        return self._turn(s, f"Blocked: {rec.title}. That was the {params.MAX_OTP_ATTEMPTS}rd wrong code, so I locked "
-                             f"this action to protect your account. Nothing was executed; the attempt is recorded "
-                             f"(receipt {r.receipt_id}).", [self._view(rec)], events, [r])
+            explanation=f"Step-up verification failed {params.MAX_OTP_ATTEMPTS} times for this customer; "
+                        "approval by one-time code is locked.")
+        return self._deny(s, rec)
+
+    def _otp_locked(self, s: _Session, rec: _Rec, events: list[SecurityEvent]) -> AgentTurn:
+        aid = rec.action.action_id
+        events.append(self._event(s, "step_up_failed", aid,
+                                  "Step-up approval is locked for this customer; code not checked."))
+        self._audit("confirm", s, action_id=aid, outcome="otp_locked")
+        r = self._lock_rec(s, rec)
+        return self._turn(s, f"Approval by code is locked on your account after {params.MAX_OTP_ATTEMPTS} wrong "
+                             f"codes, so I didn't {self._plain(rec)}. The attempt is recorded (receipt "
+                             f"{r.receipt_id}). The bank has to unlock it first.",
+                          [self._view(rec)], events, [r])
 
     # ------------------------------------------------------------------ plan ordering
     def _earlier_pending(self, s: _Session, rec: _Rec) -> list[_Rec]:
@@ -449,13 +549,14 @@ class _Orchestrator:
                 draft: _Draft | None, text: str, names: list[str]) -> None:
         if isinstance(intent, ReadOverview):
             accs = self.ledger.get_accounts(s.user_id)
-            bal = ", ".join(f"{a.currency} {_q(a.balance):.2f}" for a in accs) or "no accounts"
-            ben = ", ".join(b.display_name for b in self.ledger.get_beneficiaries(s.user_id)) or "none"
-            t.info.append(f"Your balances: {bal}. Saved payees: {ben}.")
+            bal = _and([f"{_m(a.balance)} {a.currency}" for a in accs]) or "no accounts"
+            ben = _and([b.display_name for b in self.ledger.get_beneficiaries(s.user_id)]) or "none yet"
+            t.info.append(f"You have {bal}. Saved payees: {ben}.")
             dues = sorted(self.ledger.get_obligations(s.user_id), key=lambda o: o.due_date)
             if dues:
-                t.info.append("Upcoming: " + "; ".join(
-                    f"{o.kind} {_q(o.amount):.2f} {o.currency} due {o.due_date.isoformat()}" for o in dues) + ".")
+                t.info.append("Coming up: " + "; ".join(
+                    f"{o.kind} {_m(o.amount)} {o.currency}, due {o.due_date.strftime('%d %B').lstrip('0')}"
+                    for o in dues) + ".")
             quote = _rate_answer(text or "")
             if quote:
                 t.info.append(quote)
@@ -469,11 +570,13 @@ class _Orchestrator:
                     t.events.append(self._event(s, "jailbreak_attempt", "user_message", intent.reason))
             if intent.reason.startswith("BANK DETAILS: "):
                 reason = intent.reason.removeprefix("BANK DETAILS: ")
-                t.events.append(self._event(s, "beneficiary_mismatch", "user_message",
-                                            "Request to pay or redirect to an unregistered IBAN in chat; refused."))
+                ev = self._event(s, "beneficiary_mismatch", "user_message",
+                                 "Request to pay or redirect to an unregistered IBAN in chat; refused.")
+                t.events.append(ev)
+                t.explained.add(ev.event_id)
                 t.info.append(reason)
             else:
-                t.info.append(f"I cannot do that: {intent.reason}")
+                t.info.append(intent.reason)
         elif isinstance(intent, PayObligations):
             self._expand_obligations(s, idx, intent, out, t, scans)
         elif isinstance(intent, FxConvert):
@@ -481,12 +584,7 @@ class _Orchestrator:
         elif isinstance(intent, Pay):
             self._expand_pay(s, idx, intent, out, t)
         elif isinstance(intent, AddBeneficiary):
-            iban = _norm_iban(intent.iban)
-            key = self._idem(s, idx, intent, 0)
-            a = AddBeneficiaryAction(action_id=self._aid(key), idempotency_key=key,
-                                     display_name=intent.display_name.strip(), iban=iban, category=intent.category)
-            self._audit_action(s, a, "add_beneficiary")
-            out.append((intent, a, f"Add payee {a.display_name} ({a.category}), IBAN ending {iban[-4:]}"))
+            self._expand_add(s, idx, intent, out, t)
         elif isinstance(intent, AffordabilityCheck):
             self._afford(s, intent, t)
         elif isinstance(intent, Correct):
@@ -503,6 +601,79 @@ class _Orchestrator:
             t.info.append(q)
             self._audit("clarify", s, question=q)
 
+    def _injection_note(self, s: _Session, d: UntrustedDocument, scan: Any, wanted: set[str]) -> str:
+        """Say what the hidden text tried to make me do, concretely, and where the money really goes."""
+        text = d.text or ""
+        name = d.filename or d.document_id
+        obs = self.ledger.get_obligations(s.user_id)
+        ob = next((o for o in obs if o.document_id == d.document_id), None)
+        if ob is None and len(wanted) == 1:
+            ob = next((o for o in obs if o.kind in wanted), None)
+        label = f"your {ob.kind} invoice ({name})" if ob is not None else name
+        bens = self.ledger.get_beneficiaries(s.user_id)
+        registered = {_norm_iban(b.iban) for b in bens}
+        m = _INJ_AMOUNT.search(text)
+        amount = ""
+        if m:
+            val = parse_amount(m.group(2) or m.group(3))
+            cur = (m.group(1) or m.group(4) or "").upper().replace("€", "EUR").replace("$", "USD")
+            cur = {"EURO": "EUR", "EUROS": "EUR", "DOLLAR": "USD", "DOLLARS": "USD"}.get(cur, cur)
+            if val is not None:
+                amount = f"{_m(val)} {cur}".strip()
+        foreign = [n for n in (_norm_iban(x.group(0)) for x in _ANY_IBAN_TEXT.finditer(text)) if n not in registered]
+        where = ""
+        if foreign:
+            where = _COUNTRY.get(foreign[0][:2], "another")
+            where = f" to {where} account"
+        patterns = set(getattr(scan, "matched_patterns", []) or [])
+        sneaky = " without asking you" if "skip_confirmation" in patterns or "skip_confirmation_fr" in patterns else ""
+        if amount or where:
+            core = (f"Watch out: {label} contains hidden text telling me to send "
+                    f"{amount or 'money'}{where}{sneaky}. I ignored it.")
+        else:
+            core = (f"Watch out: {label} contains hidden instructions aimed at me. I ignored them and only read "
+                    "the amount and due date from it.")
+        b = next((x for x in bens if ob is not None and x.beneficiary_id == ob.beneficiary_id), None)
+        if b is not None and ob is not None:
+            core += (f" {ob.kind.capitalize()} goes to {b.display_name}'s account on file, ending {b.iban[-4:]}.")
+        return core
+
+    def _name_taken(self, s: _Session, name: str) -> Beneficiary | None:
+        """An existing payee whose name, alias or id looks the same as `name` (case, spacing and look-alike
+        letters folded). A second payee under such a name would capture or shadow the first one (AUDIT-5)."""
+        sk = name_skeleton(name)
+        if not sk:
+            return None
+        for b in self.ledger.get_beneficiaries(s.user_id):
+            if sk in {name_skeleton(x) for x in (b.beneficiary_id, b.display_name, *b.aliases)}:
+                return b
+        return None
+
+    def _expand_add(self, s: _Session, idx: int, intent: AddBeneficiary, out: list, t: _Turn) -> None:
+        name = " ".join("".join(ch for ch in intent.display_name if unicodedata.category(ch) != "Cc").split())
+        if not name:
+            t.info.append("What name should I save this payee under?")
+            return
+        if len(name) > 70:
+            t.info.append("That payee name is too long (70 characters at most). What shorter name should I use?")
+            return
+        taken = self._name_taken(s, name)
+        if taken is not None:
+            same = name_skeleton(name) in {name_skeleton(taken.display_name), name_skeleton(taken.beneficiary_id)}
+            how = "looks the same as" if same and name != taken.display_name else "is already used for"
+            nick = "" if same else " (it is one of the names you use for them)"
+            q = (f"\"{name}\" {how} your saved payee {taken.display_name}{nick}. Two payees with the same name could "
+                 f"send money to the wrong account, so I didn't add it. Please choose a different name for this one.")
+            t.info.append(q)
+            self._audit("clarify", s, question=q)
+            return
+        iban = _norm_iban(intent.iban)      # canonical form; the policy denies it if it is not a valid IBAN
+        key = self._idem(s, idx, intent, 0)
+        a = AddBeneficiaryAction(action_id=self._aid(key), idempotency_key=key,
+                                 display_name=name, iban=iban, category=intent.category)
+        self._audit_action(s, a, "add_beneficiary")
+        out.append((intent, a, f"Add payee {a.display_name} ({a.category}), IBAN ending {iban[-4:]}"))
+
     def _account(self, s: _Session, currency: str):
         return next((a for a in self.ledger.get_accounts(s.user_id) if a.currency == currency), None)
 
@@ -516,13 +687,33 @@ class _Orchestrator:
         if quote.sell_currency != sell or quote.buy_currency != buy or quote.buy_amount != amount:
             events.append(self._event(s, "tool_output_poisoning", "fx_quote",
                                       "Quote parameters differ from the request; quote discarded."))
-            return None, "The FX quote did not match the requested conversion, so I discarded it."
+            return None, "The exchange quote did not match the conversion you asked for, so I discarded it."
+        # AUDIT-1: the provider is untrusted; its price must equal the bank's own reference price to the cent
+        rate = params.FX_RATES.get((sell, buy))
+        if rate is None:
+            return None, "I can't convert between those currencies."
+        net = _q(amount) / rate
+        ref_sell, ref_fee = _q(net * (1 + params.FX_FEE_RATE)), _q(net * params.FX_FEE_RATE)
+        if (quote.rate != rate or _q(quote.sell_amount) != ref_sell or _q(quote.fee) != ref_fee
+                or not self.now <= quote.expires_at <= self.now + params.FX_QUOTE_TTL):
+            events.append(self._event(
+                s, "tool_output_poisoning", "fx_quote",
+                f"Quote of {_m(quote.sell_amount)} {sell} (rate {quote.rate}, fee {_m(quote.fee)}) for "
+                f"{_m(amount)} {buy} differs from the reference price {_m(ref_sell)} {sell} (rate {rate}, fee "
+                f"{_m(ref_fee)}); quote discarded."))
+            return None, (f"The exchange provider quoted {_m(quote.sell_amount)} {sell} for {_m(amount)} {buy}, but "
+                          f"the bank's price is {_m(ref_sell)} {sell}. I discarded that quote and did not plan a "
+                          "conversion. Nothing was sent.")
         return quote, None
 
     def _expand_fx(self, s, idx, step, intent, sell, buy, amount, out, t: _Turn, key: str | None = None) -> FxAction | None:
         sell_acc, buy_acc = self._account(s, sell), self._account(s, buy)
         if sell == buy or sell_acc is None or buy_acc is None or amount <= 0:
-            t.info.append("I cannot convert that: I need a distinct pair of your own accounts and a positive amount.")
+            t.info.append("I can't convert that: I need two of your own accounts in different currencies and an "
+                          "amount above zero.")
+            return None
+        if not is_whole_cents(amount):
+            t.info.append(_sub_cent_question(amount, buy, "convert"))
             return None
         amount = _q(amount)
         quote, err = self._fx_quote(sell, buy, amount, t.events, s)
@@ -540,8 +731,8 @@ class _Orchestrator:
     @staticmethod
     def _fx_title(a: FxAction) -> str:
         qt = a.quote
-        return (f"Convert {qt.sell_currency} to {qt.buy_currency}: buy {_q(qt.buy_amount):.2f} {qt.buy_currency} for "
-                f"{_q(qt.sell_amount):.2f} {qt.sell_currency} (fee {_q(qt.fee):.2f} {qt.sell_currency})")
+        return (f"Convert {qt.sell_currency} to {qt.buy_currency}: buy {_m(qt.buy_amount)} {qt.buy_currency} for "
+                f"{_m(qt.sell_amount)} {qt.sell_currency} (fee {_m(qt.fee)} {qt.sell_currency})")
 
     def _expand_obligations(self, s, idx, intent, out, t: _Turn, scans) -> None:
         bens = {b.beneficiary_id: b for b in self.ledger.get_beneficiaries(s.user_id)}
@@ -553,6 +744,10 @@ class _Orchestrator:
             t.info.append("I found no open obligations of that kind on your account.")
             return
         reserve = Decimal("0")
+        if intent.keep_reserve is not None and not is_whole_cents(intent.keep_reserve):
+            t.info.append(_sub_cent_question(intent.keep_reserve, intent.reserve_currency, "keep")
+                          .replace("Did you mean", "Which reserve do you want:"))
+            return
         if intent.keep_reserve is not None:
             reserve = intent.keep_reserve
             if intent.reserve_currency != "EUR":
@@ -583,10 +778,12 @@ class _Orchestrator:
                 continue
             scan = scans.get(o.document_id or "")
             doc_iban = (scan.extracted.get("iban") if scan is not None else None)
-            if doc_iban and _norm_iban(doc_iban) != b.iban:
-                t.events.append(self._event(s, "beneficiary_mismatch", o.document_id or o.obligation_id,
-                                            f"IBAN in the {o.kind} document differs from the registered IBAN; "
-                                            "the registered IBAN is used."))
+            if doc_iban and _norm_iban(doc_iban) != _norm_iban(b.iban):
+                ev = self._event(s, "beneficiary_mismatch", o.document_id or o.obligation_id,
+                                 f"IBAN in the {o.kind} document differs from the registered IBAN; "
+                                 "the registered IBAN is used.")
+                t.events.append(ev)
+                t.explained.add(ev.event_id)        # the document note above already says it in plain words
             key = self._idem(s, idx, intent, step)
             a = PaymentAction(action_id=self._aid(key), idempotency_key=key,
                               from_account_id=acc.account_id, beneficiary_id=b.beneficiary_id, iban=b.iban,
@@ -611,12 +808,16 @@ class _Orchestrator:
                 return
             who = self._who(b, ref)
             if intent.amount_mode == "all":
-                q = f"How much exactly should I send to {who}? I never send \"everything\" without an exact figure."
+                q = (f"How much exactly should I send to {who}? I don't send \"everything\" or \"the maximum\"; "
+                     "give me a figure and I'll check it against your balance and limits.")
             elif intent.amount is not None and intent.amount <= 0:
                 q = f"How much should I send to {who}? The amount has to be more than zero."
             else:
                 q = f"How much should I send to {who}?"
             self._ask(s, t, q, ref=ref, amount=None, **draft)
+            return
+        if not is_whole_cents(intent.amount):  # type: ignore[arg-type]
+            self._ask(s, t, _sub_cent_question(intent.amount, intent.currency), ref=ref or None, amount=None, **draft)  # type: ignore[arg-type]
             return
         amount = _q(intent.amount)  # type: ignore[arg-type]
         if b is None:
@@ -627,10 +828,16 @@ class _Orchestrator:
         if acc is None:
             t.info.append(f"You have no {intent.currency} account to pay from.")
             return
-        if intent.iban_hint and _norm_iban(intent.iban_hint) != b.iban:
-            t.events.append(self._event(s, "beneficiary_mismatch", "user_message",
-                                        f"The IBAN you typed (ending {_norm_iban(intent.iban_hint)[-4:]}) differs from the "
-                                        f"registered IBAN for {b.display_name} (ending {b.iban[-4:]}); the registered IBAN is used."))
+        if intent.iban_hint and _norm_iban(intent.iban_hint) != _norm_iban(b.iban):
+            typed = _norm_iban(intent.iban_hint)[-4:]
+            ev = self._event(s, "beneficiary_mismatch", "user_message",
+                             f"The IBAN you typed (ending {typed}) differs from the registered IBAN for "
+                             f"{b.display_name} (ending {b.iban[-4:]}); the registered IBAN is used.")
+            t.events.append(ev)
+            t.explained.add(ev.event_id)
+            t.notes.append(f"You typed an account ending {typed}, but the account saved for {b.display_name} ends "
+                           f"{b.iban[-4:]}. I'll only pay the saved account. If {b.display_name} gave you new bank "
+                           "details, check with them on a number you already know, then add the account as a payee.")
         key = self._idem(s, idx, intent, 0)
         a = PaymentAction(action_id=self._aid(key), idempotency_key=key,
                           from_account_id=acc.account_id, beneficiary_id=b.beneficiary_id, iban=b.iban,
@@ -641,7 +848,7 @@ class _Orchestrator:
 
     @staticmethod
     def _pay_title(a: PaymentAction, b: Beneficiary) -> str:
-        return f"Pay {_q(a.amount):.2f} {a.currency} to {b.display_name} ({b.category})"
+        return f"Pay {_m(a.amount)} {a.currency} to {b.display_name} ({b.category})"
 
     # ------------------------------------------------------------------ clarification / drafts
     @staticmethod
@@ -656,16 +863,18 @@ class _Orchestrator:
         names = [b.display_name for b in self.ledger.get_beneficiaries(s.user_id) if not b.blocked]
         choices = (", ".join(names[:-1]) + " or " + names[-1]) if len(names) > 1 else (names[0] if names else "")
         what = f"the {_m(amount)} {currency}" if amount is not None else "the money"
-        lead = ""
         if ref:
             n = _norm_iban(ref)
-            if re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", n):
-                lead = (f"I only pay saved payees, and the IBAN ending {n[-4:]} is not one of them "
-                        "(you can add it as a new payee first). ")
+            if re.fullmatch(r"[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}", n):
+                lead = (f"I only pay saved payees, and the account ending {n[-4:]} isn't one of them. To pay it, "
+                        "add it as a payee first (that needs your one-time code).")
             else:
-                lead = f"\"{ref}\" is not one of your saved payees. "
+                name = _display_ref(ref)
+                lead = (f"{name} isn't one of your saved payees. To pay them, add them as a payee first (that needs "
+                        "your one-time code).")
+            return f"{lead} Or did you mean {choices}?" if choices else lead
         tail = f": {choices}?" if choices else "? Please add the payee first."
-        return f"{lead}Who should receive {what}{tail}"
+        return f"Who should receive {what}{tail}"
 
     def _ask(self, s: _Session, t: _Turn, question: str, *, ref: str | None, amount: Decimal | None,
              currency: str = "EUR", iban_hint: str | None = None, memo: str = "") -> None:
@@ -683,7 +892,8 @@ class _Orchestrator:
         ref, amount, cur = hint
         b = self.ledger.resolve_beneficiary(s.user_id, ref) if ref else None
         if ref and b is not None and amount is None:
-            q = f"What exact amount should I send to {self._who(b, ref)}? I do not guess partial or relative amounts."
+            q = (intent.question if "too large" in intent.question else
+                 f"What exact amount should I send to {self._who(b, ref)}? I don't guess partial or relative amounts.")
             self._ask(s, t, q, ref=ref, amount=None, currency=cur or "EUR")
         elif b is None:
             self._ask(s, t, self._payee_question(s, ref, amount, cur or "EUR"), ref=None, amount=amount,
@@ -801,6 +1011,10 @@ class _Orchestrator:
                 if b is None:
                     t.info.append("I could not find the payee of that payment any more; nothing was changed.")
                     return
+            if intent.amount is not None and not is_whole_cents(intent.amount):
+                t.info.append(_sub_cent_question(intent.amount, intent.currency or old.currency) +
+                              f" \"{target.title}\" is unchanged and still waiting for you.")
+                return
             amount = _q(intent.amount) if intent.amount is not None else old.amount
             currency = intent.currency or old.currency
             acc = self._account(s, currency)
@@ -819,6 +1033,9 @@ class _Orchestrator:
             title = self._pay_title(new, b)  # type: ignore[arg-type]
             self._audit_action(s, new, title)
         elif isinstance(old, FxAction):
+            if not is_whole_cents(intent.amount):  # type: ignore[arg-type]
+                t.info.append(_sub_cent_question(intent.amount, old.quote.buy_currency, "convert"))  # type: ignore[arg-type]
+                return
             amount = _q(intent.amount)  # type: ignore[arg-type]
             if amount == old.quote.buy_amount:
                 t.info.append(f"\"{target.title}\" already has that amount; nothing changed.")
@@ -870,6 +1087,16 @@ class _Orchestrator:
         n_bills = len(pays)
         unknown = ""
         extra_label = ""
+        if intent.amount is not None and not is_whole_cents(intent.amount):
+            q = _sub_cent_question(intent.amount, intent.currency)
+            t.info.append(q)
+            self._audit("clarify", s, question=q)
+            return
+        if intent.keep_reserve is not None and not is_whole_cents(intent.keep_reserve):
+            q = _sub_cent_question(intent.keep_reserve, "EUR", "keep")
+            t.info.append(q)
+            self._audit("clarify", s, question=q)
+            return
         if intent.amount is not None and intent.amount > 0:
             acc = self._account(s, intent.currency)
             if acc is None:
@@ -1067,12 +1294,18 @@ class _Orchestrator:
         return d.explanation
 
     def _deny_text(self, rec: _Rec) -> str:
-        return f"Blocked: {rec.title}. Nothing was executed. Rule(s) that blocked it: {self._deny_reason(rec)}"
+        return self._deny_sentence(rec)
 
     @staticmethod
     def _last_error(rec: _Rec) -> str:
         res = rec.last
-        return f"Reason: {res.error}" if res is not None and res.error else ""
+        if res is None or not res.error:
+            return ""
+        return {"INSUFFICIENT_FUNDS": "There isn't enough money in the account.",
+                "QUOTE_EXPIRED": "The exchange quote expired.",
+                "QUOTE_ALREADY_USED": "That exchange quote was already used.",
+                "INVALID_IBAN": "The IBAN isn't valid.",
+                "PAYEE_NAME_TAKEN": "You already have a payee with that name."}.get(res.error, "The bank refused it.")
 
     # ------------------------------------------------------------------ helpers
     def _creq(self, rec: _Rec) -> ConfirmationRequest:
@@ -1080,19 +1313,19 @@ class _Orchestrator:
         assert d is not None
         lines: list[str] = []
         if isinstance(a, PaymentAction):
-            lines += [f"Recipient IBAN ends {a.iban[-4:]} (from your registry)"]
+            lines += [f"To the account ending {a.iban[-4:]} (saved for this payee)"]
         elif isinstance(a, FxAction):
             lines += [f"Rate {a.quote.rate} {a.quote.buy_currency} per {a.quote.sell_currency}, "
-                      f"fee {_q(a.quote.fee):.2f} {a.quote.sell_currency} (quote {a.quote.quote_id})"]
+                      f"fee {_m(a.quote.fee)} {a.quote.sell_currency} (quote {a.quote.quote_id})"]
         elif isinstance(a, AddBeneficiaryAction):
-            lines += [f"IBAN ends {a.iban[-4:]}", "Payments to this payee need extra verification for 72 hours"]
+            lines += [f"IBAN ends {a.iban[-4:]}", "Payments to this payee need your one-time code for 72 hours"]
         if sim is not None:
             ccy: dict[str, str] = {}
             if isinstance(a, PaymentAction):
                 ccy[a.from_account_id] = a.currency
             elif isinstance(a, FxAction):
                 ccy = {a.from_account_id: a.quote.sell_currency, a.to_account_id: a.quote.buy_currency}
-            lines += [f"{ccy.get(acc, acc)} balance after: {_q(sim.balances_before.get(acc, v)):.2f} -> {_q(v):.2f}"
+            lines += [f"{ccy.get(acc, acc)} balance after: {_m(sim.balances_before.get(acc, v))} -> {_m(v)}"
                       for acc, v in sim.balances_after.items() if sim.balances_before.get(acc) != v]
         lines.append(d.explanation)
         return ConfirmationRequest(
@@ -1122,21 +1355,27 @@ class _Orchestrator:
             self._remember(s, e)
         return AgentTurn(session_id=s.session_id, assistant_text=text, actions=views or [],
                          security_events=events or [], receipts=receipts or [],
-                         anchor=self.receipts.anchor() if receipts else None,
+                         anchor=self._anchor(s.user_id) if receipts else None,
                          pending_question=s.draft.question if s.draft else None)
 
-    def _compose(self, t: _Turn) -> str:
+    def _compose(self, t: _Turn, s: _Session | None = None) -> str:
         out: list[str] = list(t.info)
+        seen: set[str] = set()
         for e in t.events:
+            if e.event_id in t.explained or e.kind in seen:
+                continue
             if e.kind == "beneficiary_mismatch":
-                out.append(f"Warning: {e.detail}")
+                out.append(e.detail)
             elif e.kind == "tool_output_poisoning":
-                out.append("Warning: the FX provider's response contained untrusted extra content. "
-                           "I discarded it and used only the validated quote fields.")
-            elif e.kind == "structuring_suspected":
-                out.append(f"Extra check: {e.detail}")
+                if not any("exchange" in x for x in t.info):
+                    out.append("Careful: the currency provider's reply contained extra text aimed at me. I ignored it "
+                               "and used only the price, after checking it against the bank's own rate.")
             elif e.kind in ("jailbreak_attempt", "data_access_denied") and not t.info:
-                out.append(f"I cannot do that: {e.detail}")
+                out.append("I can only show your own accounts and payees." if e.kind == "data_access_denied" else
+                           "I can't switch off confirmations, codes or limits; every payment goes through them.")
+            else:
+                continue
+            seen.add(e.kind)
         out += t.notes
         views = [v for v in t.views if v.status != "rejected_by_user"]
         executed = [v for v in views if v.status in ("executed", "replayed")]
@@ -1144,25 +1383,256 @@ class _Orchestrator:
         denied = [v for v in views if v.status == "denied"]
         failed = [v for v in views if v.status == "failed"]
         for v in executed:
-            out.append(f"Done: {self._rec_title(v)}.")
-        for v in waiting:
-            cr = v.confirmation_request
-            if cr is None:
-                continue
-            need = "needs step-up verification (one-time code)" if cr.verdict == "step_up" else "needs your confirmation"
-            out.append(f"{cr.title} {need}. Risk {cr.risk_level.value}; {cr.checks_passed}/{cr.checks_total} checks passed.")
+            r = self._sessions_rec(v.action.action_id)
+            out.append(f"Done: {self._done(r) if r else v.action.action_id}.")
+        has_fx = any(isinstance(v.action, FxAction) for v in waiting)
+        for i, v in enumerate(waiting):
+            r = self._sessions_rec(v.action.action_id)
+            if r is not None and v.confirmation_request is not None:
+                out.append(self._plan_line(r, first=i == 0, more=len(waiting) > 1, funds_payments=has_fx))
         for v in denied:
-            out.append(f"Blocked: {self._rec_title(v)}. Nothing was executed. Rule(s) that blocked it: "
-                       f"{self._decision_reason(v.decision)}")
+            r = self._sessions_rec(v.action.action_id)
+            out.append(self._deny_sentence(r) if r else "That was blocked. Nothing was sent.")
         for v in failed:
-            out.append(f"Failed: {self._rec_title(v)}.")
+            out.append(f"That didn't go through: {self._rec_title(v)}. Nothing was sent.")
         if waiting:
-            out.append("Nothing moves until you confirm each step" + (", in the order shown." if len(waiting) > 1 else "."))
+            summary = self._plan_summary(waiting, denied, s)
+            if summary:
+                out.append(summary)
+            if s is not None and self.step_up.locked(s.user_id) and any(
+                    v.confirmation_request and v.confirmation_request.verdict == "step_up" for v in waiting):
+                out.append(f"Approval by code is locked on your account after {params.MAX_OTP_ATTEMPTS} wrong codes, "
+                           "so the steps that need a code can't be approved until the bank unlocks it.")
+            out.append("Nothing moves until you approve each step, in this order." if len(waiting) > 1
+                       else "Nothing moves until you approve it.")
         if t.question:
             out.append(t.question)
         if not out:
-            out.append("I could not turn that into an action.")
+            out.append("I couldn't turn that into an action. Try \"send 50 euros to mom\" or \"pay my rent\".")
         return "\n".join(x for x in out if x)
+
+    # ------------------------------------------------------------------ plain-language building blocks
+    def _ben(self, s_user: str | None, bid: str) -> Beneficiary | None:
+        if s_user is None:
+            return None
+        return next((b for b in self.ledger.get_beneficiaries(s_user) if b.beneficiary_id == bid), None)
+
+    def _user_of(self, rec: _Rec) -> str | None:
+        for s in self._sessions.values():
+            if rec.action.action_id in s.records and s.records[rec.action.action_id] is rec:
+                return s.user_id
+        return None
+
+    def _plain(self, rec: _Rec) -> str:
+        """What the step does, in words: 'send 1,200.00 EUR to Université Paris-Saclay'."""
+        a = rec.action
+        if isinstance(a, PaymentAction):
+            b = self._ben(self._user_of(rec), a.beneficiary_id)
+            return f"send {_m(a.amount)} {a.currency} to {b.display_name if b else a.beneficiary_id}"
+        if isinstance(a, FxAction):
+            q = a.quote
+            return f"convert {_m(q.sell_amount)} {q.sell_currency} into {_m(q.buy_amount)} {q.buy_currency}"
+        if isinstance(a, AddBeneficiaryAction):
+            return f"add {a.display_name} as a payee"
+        return rec.title
+
+    def _done(self, rec: _Rec) -> str:
+        p = self._plain(rec)
+        return {"send": "sent", "convert": "converted", "add": "added"}.get(p.split(" ", 1)[0], p.split(" ", 1)[0]) + \
+            " " + p.split(" ", 1)[1]
+
+    def _plan_line(self, rec: _Rec, *, first: bool, more: bool, funds_payments: bool) -> str:
+        a, cr = rec.action, rec.creq
+        if isinstance(a, FxAction):
+            q = a.quote
+            fee_pct = f"{(params.FX_FEE_RATE * 100).normalize():f}%"
+            what = (f"{'First, buy' if first and more else 'Buy'} {_m(q.buy_amount)} {q.buy_currency} for "
+                    f"{_m(q.sell_amount)} {q.sell_currency} at {q.rate} {q.buy_currency} per {q.sell_currency}, plus a "
+                    f"fee of {_m(q.fee)} {q.sell_currency} ({fee_pct})"
+                    + (", so the euro payments can go through." if more and funds_payments else "."))
+        elif isinstance(a, PaymentAction):
+            b = self._ben(self._user_of(rec), a.beneficiary_id)
+            name = b.display_name if b else a.beneficiary_id
+            if a.obligation_id and b is not None:
+                kind = a.memo.split(" ", 1)[0] if a.memo else b.category
+                what = f"{kind.capitalize()}: {_m(a.amount)} {a.currency} to {name}."
+            else:
+                what = f"Send {_m(a.amount)} {a.currency} to {name}."
+        elif isinstance(a, AddBeneficiaryAction):
+            what = f"Add {a.display_name} as a payee (account ending {a.iban[-4:]})."
+        else:
+            what = rec.title + "."
+        if cr is None or cr.verdict == "confirm":
+            return f"{what} One tap to approve."
+        reasons = self._step_up_reasons(rec)
+        if isinstance(a, AddBeneficiaryAction) and not reasons:
+            return f"{what} Adding a payee always needs your one-time code."
+        why = _and(reasons) if reasons else "this step is above what you can approve with one tap"
+        return f"{what} {why[:1].upper() + why[1:]}, so I need your one-time code for this one."
+
+    def _step_up_reasons(self, rec: _Rec) -> list[str]:
+        d, a = rec.decision, rec.action
+        if d is None:
+            return []
+        user = self._user_of(rec)
+        out: list[str] = []
+        for r in d.rules:
+            if r.passed or r.severity != RiskLevel.R3:
+                continue
+            if r.rule_id == "BENEFICIARY_AGE" and isinstance(a, PaymentAction):
+                b = self._ben(user, a.beneficiary_id)
+                if b is not None:
+                    hours = int((self.now - b.added_at).total_seconds() // 3600)
+                    ago = f"{hours} hour{'s' if hours != 1 else ''}" if hours >= 1 else "less than an hour"
+                    out.append(f"you added {b.display_name} only {ago} ago, and payments to newly added accounts are "
+                               "the most common target of invoice and rental scams")
+            elif r.rule_id == "AMOUNT_TIER":
+                out.append(f"it is above the {_m(params.R2_MAX_PAYMENT_EUR)} EUR you can approve with one tap")
+            elif r.rule_id == "FX_TIER":
+                out.append(f"it converts more than the {_m(params.R2_MAX_FX_EUR)} EUR you can approve with one tap")
+            elif r.rule_id == "STRUCTURING" and isinstance(a, PaymentAction) and user is not None:
+                b = self._ben(user, a.beneficiary_id)
+                since = self.now - params.STRUCTURING_WINDOW
+                prior = sum((p.amount_eur for p in self.ledger.recent_payments(user, since)
+                             if p.beneficiary_id == a.beneficiary_id), Decimal("0"))
+                total = prior + self.ledger.eur_equivalent(a.amount, a.currency)
+                out.append(f"together with what you already sent {b.display_name if b else 'this payee'} in the last "
+                           f"24 hours it comes to {_m(total)} EUR, above the {_m(params.STRUCTURING_THRESHOLD_EUR)} EUR "
+                           "you can send one tap at a time")
+        return list(dict.fromkeys(out))
+
+    def _plan_summary(self, waiting: list[ActionView], denied: list[ActionView], s: _Session | None) -> str:
+        if denied or s is None:
+            return ""
+        last = waiting[-1].simulation
+        if last is None or not last.feasible:
+            return ""
+        accs = {a.account_id: a for a in self.ledger.get_accounts(s.user_id)}
+        first = waiting[0].simulation
+        before = first.balances_before if first is not None else {}
+        changed = [(accs[k].currency, v) for k, v in last.balances_after.items()
+                   if k in accs and before.get(k) != v]
+        if not changed:
+            return ""
+        changed.sort(key=lambda cv: cv[0] != "EUR")
+        n = len(waiting)
+        lead = {1: "After this", 2: "After both steps", 3: "After all three steps", 4: "After all four steps"}.get(
+            n, f"After all {n} steps")
+        cur0, v0 = changed[0]
+        text = f"{lead} you will have {_m(v0)} {cur0} left"
+        reserve = next((self._sessions_rec(v.action.action_id).reserve for v in waiting  # type: ignore[union-attr]
+                        if self._sessions_rec(v.action.action_id) is not None
+                        and self._sessions_rec(v.action.action_id).reserve), None)  # type: ignore[union-attr]
+        if reserve is not None and cur0 == "EUR":
+            text += ", exactly your reserve" if _q(v0) == _q(reserve) else f", above your {_m(reserve)} EUR reserve"
+        rest = [f"{_m(v)} {c}" for c, v in changed[1:]]
+        return text + (f", and {_and(rest)}." if rest else ".")
+
+    def _deny_sentence(self, rec: _Rec) -> str:
+        a, d = rec.action, rec.decision
+        user = self._user_of(rec)
+        if isinstance(a, PaymentAction):
+            b = self._ben(user, a.beneficiary_id)
+            head = f"I can't send {_m(a.amount)} {a.currency} to {b.display_name if b else 'that payee'}"
+            tail = "Nothing was sent."
+        elif isinstance(a, FxAction):
+            head = f"I can't make this conversion ({_m(a.quote.buy_amount)} {a.quote.buy_currency})"
+            tail = "Nothing was converted."
+        elif isinstance(a, AddBeneficiaryAction):
+            head = f"I can't add {a.display_name} as a payee"
+            tail = "Nothing was saved."
+        else:
+            head, tail = "I can't do that", "Nothing was sent."
+        reasons: list[str] = []
+        failing = [r for r in (d.rules if d else []) if not r.passed and r.severity == RiskLevel.R4]
+        ids = {r.rule_id for r in failing}
+        for r in failing:
+            why = self._plain_reason(rec, r, ids, user)
+            if why and why not in reasons:
+                reasons.append(why)
+        if not reasons:
+            reasons.append("one of the safety checks failed")
+        return f"{head}: {_and(reasons)}. {tail}"
+
+    def _plain_reason(self, rec: _Rec, r: RuleResult, ids: set[str], user: str | None) -> str:
+        a, sim = rec.action, rec.sim
+        rid = r.rule_id
+        if rid == "SIM_FEASIBLE":
+            errs = sim.errors if sim is not None else []
+            if "INSUFFICIENT_FUNDS" in errs and user is not None:
+                accs = self.ledger.get_accounts(user)
+                src = a.from_account_id if isinstance(a, (PaymentAction, FxAction)) else None
+                main = next((x for x in accs if x.account_id == src), None)
+                if main is not None:
+                    others = [f"{_m(x.balance)} {x.currency}" for x in accs if x.account_id != src]
+                    return f"you have {_m(main.balance)} {main.currency}" + (f" (plus {_and(others)})" if others else "")
+                return "there isn't enough money in the account"
+            if any(e.startswith("QUOTE_") for e in errs):
+                return "the exchange quote is no longer valid, so ask me again for a fresh one"
+            if "CURRENCY_MISMATCH" in errs:
+                return "that account is in a different currency"
+            if "UNKNOWN_ACCOUNT" in errs:
+                return "that account isn't one of yours"
+            if "INVALID_AMOUNT" in errs:
+                return "the amount has to be more than zero"
+            if "INVALID_IBAN" in errs or "PAYEE_NAME_TAKEN" in errs:
+                return ""                     # explained by IBAN_VALID / PAYEE_NAME_UNIQUE
+            return "the bank could not carry it out"
+        if rid == "MAX_SINGLE_PAYMENT":
+            return f"single payments are capped at {_m(params.MAX_SINGLE_PAYMENT_EUR)} EUR"
+        if rid == "DAILY_LIMIT":
+            return (f"together with what you've already sent today it would go over your "
+                    f"{_m(params.DAILY_OUTFLOW_LIMIT_EUR)} EUR daily limit")
+        if rid == "RESERVE_FLOOR":
+            left = None
+            if sim is not None and user is not None:
+                eur_ids = {x.account_id for x in self.ledger.get_accounts(user) if x.currency == "EUR"}
+                left = sum((v for k, v in sim.balances_after.items() if k in eur_ids), Decimal("0"))
+            floor = rec.reserve
+            if left is not None and floor is not None:
+                return f"it would leave you {_m(left)} EUR, below the {_m(floor)} EUR you asked to keep"
+            return "it would take you below the reserve you asked to keep"
+        if rid == "UNTRUSTED_ORIGIN":
+            return "its details came from a document, not from you"
+        if rid == "SANCTIONS_SCREEN":
+            det = r.detail
+            if "manual sanctions review" in det:
+                return ("the name uses letters I can't check against the sanctions list, so the bank has to review it "
+                        "by hand first")
+            if "matches sanctions watchlist" in det or "on the sanctions watchlist" in det:
+                return "the payee matches an entry on the sanctions list, so the bank can't deal with it"
+            if "IBAN_VALID" in ids:
+                return ""
+            return "the sanctions check could not be completed"
+        if rid == "IBAN_VALID":
+            problem = iban_problem(getattr(a, "iban", "")) or ""
+            if "check digits" in problem:
+                why = "its check digits don't add up, which usually means a typo"
+            elif "plain letters" in problem:
+                why = "it contains characters other than plain letters A-Z and digits 0-9"
+            elif "characters, this one has" in problem:
+                why = problem.replace("a ", "a ", 1)
+            else:
+                why = "it doesn't have the format of an IBAN"
+            return f"that IBAN isn't valid ({why}). Please copy it again from your payee's bank details"
+        if rid == "PAYEE_NAME_UNIQUE":
+            return "you already have a payee with a name that looks the same"
+        if rid == "FX_PRICE_CHECK":
+            return "the exchange quote didn't match the bank's own rate"
+        if rid == "BENEFICIARY_REGISTERED":
+            return "that payee isn't one of your saved payees"
+        if rid == "BENEFICIARY_NOT_BLOCKED":
+            return "that payee is blocked on your account"
+        if rid == "IBAN_MATCHES_REGISTRY":
+            return "the account doesn't match the one saved for that payee"
+        if rid == "TENANT_ISOLATION":
+            return "that account or payee isn't yours"
+        if rid == "STEP_UP_LOCKOUT":
+            return (f"{params.MAX_OTP_ATTEMPTS} wrong one-time codes were entered, so approval by code is locked on "
+                    "your account")
+        if rid == "POLICY_ERROR":
+            return "a safety check could not be completed"
+        return "one of the safety checks failed"
 
     def _rec_title(self, v: ActionView) -> str:
         r = self._sessions_rec(v.action.action_id)
@@ -1225,7 +1695,31 @@ class _Orchestrator:
         return "idem_" + sha256_hex([s.session_id, s.turn, idx, intent, step])[:24]
 
 
+def _and(items: list[str]) -> str:
+    items = [x for x in items if x]
+    if len(items) <= 1:
+        return "".join(items)
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f" and {items[-1]}"
+
+
+_RELATION_WORDS = {"my", "the", "a", "friend", "buddy", "pal", "mate", "colleague", "neighbour", "neighbor",
+                   "roommate", "flatmate", "classmate"}
+
+
+def _display_ref(ref: str) -> str:
+    """'friend ahmed' -> 'Ahmed' (how a person would write the name back)."""
+    words = [w for w in ref.split() if w.lower() not in _RELATION_WORDS] or ref.split()
+    return " ".join(w[:1].upper() + w[1:] if w.islower() else w for w in words)
+
+
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
 def build_orchestrator(ledger: Ledger, receipts: ReceiptStore, policy: PolicyEngine, guard: ContentGuard,
                        parser: IntentParser | None = None, now: datetime = params.DEMO_NOW,
-                       audit_sink: AuditSink | None = None):
-    return _Orchestrator(ledger, receipts, policy, guard, parser, now, audit_sink)
+                       audit_sink: AuditSink | None = None, step_up: StepUpAttempts | None = None):
+    """`step_up`: the per-customer wrong-code store (defaults to the ledger's, so all sessions share it)."""
+    return _Orchestrator(ledger, receipts, policy, guard, parser, now, audit_sink, step_up)

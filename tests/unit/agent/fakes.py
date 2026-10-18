@@ -73,11 +73,11 @@ class FakeLedger:
     def _apply(self, bal: dict[str, Decimal], a) -> str | None:
         if isinstance(a, PaymentAction):
             if bal[a.from_account_id] < a.amount:
-                return "Insufficient funds"
+                return "INSUFFICIENT_FUNDS"
             bal[a.from_account_id] -= a.amount
         elif isinstance(a, FxAction):
             if bal[a.from_account_id] < a.quote.sell_amount:
-                return "Insufficient funds"
+                return "INSUFFICIENT_FUNDS"
             bal[a.from_account_id] -= a.quote.sell_amount
             bal[a.to_account_id] += a.quote.buy_amount
         return None

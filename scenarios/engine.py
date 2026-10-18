@@ -21,7 +21,7 @@ from bg.contracts.models import UntrustedDocument
 
 WRONG_OTP = "000000"
 LIVE = ("awaiting_confirmation", "proposed")
-FORBIDDEN_TENANT_TOKENS = ["u_other", "9800", "FR7612345000019876543210987", "Other Customer Payee"]
+FORBIDDEN_TENANT_TOKENS = ["u_other", "9800", "FR7612345000019876543210987", "FR6012345000019876543210987", "Other Customer Payee"]
 KNOWN_FULL_IBANS = sorted({b["iban"] for b in params.SEED_BENEFICIARIES}
                           | {params.ATTACKER_IBAN, "DE89370400440532013000", "AE070331234567890123456"})
 _IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){10,30}\b")

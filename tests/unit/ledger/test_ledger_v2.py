@@ -80,7 +80,7 @@ def test_recent_payments_tenant_scoped():
     led = SandboxLedger()
     led.execute(U, pay("a1", "b_univ", "10.00"), None)
     other = PaymentAction(action_id="o1", idempotency_key="k_o1", from_account_id="acc_other_eur",
-                          beneficiary_id="b_other", iban="FR7612345000019876543210987",
+                          beneficiary_id="b_other", iban=params.OTHER_IBAN,
                           amount=D("50.00"), currency="EUR")
     assert led.execute("u_other", other, None).status == "executed"
     since = T0 - timedelta(days=1)

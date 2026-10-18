@@ -8,11 +8,13 @@ any exception or missing data produces a deny, never an allow.
 from __future__ import annotations
 
 import re
-import unicodedata
 from datetime import timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from bg.contracts import params
+from bg.contracts.canonical import (
+    iban_problem, iban_screening_form, name_skeleton, normalize_iban, q2, unscreenable_letters,
+)
 from bg.contracts.models import (
     Account, AddBeneficiaryAction, Beneficiary, FxAction, PaymentAction, PolicyContext,
     PolicyDecision, ProposedAction, RiskLevel, RuleResult, SimulationResult, Verdict,
@@ -27,38 +29,42 @@ _VERDICT = {
 
 def _m(x: Decimal) -> str:
     """Display an amount with two decimals (display only; comparisons stay exact)."""
-    return f"{x.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):f}"
+    return f"{q2(x):f}"
 
 
 def _norm_iban(iban: str) -> str:
-    return "".join(iban.split()).upper()
-
-
-# Look-alike letters (Cyrillic, Greek, fullwidth forms are handled by NFKC) folded to Latin before
-# screening, so "Vоlkov" with a Cyrillic "о" cannot slip past the watchlist.
-_CONFUSABLES = str.maketrans({
-    "а": "a", "в": "b", "е": "e", "ё": "e", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c",
-    "т": "t", "у": "y", "х": "x", "і": "i", "ј": "j", "ѕ": "s", "ԁ": "d", "ɡ": "g", "һ": "h", "ӏ": "l",
-    "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C", "Т": "T",
-    "У": "Y", "Х": "X", "І": "I", "Ј": "J", "Ѕ": "S",
-    "α": "a", "β": "b", "ε": "e", "ι": "i", "κ": "k", "ν": "v", "ο": "o", "ρ": "p", "τ": "t", "υ": "u",
-    "χ": "x", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
-    "Ο": "O", "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X",
-    "​": "", "‌": "", "‍": "", "⁠": "", "﻿": "", "­": "",
-})
+    """Canonical comparison form (shared with the parser and the ledger): NFKC, separators and invisible
+    characters removed, upper-cased. Validity is checked separately (``iban_problem``)."""
+    return normalize_iban(iban)
 
 
 def _norm_name(name: str) -> str:
     """Screening form of a name: look-alikes folded to Latin, accents stripped, casefolded,
-    punctuation -> space, whitespace collapsed.
+    punctuation -> space, whitespace collapsed. Letters that cannot be folded to a-z are dropped here;
+    ``_sanctions_rule`` fails closed on them (see ``unscreenable_letters``).
 
     "  VOLKOV-trade   Holdings " -> "volkov trade holdings"; "Université" -> "universite".
     """
-    s = unicodedata.normalize("NFKC", name).translate(_CONFUSABLES)
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(ch for ch in s if not unicodedata.combining(ch)).casefold()
-    s = re.sub(r"[^0-9a-z]+", " ", s)
-    return " ".join(s.split())
+    return name_skeleton(name)
+
+
+_LEET = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b"})
+
+
+def _word_match(n: str, e: str) -> bool:
+    """Whole-word containment either way; '?' in `n` is a one-letter wildcard (an unscreenable letter)."""
+    if not n or not e:
+        return False
+    # the entry inside the name: each letter of the entry may appear as '?' in the name
+    pe = "".join(f"[{c}?]" if c.isalnum() else re.escape(c) for c in e)
+    if re.search(r"(?:^| )" + pe + r"(?: |$)", n):
+        return True
+    # the name inside the entry (two words or more): '?' in the name matches any letter of the entry
+    if len(n.split()) >= 2:
+        pn = "".join("[a-z0-9]" if c == "?" else re.escape(c) for c in n)
+        if re.search(r"(?:^| )" + pn + r"(?: |$)", e):
+            return True
+    return False
 
 
 def _sanctions_name_hit(name: str) -> str | None:
@@ -68,23 +74,22 @@ def _sanctions_name_hit(name: str) -> str | None:
       * the full watchlist entry appears inside the name ("Volkov Trade Holdings Ltd" -> hit), or
       * the name appears inside the entry ("Volkov Trade" -> hit), but only for names of at least
         two words, so a lone common word ("Trade", "Northgate") does not flag legitimate payees.
+    v3 (AUDIT-4): a letter that cannot be folded to Latin (Armenian "օ", Cherokee "Ꮩ", ...) is a wildcard, and
+    digits used as letters ("V0lkov") are also tried, so look-alike spellings of a listed name still hit.
     """
-    n = _norm_name(name)
-    padded = f" {n} "
-    for entry in params.SANCTIONS_WATCHLIST_NAMES:
-        e = _norm_name(entry)
-        if not e:
-            continue
-        if f" {e} " in padded:
-            return entry
-        if len(n.split()) >= 2 and padded in f" {e} ":
-            return entry
+    raw = name_skeleton(name, unknown="?")
+    for n in dict.fromkeys((raw, raw.translate(_LEET))):
+        for entry in params.SANCTIONS_WATCHLIST_NAMES:
+            e = name_skeleton(entry)
+            if _word_match(n, e):
+                return entry
     return None
 
 
 def _sanctions_rule(name: str | None, iban: str | None, what: str) -> RuleResult:
-    """SANCTIONS_SCREEN (R4). Fails closed when the name is missing/empty or the IBAN is missing."""
-    if name is None or not _norm_name(name):
+    """SANCTIONS_SCREEN (R4). Fails closed when the name is missing/empty, contains letters that cannot be
+    screened against the Latin watchlist, or the IBAN is missing or invalid."""
+    if name is None or not (_norm_name(name) or unscreenable_letters(name)):
         return _R("SANCTIONS_SCREEN", False, RiskLevel.R4,
                   f"cannot screen {what}: name is missing or empty")
     if iban is None or not _norm_iban(iban):
@@ -94,11 +99,22 @@ def _sanctions_rule(name: str | None, iban: str | None, what: str) -> RuleResult
     entry = _sanctions_name_hit(name)
     if entry is not None:
         hits.append(f"{what} name {name!r} matches sanctions watchlist entry {entry!r}")
-    nib = _norm_iban(iban)
-    if nib in {_norm_iban(x) for x in params.SANCTIONS_WATCHLIST_IBANS}:
+    nib = iban_screening_form(iban)
+    if nib in {iban_screening_form(x) for x in params.SANCTIONS_WATCHLIST_IBANS}:
         hits.append(f"{what} IBAN ending {nib[-4:]} is on the sanctions watchlist")
     if hits:
         return _R("SANCTIONS_SCREEN", False, RiskLevel.R4, "; ".join(hits))
+    odd = unscreenable_letters(name)
+    if odd:
+        # Fail closed: a Latin watchlist cannot be compared with these letters. Trade-off: a legitimate name in
+        # another script is also refused here; in a bank it goes to manual review, in the sandbox it is denied.
+        return _R("SANCTIONS_SCREEN", False, RiskLevel.R4,
+                  f"cannot screen {what} name {name!r}: it contains letters outside the Latin alphabet "
+                  f"({''.join(odd[:5])}); manual sanctions review required")
+    problem = iban_problem(iban)
+    if problem is not None:
+        return _R("SANCTIONS_SCREEN", False, RiskLevel.R4, f"cannot screen {what} {name}: IBAN {problem}")
+    nib = _norm_iban(iban)
     return _R("SANCTIONS_SCREEN", True, RiskLevel.R4,
               f"{name} (IBAN ending {nib[-4:]}) screened against {len(params.SANCTIONS_WATCHLIST_NAMES)} "
               f"watchlist names and {len(params.SANCTIONS_WATCHLIST_IBANS)} IBANs: no match")
@@ -238,9 +254,11 @@ class DeterministicPolicyEngine:
                           f"{ben.display_name} is blocked" if ben.blocked
                           else f"{ben.display_name} is not blocked"))
             got, want = _norm_iban(a.iban), _norm_iban(ben.iban)
-            same = got == want
+            problem = iban_problem(got)
+            same = got == want and problem is None
             out.append(_R("IBAN_MATCHES_REGISTRY", same, RiskLevel.R4,
                           "payment IBAN matches the registered IBAN" if same else
+                          f"payment IBAN is invalid: {problem}" if got == want else
                           f"payment IBAN ending {got[-4:]} differs from the registered IBAN ending {want[-4:]}"))
 
         # tenant isolation
@@ -350,6 +368,7 @@ class DeterministicPolicyEngine:
         if reserve is not None:
             out.append(reserve)
         q = a.quote
+        out.append(self._fx_price_rule(ctx, q))
         eur = _to_eur(q.buy_amount, q.buy_currency)
         ok = eur <= params.R2_MAX_FX_EUR
         out.append(_R("FX_TIER", ok, RiskLevel.R3,
@@ -357,11 +376,47 @@ class DeterministicPolicyEngine:
                       f"{_m(params.R2_MAX_FX_EUR)} one-tap limit"))
         return out
 
+    @staticmethod
+    def _fx_price_rule(ctx: PolicyContext, q) -> RuleResult:
+        """FX_PRICE_CHECK (R4, v3, AUDIT-1): the FX provider is untrusted, so the quote must match the bank's own
+        price (params.FX_RATES + FX_FEE_RATE) to the cent, and must not be expired at ctx.now."""
+        rate = params.FX_RATES.get((q.sell_currency, q.buy_currency))
+        if rate is None:
+            return _R("FX_PRICE_CHECK", False, RiskLevel.R4,
+                      f"no reference rate for {q.sell_currency}->{q.buy_currency}")
+        net = q2(q.buy_amount) / rate
+        sell, fee = q2(net * (1 + params.FX_FEE_RATE)), q2(net * params.FX_FEE_RATE)
+        problems = []
+        if q.rate != rate:
+            problems.append(f"rate {q.rate} differs from the reference {rate}")
+        if q2(q.sell_amount) != sell or q2(q.fee) != fee:
+            problems.append(f"price {_m(q.sell_amount)} {q.sell_currency} (fee {_m(q.fee)}) differs from the "
+                            f"reference {_m(sell)} (fee {_m(fee)}) for {_m(q.buy_amount)} {q.buy_currency}")
+        if q.expires_at < ctx.now:
+            problems.append("quote has expired")
+        elif q.expires_at > ctx.now + params.FX_QUOTE_TTL:
+            problems.append("quote expiry is later than the bank allows")
+        if problems:
+            return _R("FX_PRICE_CHECK", False, RiskLevel.R4, "FX quote rejected: " + "; ".join(problems))
+        return _R("FX_PRICE_CHECK", True, RiskLevel.R4,
+                  f"quote matches the reference price: {_m(sell)} {q.sell_currency} incl. {_m(fee)} fee")
+
     # ------------------------------------------------------------------ add beneficiary
     def _add_beneficiary(self, ctx: PolicyContext, a: AddBeneficiaryAction,
                          sim: SimulationResult) -> list[RuleResult]:
+        problem = iban_problem(a.iban)
+        sk = name_skeleton(a.display_name)
+        clash = next((b for b in ctx.beneficiaries if b.user_id == ctx.user_id and sk and sk in
+                      {name_skeleton(x) for x in (b.beneficiary_id, b.display_name, *b.aliases)}), None)
         return [
             self._sim_rule(a.action_id, sim),
+            _R("IBAN_VALID", problem is None, RiskLevel.R4,
+               f"IBAN ending {_norm_iban(a.iban)[-4:]} is a valid IBAN (format and mod-97 check digits)"
+               if problem is None else f"IBAN is not valid: {problem}"),
+            _R("PAYEE_NAME_UNIQUE", clash is None, RiskLevel.R4,
+               f"no existing payee, alias or id looks like {a.display_name!r}" if clash is None else
+               f"{a.display_name!r} looks the same as your existing payee {clash.display_name} "
+               f"(name, alias or id); a second payee under that name would be ambiguous"),
             _sanctions_rule(a.display_name, a.iban, "new payee"),
             _R("NEW_PAYEE_ACTION", False, RiskLevel.R3,
                f"adding a new payee ({a.display_name}, IBAN ending {_norm_iban(a.iban)[-4:]}) "

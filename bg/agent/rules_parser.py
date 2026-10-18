@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import re
-from decimal import Decimal, InvalidOperation
+import unicodedata
+from decimal import Decimal
 
 from bg.contracts import params
+from bg.contracts.canonical import normalize_iban, parse_amount, q2
 from bg.contracts.models import (
     AddBeneficiary, AffordabilityCheck, Cancel, Clarify, Correct, FinancialIntent, FxConvert, Pay,
     ParsedRequest, PayObligations, ProvideDetail, ReadOverview, Unsupported,
@@ -12,16 +14,19 @@ from bg.contracts.models import (
 
 # Upper-case IBANs as printed, or all-lower-case ones typed in chat. In the lower-case form every group must
 # contain a digit, so a following word ("... 5555 55 instead") is never swallowed into the IBAN.
-_IBAN_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{2,4}){3,8}"
-                      r"|[a-z]{2}\d{2}(?:[ ]?(?=[a-z]{0,3}\d)[a-z0-9]{2,4}){3,8})\b")
+_IBAN_RE = re.compile(r"\b([A-Z]{2}[0-9]{2}(?:[ .\-]?[A-Z0-9]{2,4}){3,8}"
+                      r"|[a-z]{2}[0-9]{2}(?:[ .\-]?(?=[a-z]{0,3}[0-9])[a-z0-9]{2,4}){3,8})\b")
+# An IBAN-looking token that still contains non-ASCII digits or letters after NFKC (Arabic-Indic digits...):
+# never parsed as an IBAN, the user is asked to retype it (AUDIT-2).
+_ODD_IBAN_RE = re.compile(r"\b[A-Za-z]{2}[^\W_]{2}(?:[ .\-]?[^\W_]{2,4}){3,8}\b")
 _CUR = {"eur": "EUR", "euro": "EUR", "euros": "EUR", "€": "EUR",
         "usd": "USD", "dollar": "USD", "dollars": "USD", "$": "USD", "bucks": "USD"}
 _CUR_WORD = r"(?:euros?|eur|dollars?|usd|bucks)"
-_NUM = r"(\d[\d,]*(?:\.\d+)?)"
+_NUM = r"([0-9][0-9,]*(?:\.[0-9]+)?)"
 # includes frequent typos ("sned 40 eur to mom"): a typo must not make a request unreadable
 _PAY_VERB = r"\b(send|pay|transfer|wire|settle|remit|sned|snd|semd|pya|transfr|tranfer|trasnfer)\b"
 _RELATIVE = (r"\b(half|third|quarter|portion|partial(?:ly)?|part of|some of|most of|a bit|a little|"
-             r"\d+\s*%|percent|per cent|whatever|the rest|remainder|remaining|what'?s left|what is left|"
+             r"[0-9]+\s*%|percent|per cent|whatever|the rest|remainder|remaining|what'?s left|what is left|"
              r"left over|leftover|excess|surplus|anything (?:above|over)|everything (?:above|over))\b")
 
 # Questions about money are answered with a simulation (AffordabilityCheck), never turned into a payment.
@@ -52,14 +57,24 @@ _NOT_A_DETAIL = r"\b(tuition|tution|rent|bills?|balances?|convert|exchange|add|o
 
 
 def _norm_iban(s: str) -> str:
-    return re.sub(r"\s+", "", s).upper()
+    return normalize_iban(s)
 
 
 def _to_dec(s: str) -> Decimal | None:
-    try:
-        return Decimal(s.replace(",", ""))
-    except InvalidOperation:
-        return None
+    """Bounded parse (AUDIT-7): more than 12 integer digits or 6 decimals is not an amount."""
+    return parse_amount(s)
+
+
+def _odd_iban(text: str) -> str | None:
+    """An IBAN-like token with characters other than ASCII letters and digits, or None."""
+    for m in _ODD_IBAN_RE.finditer(text):
+        tok = m.group(0)
+        if not tok.isascii() and any(unicodedata.digit(ch, None) is not None for ch in tok):
+            return tok
+    return None
+
+
+_TOO_BIG = re.compile(r"[0-9][0-9,]{12,}")
 
 
 def _find_iban(text: str) -> tuple[str | None, str]:
@@ -145,7 +160,9 @@ def payment_draft_hint(text: str, names: list[str]) -> tuple[str | None, Decimal
 class RulesParser:
     def parse(self, text: str, *, beneficiary_names: list[str],
               pending_question: str | None = None) -> ParsedRequest:
-        intents = self._parse(text or "", beneficiary_names, pending_question)
+        # NFKC first: fullwidth digits and letters become ASCII; anything else non-ASCII is never a number
+        norm = unicodedata.normalize("NFKC", text or "")
+        intents = self._parse(norm, beneficiary_names, pending_question)
         return ParsedRequest(intents=intents, parser="rules", raw_text=text or "")
 
     # ------------------------------------------------------------------
@@ -154,9 +171,15 @@ class RulesParser:
         if not low:
             return [Clarify(question="What would you like to do?")]
 
-        bad = self._unsupported(low)
+        bad = self._unsupported(low, text)
         if bad:
             return [bad]
+
+        odd = _odd_iban(text)
+        if odd is not None and re.search(r"\biban\b|\b(add|register|save|pay|send|transfer)\b", low):
+            return [Clarify(question="The IBAN you typed contains characters that are not plain digits 0-9 or "
+                                     "letters A-Z (for example Arabic-Indic or other script digits), so I cannot "
+                                     "use it. Please type it again with standard characters.")]
 
         iban, no_iban = _find_iban(text)
         low_ni = no_iban.lower()
@@ -171,11 +194,18 @@ class RulesParser:
         if iban and re.search(r"\binstead\b|\bnew (?:bank |account|iban)|\bchanged? (?:her |his |their |the )?"
                               r"(?:bank|account|iban)|\bswitch(?:ed)? (?:to|bank)|\bupdate (?:the |her |his )?iban\b",
                               low_ni) and not re.match(r"\s*(please\s+)?(add|register|save|create)\b", low):
+            who = _match_name(low_ni, names)
+            if who and who.islower():
+                who = who[:1].upper() + who[1:]
+            whose = f"{who}'s" if who else "a payee's"
+            caller = who or "the payee"
             return [Unsupported(category="out_of_scope",
-                                reason=f"BANK DETAILS: I cannot change a payee's bank details in chat. Payments only go "
-                                       f"to the IBAN registered for that payee, so I did not use the account ending "
-                                       f"{iban[-4:]}. If this account is genuine, add it as a new payee (this needs "
-                                       f"one-time-code verification).")]
+                                reason=f"BANK DETAILS: I can't change {whose} bank details in chat, so I didn't use the "
+                                       f"account ending {iban[-4:]}. Payments only go to the account already saved for "
+                                       f"{who or 'that payee'}. Banks never ask you to change account details by "
+                                       f"chat or email: if {caller} told you this, call them on a number you already "
+                                       f"know. If the new account is genuine, add it as a new payee (that needs your "
+                                       f"one-time code).")]
 
         corr = self._correct(low_ni, names)
         if corr is not None:
@@ -250,8 +280,8 @@ class RulesParser:
                      r"rates?|exchange rate)\b", low_ni):
             return [ReadOverview()]
 
-        return [Clarify(question="I did not understand that. You can ask for your balance, pay your tuition and rent, "
-                                 "send money to a saved payee, or convert currency. What would you like to do?")]
+        return [Clarify(question="Sorry, I didn't get that. Try: \"what's my balance?\", \"pay my rent\", "
+                                 "\"send 50 euros to mom\" or \"convert 200 dollars\".")]
 
     def _bills_and_payments(self, low: str, names: list[str],
                             reserve: Decimal | None) -> list[FinancialIntent] | None:
@@ -369,22 +399,34 @@ class RulesParser:
 
     # ------------------------------------------------------------------
     @staticmethod
-    def _unsupported(low: str) -> Unsupported | None:
+    def _unsupported(low: str, text: str = "") -> Unsupported | None:
+        iban, _ = _find_iban(text or low)
+        money_move = re.search(_PAY_VERB + r"|\b(all my money|everything)\b", low)
         if re.search(r"(system|hidden|initial)\s+(prompt|instructions?)|your (instructions|rules|prompt)|developer mode|"
                      r"\bjailbreak\b|ignore (all |your |the )?(previous|prior|above|earlier) (instructions|rules)|"
                      r"you are now|pretend (you|to)", low):
-            return Unsupported(reason="I cannot reveal or change my instructions.", category="jailbreak")
+            if iban:
+                return Unsupported(reason=f"I won't do that. I only pay the accounts saved for your payees, and the "
+                                          f"account ending {iban[-4:]} isn't one of them. To pay someone new, add them "
+                                          f"as a payee first (that needs your one-time code).", category="jailbreak")
+            if money_move:
+                return Unsupported(reason="I won't do that. Every payment goes through the same checks and limits, "
+                                          "and messages can't switch them off.", category="jailbreak")
+            return Unsupported(reason="I can't share or change my instructions. I can help with your balance, "
+                                      "your bills and payments to your saved payees.", category="jailbreak")
         if re.search(r"(other|another|someone else'?s?|all)\s+(customers?|users?|clients?|accounts?)|"
                      r"(customers?|users?|clients?)'?s?\s+(data|balance|accounts?|transactions?)|"
                      r"\bu_other\b|\bb_other\b|acc_other|someone else'?s? (balance|account)", low):
-            return Unsupported(reason="I can only show your own accounts.", category="data_access")
+            return Unsupported(reason="I can only show your own accounts and payees.", category="data_access")
         if re.search(r"(ignore|bypass|override|disable|remove|skip|lift|raise|increase|change|turn off|waive)\b[^.]*"
                      r"\b(limits?|reserve|confirmations?|checks?|approvals?|security|policy|policies|otp|step[- ]?up)\b", low) or \
                 re.search(r"without (asking|confirm|confirmation|approval|otp)", low) or \
                 re.search(r"don'?t ask (me )?(for )?(confirm|approval)", low):
-            return Unsupported(reason="I cannot change or bypass your limits and safety checks.", category="limit_change")
+            return Unsupported(reason="I can't change or switch off your limits and safety checks; they are set by "
+                                      "the bank, and every payment goes through them.", category="limit_change")
         if re.search(r"\b(weather|joke|poem|recipe|stock tips?|lottery|bitcoin|invest)\b", low):
-            return Unsupported(reason="That is outside what I can do (banking actions for your accounts).",
+            return Unsupported(reason="That's outside what I can do. I can help with your balance, your bills, "
+                                      "payments to your saved payees and currency conversion.",
                                category="out_of_scope")
         return None
 
@@ -439,7 +481,7 @@ class RulesParser:
         if amt_cur == sell:
             # the user gave the amount to sell; approximate the buy amount net of the fee
             rate = params.FX_RATES[(sell, buy)] * (Decimal(1) - params.FX_FEE_RATE)
-            amount = (amount * rate).quantize(Decimal("0.01"))
+            amount = q2(amount * rate)
         return FxConvert(sell_currency=sell, buy_currency=buy, buy_amount=amount)  # type: ignore[arg-type]
 
     @staticmethod
@@ -475,6 +517,9 @@ class RulesParser:
             ref = iban
         if ref is None:
             return Clarify(question="Who should I send the money to? Please name one of your saved payees.")
+        if _TOO_BIG.search(low) and not _amounts(low):
+            return Clarify(question=f"That amount is too large for me to read. Single payments are capped at "
+                                    f"{params.MAX_SINGLE_PAYMENT_EUR:,} EUR. What exact amount should I send?")
 
         mode, amount, cur = "unspecified", None, "EUR"
         amts = _amounts(low)

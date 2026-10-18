@@ -4,6 +4,7 @@ from decimal import Decimal as D
 import pytest
 
 from bg.contracts import params
+from bg.contracts.canonical import q2
 from bg.contracts.models import (
     Account, AddBeneficiaryAction, Beneficiary, FxAction, FxQuote, PaymentAction, PolicyContext,
     RiskLevel, SimulationResult, Verdict,
@@ -47,9 +48,19 @@ def pay(amount="1200", ben="b_univ", iban=params.UNIV_IBAN, cur="EUR", acc="acc_
                          iban=iban, amount=D(amount), currency=cur, **kw)
 
 
-def fx(buy="2200", cur="EUR"):
-    q = FxQuote(quote_id="q1", sell_currency="USD", buy_currency=cur, sell_amount=D("2400"), buy_amount=D(buy),
-                rate=D("0.92"), fee=D("10"), expires_at=NOW + timedelta(minutes=5))
+def fx_quote(buy="2200", cur="EUR", **over):
+    """A quote at the bank's reference price (FX_PRICE_CHECK passes unless a field is overridden)."""
+    rate = params.FX_RATES.get(("USD", cur), D("0.92"))
+    net = D(buy) / rate
+    fields = dict(quote_id="q1", sell_currency="USD", buy_currency=cur, buy_amount=D(buy), rate=rate,
+                  sell_amount=q2(net * (1 + params.FX_FEE_RATE)), fee=q2(net * params.FX_FEE_RATE),
+                  expires_at=NOW + timedelta(minutes=5))
+    fields.update(over)
+    return FxQuote(**fields)
+
+
+def fx(buy="2200", cur="EUR", **over):
+    q = fx_quote(buy, cur, **over)
     return FxAction(action_id="a1", idempotency_key="k1", from_account_id="acc_usd", to_account_id="acc_eur", quote=q)
 
 
@@ -260,7 +271,21 @@ def test_fx_tier_boundary(buy, verdict):
 
 def test_fx_rules_listed():
     d = ev(ctx(), fx())
-    assert [r.rule_id for r in d.rules] == ["SIM_FEASIBLE", "TENANT_ISOLATION", "RESERVE_FLOOR", "FX_TIER"]
+    assert [r.rule_id for r in d.rules] == ["SIM_FEASIBLE", "TENANT_ISOLATION", "RESERVE_FLOOR", "FX_PRICE_CHECK",
+                                            "FX_TIER"]
+    assert rule(d, "FX_PRICE_CHECK").passed and "2403.26" in rule(d, "FX_PRICE_CHECK").detail
+
+
+@pytest.mark.parametrize("over", [
+    {"sell_amount": D("2590.00")},                                  # AUDIT-1: inflated price
+    {"rate": D("0.0386")},
+    {"fee": D("50.00")},
+    {"expires_at": NOW - timedelta(seconds=1)},                     # expired
+    {"expires_at": NOW + timedelta(days=30)},                       # longer validity than the bank issues
+])
+def test_fx_quote_off_reference_price_is_denied(over):
+    d = ev(ctx(), fx(**over))
+    assert d.verdict is Verdict.DENY and not rule(d, "FX_PRICE_CHECK").passed
 
 
 def test_fx_foreign_account_denied():

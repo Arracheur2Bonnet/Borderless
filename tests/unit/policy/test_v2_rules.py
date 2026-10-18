@@ -108,8 +108,8 @@ def test_structuring_window_boundary_is_inclusive():
 
 def test_structuring_not_evaluated_for_fx():
     # recent payments are payments only; an FX buy never carries a STRUCTURING rule
-    q = FxQuote(quote_id="q1", sell_currency="USD", buy_currency="EUR", sell_amount=D("2400"),
-                buy_amount=D("2200"), rate=D("0.92"), fee=D("10"), expires_at=NOW + timedelta(minutes=5))
+    q = FxQuote(quote_id="q1", sell_currency="USD", buy_currency="EUR", sell_amount=D("2403.26"),
+                buy_amount=D("2200"), rate=D("0.92"), fee=D("11.96"), expires_at=NOW + timedelta(minutes=5))
     a = FxAction(action_id="a1", idempotency_key="k1", from_account_id="acc_usd", to_account_id="acc_eur", quote=q)
     d = ev(ctx(recent_payments=[recent("1400", ben="b_mom")]), a)
     assert "STRUCTURING" not in [r.rule_id for r in d.rules] and d.verdict is Verdict.CONFIRM
@@ -190,9 +190,49 @@ def test_sanctions_name_and_iban_both_reported():
     "Northgate University", "Northgate", "Trade", "Holdings", "Volkovsky Trading",
 ])
 def test_clean_names_not_flagged(name):
-    d = ev(ctx(), add_ben(name))
+    d = ev(ctx(beneficiaries=[]), add_ben(name))     # empty registry: no duplicate-name refusal
     assert rule(d, "SANCTIONS_SCREEN").passed
     assert d.verdict is Verdict.STEP_UP   # still a new payee -> R3
+
+
+@pytest.mark.parametrize("name", ["Samira Haddad", "SAMIRA  haddad", "Sаmira Haddad", "mom", "Landlord", "b_univ"])
+def test_new_payee_name_colliding_with_existing_is_denied(name):
+    """AUDIT-5: same name (case, spacing, look-alike letters), an alias or an id of an existing payee."""
+    d = ev(ctx(), add_ben(name))
+    assert d.verdict is Verdict.DENY and not rule(d, "PAYEE_NAME_UNIQUE").passed
+
+
+@pytest.mark.parametrize("name", [
+    "Vօlkov Trade Holdings", "Ꮩolkov Trade Holdings", "Volᴋov Trade Holdings", "Nօrthgate Exchange FZE",
+    "V0lkov Trade Holdings", "Vołkov Trade Holdings",
+])
+def test_lookalike_sanctioned_names_hit(name):
+    """AUDIT-4: letters outside the Latin map are wildcards; digits used as letters are folded."""
+    r = rule(ev(ctx(beneficiaries=[]), add_ben(name)), "SANCTIONS_SCREEN")
+    assert not r.passed and "matches sanctions watchlist" in r.detail
+
+
+@pytest.mark.parametrize("name", ["Ахмед Иванов", "王伟", "محمد علي", "Bob 李"])
+def test_unscreenable_letters_fail_closed(name):
+    """AUDIT-4 trade-off: a name the Latin watchlist cannot be compared with goes to manual review (deny)."""
+    d = ev(ctx(beneficiaries=[]), add_ben(name))
+    r = rule(d, "SANCTIONS_SCREEN")
+    assert not r.passed and "manual sanctions review" in r.detail and d.verdict is Verdict.DENY
+
+
+@pytest.mark.parametrize("iban", ["GB00TEST", "FR7612345000019876543210987", "AE٠٧0331234567890123456",
+                                  "GB33BUKB2020155555555"])
+def test_invalid_iban_new_payee_denied(iban):
+    """AUDIT-2: an IBAN failing format, length or mod-97 is a hard deny, never step-up."""
+    d = ev(ctx(beneficiaries=[]), add_ben("Bob", iban))
+    assert d.verdict is Verdict.DENY and not rule(d, "IBAN_VALID").passed
+
+
+@pytest.mark.parametrize("iban", ["AE07​0331234567890123456", "AE07-0331-2345-6789-0123-456",
+                                  "ＡＥ０７0331234567890123456", "AE٠٧0331234567890123456"])
+def test_non_canonical_sanctioned_iban_still_screened(iban):
+    r = rule(ev(ctx(beneficiaries=[]), add_ben("Harmless Name", iban)), "SANCTIONS_SCREEN")
+    assert not r.passed and "on the sanctions watchlist" in r.detail
 
 
 def test_partial_two_word_fragment_is_flagged():
@@ -206,7 +246,8 @@ def test_empty_name_fails_closed():
 
 def test_add_beneficiary_rule_order():
     d = ev(ctx(), add_ben("Bob"))
-    assert [r.rule_id for r in d.rules] == ["SIM_FEASIBLE", "SANCTIONS_SCREEN", "NEW_PAYEE_ACTION"]
+    assert [r.rule_id for r in d.rules] == ["SIM_FEASIBLE", "IBAN_VALID", "PAYEE_NAME_UNIQUE", "SANCTIONS_SCREEN",
+                                            "NEW_PAYEE_ACTION"]
 
 
 def test_payment_to_registered_sanctioned_name_denied():

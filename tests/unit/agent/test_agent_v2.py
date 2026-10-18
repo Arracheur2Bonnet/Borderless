@@ -56,7 +56,7 @@ def test_missing_payee_then_payee_completes_draft():
 def test_unknown_payee_keeps_amount_and_asks_once():
     orch, _, _, sid = system()
     t1 = orch.handle_message(sid, "send 20 euros to bob")
-    assert "bob" in t1.assistant_text and t1.pending_question and t1.assistant_text.count("?") == 1
+    assert "Bob" in t1.assistant_text and t1.pending_question and t1.assistant_text.count("?") == 1
     t2 = orch.handle_message(sid, "mom")
     assert t2.actions[0].action.amount == D("20.00") and t2.actions[0].action.beneficiary_id == "b_mom"
 
@@ -210,7 +210,7 @@ def test_afford_after_bills_spec_example():
     assert p.balances_after == {"EUR": D("300.00"), "USD": D("196.74")}
     assert "After tuition and rent you would have 600.00 EUR" in t.assistant_text
     assert "leave 300.00 EUR, below your 600.00 EUR reserve" in t.assistant_text
-    assert any("2200.00 EUR" in line for line in p.lines)
+    assert any("2,200.00 EUR" in line for line in p.lines)
 
 
 def test_how_much_left_after_tuition_and_rent():
@@ -255,11 +255,11 @@ def test_otp_lockout_denies_with_receipt():
     fx, univ, rent = orch.handle_message(sid, params.DEMO_GOAL).actions
     ok(orch, sid, fx), ok(orch, sid, univ)
     r1 = ok(orch, sid, rent, "111111")
-    assert r1.actions[0].status == "awaiting_confirmation" and "2 attempts left" in r1.assistant_text
+    assert r1.actions[0].status == "awaiting_confirmation" and "2 tries left" in r1.assistant_text
     assert [e.kind for e in r1.security_events] == ["step_up_failed"]
     assert "111111" not in r1.security_events[0].detail
     r2 = ok(orch, sid, rent, "222222")
-    assert "1 attempt left" in r2.assistant_text
+    assert "1 try left" in r2.assistant_text
     r3 = ok(orch, sid, rent, "333333")
     assert r3.actions[0].status == "denied" and r3.receipts and r3.anchor is not None
     assert "STEP_UP_LOCKOUT" in {x.rule_id for x in r3.actions[0].decision.rules if not x.passed}
@@ -276,7 +276,7 @@ def test_out_of_order_confirm_keeps_waiting():
     assert t.actions[0].status == "awaiting_confirmation" and not t.receipts and ledger.exec_calls == 0
     assert "Convert USD to EUR" in t.assistant_text and "first" in t.assistant_text
     t2 = ok(orch, sid, fx)
-    assert "Next step" in t2.assistant_text
+    assert "Next: approve" in t2.assistant_text
     assert ok(orch, sid, univ).actions[0].status == "executed"
     assert ok(orch, sid, rent, params.DEMO_OTP).actions[0].status == "executed" and eur(ledger) == D("600.00")
 
@@ -297,7 +297,7 @@ def test_structuring_event_and_recent_payments_in_context():
     t = orch.handle_message(sid, "send 700 euros to mom")
     assert t.actions[0].confirmation_request.verdict == "step_up"
     assert [e.kind for e in t.security_events] == ["structuring_suspected"]
-    assert "Extra check" in t.assistant_text
+    assert "in the last 24 hours it comes to" in t.assistant_text
     assert ledger.recent_calls[-1][1] == params.DEMO_NOW - params.STRUCTURING_WINDOW
 
 

@@ -113,3 +113,39 @@ backward-compatible way: every existing test must still pass.
   "actually make it 40", "no, 40 instead", "change the amount to 40", "send it to mom instead" -> Correct;
   "cancel", "cancel that", "never mind", "stop", "cancel everything" -> Cancel; with a pending_question,
   "50", "50 euros", "to mom" -> ProvideDetail.
+
+## v3 additions (2026-10-18, security fixes for docs/review/security_audit.md)
+Backward compatible: every v2 name still exists; new parameters are optional.
+
+- `bg/contracts/canonical.py` (new, shared by parser, guard, policy, ledger): `normalize_iban` (NFKC, separators and
+  invisible characters removed, upper-cased), `iban_problem`/`valid_iban` (ASCII only, ISO 13616 shape, country
+  length, mod-97), `iban_screening_form` (Unicode digits mapped, sanctions comparison only), `name_skeleton` and
+  `unscreenable_letters` (look-alike folding), `q2` (the single rounding rule, ROUND_HALF_UP), `money` (the single
+  display format, `2,200.00`), `parse_amount` (bounded parse of untrusted text, never raises).
+- Contracts: `Amount` = Decimal with at most 12 integer digits and 6 decimals, used for every intent and action amount
+  and for `FxQuote` amounts. Sub-cent amounts stay representable: the agent asks ("did you mean 1.00 or 1.01 EUR?"),
+  it never rounds them silently.
+- Params: `OTHER_IBAN = FR6012345000019876543210987` replaces the old `b_other` IBAN, which failed mod-97.
+- New policy rules: `IBAN_VALID` (R4, add_beneficiary), `PAYEE_NAME_UNIQUE` (R4, add_beneficiary: the name, alias or
+  id of an existing payee, after case and look-alike folding), `FX_PRICE_CHECK` (R4, fx: rate, fee and sell amount must
+  equal the bank's reference price; expiry within `FX_QUOTE_TTL`). `IBAN_MATCHES_REGISTRY` also fails on an invalid
+  IBAN. `SANCTIONS_SCREEN` fails closed on letters that cannot be folded to Latin. Trade-off: a legitimate name in
+  another script is denied in the sandbox, where a bank would send it to manual review. Look-alike letters act as
+  wildcards against the watchlist.
+- Ledger: the ledger records every quote it issues (unique `quote_id`). An `FxAction` executes only an issued,
+  unchanged, unexpired and unused quote (`QUOTE_NOT_ISSUED`, `QUOTE_TERMS_CHANGED`, `QUOTE_EXPIRED`,
+  `QUOTE_ALREADY_USED`). `AddBeneficiaryAction` is refused for an invalid IBAN (`INVALID_IBAN`) or a colliding name
+  (`PAYEE_NAME_TAKEN`). `resolve_beneficiary` checks id, name and alias together: a reference that names two
+  payees is ambiguous. `SandboxLedger.step_up` is a `StepUpAttempts` store.
+- Step-up: wrong codes are counted per user (`StepUpAttempts`, shared by every session). After `MAX_OTP_ATTEMPTS`
+  consecutive wrong codes, approval by code is locked for that user until `reset(user)`; a correct code clears the
+  count. Codes are compared with `hmac.compare_digest`. `build_orchestrator(..., step_up=None)`.
+- Receipts: one hash chain per customer (seq 1..n and `rcpt_0001` per customer). `anchor(user_id=None)`,
+  `verify_chain(anchor=None, user_id=None)`, `get(receipt_id, user_id=None)`. The signature is unchanged
+  (`f"{seq}:{receipt_hash}"`). A malformed anchor (not 64 hex characters) is invalid and never raises. The store
+  exposes `demo_key_in_use` and logs a warning when `BG_RECEIPT_KEY` is unset. `overview()` adds `demo_key_in_use`
+  and `signing_key`. Its `anchor` and `verify_fn` cover the session's customer only.
+- Orchestrator: `handle_message` never raises on bad data (it replies that nothing was done). The audit log stores
+  `text_sha256` and `text_chars` instead of the raw message, and the redaction also masks `123456.` codes and
+  IBANs written with `-` or `.`. Chat replies are plain language. Rule ids stay in `PolicyDecision` and
+  `ConfirmationRequest` (the card), never in sentences.

@@ -1,4 +1,6 @@
 import json
+
+import pytest
 from datetime import timedelta
 from decimal import Decimal as D
 
@@ -10,6 +12,8 @@ from bg.contracts.models import (
 from bg.ledger import SandboxLedger, SqliteReceiptStore
 
 U = params.DEMO_USER_ID
+# valid fictional IBANs (mod-97): the ledger refuses to register an invalid one
+GB_A, GB_B, GB_C = "GB29NWBK60161331926819", "GB02NWBK60161331926820", "GB72NWBK60161331926821"
 
 
 def fx_action(led, amount="2200.00", key="k_fx"):
@@ -65,9 +69,34 @@ def test_simulation_errors():
     led = SandboxLedger()
     assert led.simulate(U, [pay("a", "b_univ", "1", acc="acc_other_eur")])[0].errors == ["UNKNOWN_ACCOUNT"]
     assert "CURRENCY_MISMATCH" in led.simulate(U, [pay("a", "b_univ", "1", acc="acc_usd")])[0].errors
+    fx = fx_action(led)                       # issued by this ledger, valid for FX_QUOTE_TTL
+    assert led.simulate(U, [fx])[0].feasible
+    led.now = params.DEMO_NOW + timedelta(minutes=10)
+    assert "QUOTE_EXPIRED" in led.simulate(U, [fx])[0].errors
+
+
+def test_fx_quote_must_be_issued_unchanged_and_single_use():
+    """AUDIT-1: the ledger is the price authority. It executes only quotes it issued, at the issued terms, once."""
+    led = SandboxLedger()
     fx = fx_action(led)
-    late = SandboxLedger(now=params.DEMO_NOW + timedelta(minutes=10))
-    assert "QUOTE_EXPIRED" in late.simulate(U, [fx])[0].errors
+    other = SandboxLedger()                   # a quote this ledger never issued
+    assert other.simulate(U, [fx])[0].errors == ["QUOTE_NOT_ISSUED"]
+    poisoned = fx.model_copy(update={"quote": fx.quote.model_copy(update={"sell_amount": D("2590.00")})})
+    assert "QUOTE_TERMS_CHANGED" in led.simulate(U, [poisoned])[0].errors
+    assert led.execute(U, poisoned, None).status == "failed"
+    assert led.execute(U, fx, None).status == "executed"
+    again = fx.model_copy(update={"idempotency_key": "k_fx2", "action_id": "a_fx2"})
+    r = led.execute(U, again, None)
+    assert r.status == "failed" and r.error == "QUOTE_ALREADY_USED"
+    assert led.execute(U, fx, None).status == "replayed"       # same key: idempotent replay, no new debit
+    assert bal(led)["acc_usd"] == D("2600.00") - fx.quote.sell_amount
+
+
+def test_fx_quote_ids_unique_and_price_formula():
+    led = SandboxLedger()
+    a, b = led.fx_quote_raw("USD", "EUR", D("2200")), led.fx_quote_raw("USD", "EUR", D("2200"))
+    assert a["quote_id"] != b["quote_id"]
+    assert (a["sell_amount"], a["fee"]) == (D("2403.26"), D("11.96")) == led.fx_price("USD", "EUR", D("2200"))
 
 
 def test_execute_golden_path():
@@ -106,11 +135,36 @@ def test_never_negative():
 
 def test_add_beneficiary():
     led = SandboxLedger()
-    a = AddBeneficiaryAction(action_id="x", idempotency_key="kb", display_name="Bob", iban="GB00TEST",
+    a = AddBeneficiaryAction(action_id="x", idempotency_key="kb", display_name="Bob", iban="gb29 nwbk-6016 1331 9268 19",
                              category="other")
     assert led.execute(U, a, None).status == "executed"
     b = led.resolve_beneficiary(U, "bob")
     assert b and b.allowlisted and b.added_at == params.DEMO_NOW and b.user_id == U
+    assert b.iban == GB_A                     # stored in canonical form
+
+
+def test_add_beneficiary_refuses_invalid_iban_and_lookalike_names():
+    """AUDIT-2 / AUDIT-5 at the ledger (defence in depth behind the policy gate)."""
+    led = SandboxLedger()
+    for bad in ("GB00TEST", "GB30NWBK60161331926819", "AE٠٧0331234567890123456"):
+        r = led.execute(U, AddBeneficiaryAction(action_id="x", idempotency_key="k" + bad, display_name="Bob",
+                                                iban=bad, category="other"), None)
+        assert r.status == "failed" and r.error == "INVALID_IBAN", bad
+    for name in ("mom", "MOM", "Sаmira Haddad", "jean dupont", "B_UNIV"):     # alias, case, Cyrillic a, id
+        r = led.execute(U, AddBeneficiaryAction(action_id="y", idempotency_key="k" + name, display_name=name,
+                                                iban=GB_B, category="other"), None)
+        assert r.status == "failed" and r.error == "PAYEE_NAME_TAKEN", name
+    assert led.resolve_beneficiary(U, "mom").beneficiary_id == "b_mom"
+
+
+def test_reference_matching_two_tiers_is_ambiguous():
+    """AUDIT-5: a name that is one payee's display name and another payee's alias resolves to nobody."""
+    led = SandboxLedger()
+    led.execute(U, AddBeneficiaryAction(action_id="x", idempotency_key="kx", display_name="Nora",
+                                        iban=GB_C, category="family"), None)
+    nora = led.resolve_beneficiary(U, "nora")
+    led._beneficiaries["b_mom"] = led._beneficiaries["b_mom"].model_copy(update={"aliases": ["mom", "nora"]})
+    assert nora is not None and led.resolve_beneficiary(U, "nora") is None
 
 
 def test_tenant_isolation():
@@ -139,7 +193,7 @@ def test_ambiguous_alias_returns_none():
     led = SandboxLedger()
     for i, n in enumerate(["Cousin A", "Cousin B"]):
         led.execute(U, AddBeneficiaryAction(action_id=f"x{i}", idempotency_key=f"kk{i}", display_name=n,
-                                            iban=f"GB0{i}", category="family"), None)
+                                            iban=(GB_A, GB_B)[i], category="family"), None)
     for bid, b in list(led._beneficiaries.items()):
         if b.display_name.startswith("Cousin"):
             led._beneficiaries[bid] = b.model_copy(update={"aliases": ["cuz"]})
@@ -156,7 +210,7 @@ def test_poisoned_note_only_in_raw():
 
 
 # ------------------------------------------------------------------ receipts
-def make_store(n=3):
+def make_store(n=3, users=None):
     led = SandboxLedger()
     st = SqliteReceiptStore()
     for i in range(n):
@@ -167,7 +221,8 @@ def make_store(n=3):
         conf = Confirmation(action_id=a.action_id, params_hash="h", method="tap",
                             confirmed_at=params.DEMO_NOW) if i != 1 else None
         sim = led.simulate(U, [a])[0] if i != 2 else None
-        st.append(action_id=a.action_id, intent={"user_id": U if i != 1 else "u_other", "text": "hi"},
+        who = users[i] if users else U
+        st.append(action_id=a.action_id, intent={"user_id": who, "text": "hi"},
                   action=a, simulation=sim, decision=dec, confirmation=conf, result=res, summary=f"s{i}")
     return st
 
@@ -186,9 +241,54 @@ def test_chain_valid_and_linked():
     assert rs[1].confirmation_hash is None and rs[0].confirmation_hash
     assert rs[2].simulation_hash  # hash of null is still a hash
     assert st.get(rs[1].receipt_id) == rs[1]
-    assert [r.seq for r in st.list(U)] == [1, 3]
+    assert [r.seq for r in st.list(U)] == [1, 2, 3]
     v = st.verify_chain()
     assert v.valid and v.length == 3
+
+
+def test_chains_are_per_customer():
+    """AUDIT-10: each customer has a chain numbered 1..n, linked only to their own receipts; anchors, chain
+    length and receipt ids reveal nothing about other customers."""
+    st = make_store(4, users=[U, "u_other", U, "u_other"])
+    mine, theirs = st.list(U), st.list("u_other")
+    assert [r.seq for r in mine] == [1, 2] and [r.seq for r in theirs] == [1, 2]
+    assert [r.receipt_id for r in mine] == ["rcpt_0001", "rcpt_0002"]
+    assert mine[0].prev_receipt_hash == theirs[0].prev_receipt_hash == "0" * 64
+    assert mine[1].prev_receipt_hash == mine[0].receipt_hash
+    assert st.verify_chain(user_id=U).length == 2 and st.verify_chain().length == 4
+    assert st.verify_chain(user_id="u_nobody").length == 0 and st.anchor("u_nobody") is None
+    a_me, a_them = st.anchor(U), st.anchor("u_other")
+    assert a_me.seq == 2 and a_me.receipt_hash == mine[1].receipt_hash
+    assert st.verify_chain(a_me, user_id=U).valid
+    assert not st.verify_chain(a_them, user_id=U).valid          # another customer's anchor
+    assert st.get("rcpt_0001") is None                           # ambiguous without the customer
+    assert st.get("rcpt_0001", user_id=U) == mine[0]
+    # deleting a middle receipt of one customer is detected in that customer's chain
+    _raw(st, "DELETE FROM receipts WHERE user_key=? AND seq=1", (U,))
+    v = st.verify_chain(user_id=U)
+    assert not v.valid and v.first_invalid_seq == 1
+    assert st.verify_chain(user_id="u_other").valid
+
+
+@pytest.mark.parametrize("field,value", [
+    ("signature", "é" * 64), ("signature", "zz"), ("receipt_hash", "Ä" * 64), ("receipt_hash", ""),
+])
+def test_malformed_anchor_is_invalid_not_an_exception(field, value):
+    """AUDIT-11"""
+    st = make_store(2)
+    bad = st.anchor().model_copy(update={field: value})
+    v = st.verify_chain(bad)
+    assert v.valid is False and "malformed" in v.detail
+
+
+def test_demo_key_flag(monkeypatch):
+    """AUDIT-12: the public demo key is still the offline default, but the store says so."""
+    monkeypatch.delenv(params.RECEIPT_KEY_ENV, raising=False)
+    st = make_store(1)
+    assert st.demo_key_in_use and "demo signing key" in st.verify_chain(st.anchor()).detail
+    monkeypatch.setenv(params.RECEIPT_KEY_ENV, "a-real-secret")
+    assert not SqliteReceiptStore().demo_key_in_use
+    assert not SqliteReceiptStore(key="explicit").demo_key_in_use
 
 
 def test_empty_chain_valid():

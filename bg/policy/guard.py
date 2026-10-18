@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel, ValidationError
 
+from bg.contracts.canonical import normalize_iban, parse_amount
 from bg.contracts.models import DocumentScan, SecurityEvent, UntrustedDocument
 from bg.contracts.params import DEMO_NOW
 
@@ -77,7 +78,9 @@ _INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 # Structural signals (see scan_document).
-_ANY_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b")
+# v3 (AUDIT-2): any Unicode digit and the usual separators (space, '-', '.') are accepted here, then the
+# match is canonicalised with the shared normalize_iban, so the guard sees the same IBAN as policy and ledger.
+_ANY_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ .\-]?[A-Z0-9]{4}){2,7}(?:[ .\-]?[A-Z0-9]{1,4})?\b")
 _B64_BLOB = re.compile(r"\b[A-Za-z0-9+/]{24,}={0,2}")
 _LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "|": "l"})
 
@@ -177,7 +180,7 @@ class RuleBasedContentGuard:
 
         # Language-independent structural signals. Phrase patterns cover English and French only; these do not
         # depend on wording, because redirecting money always requires supplying another account.
-        all_ibans = {"".join(m.group(0).split()).upper() for m in _ANY_IBAN.finditer(text)}
+        all_ibans = {normalize_iban(m.group(0)) for m in _ANY_IBAN.finditer(text)}
         if len(all_ibans) >= 2:
             findings.append("conflicting_ibans")
         for blob in _B64_BLOB.findall(text):
@@ -239,9 +242,9 @@ class RuleBasedContentGuard:
             m = re.search(r"\bdue\s+date\b\s*:?\s*(\d{4}-\d{2}-\d{2})", line, _F)
             if m and "due_date" not in out:
                 out["due_date"] = m.group(1)
-            m = re.search(r"\bIBAN\b\s*:?\s*([A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30})", line, re.I)
+            m = re.search(r"\bIBAN\b\s*:?\s*([A-Z]{2}\d{2}(?:[ .\-]?[A-Z0-9]){11,30})", line, re.I)
             if m:
-                iban = "".join(m.group(1).split()).upper()
+                iban = normalize_iban(m.group(1))
                 if iban not in ibans:
                     ibans.append(iban)
         if len(ibans) == 1:      # several different IBANs in visible text -> ambiguous, extract none
@@ -256,10 +259,9 @@ class RuleBasedContentGuard:
         elif "," in s:
             head, _, tail = s.rpartition(",")
             s = head.replace(",", "") + "." + tail if len(tail) == 2 else s.replace(",", "")
-        try:
-            return format(Decimal(s), "f")
-        except InvalidOperation:
-            return None
+        # v3 (AUDIT-7): bounded parse; a 30-digit "amount" in an untrusted document is junk, not data
+        d = parse_amount(s)
+        return format(d, "f") if d is not None else None
 
     # ------------------------------------------------------------------ user message
     def scan_user_message(self, text: str, at: datetime | None = None) -> list[SecurityEvent]:

@@ -55,6 +55,9 @@ LANDLORD_IBAN = "FR7630004000031234567890143"
 UNIV_IBAN = "FR7610107001011234567890129"
 MOM_IBAN = "MA64011519000001205000534921"
 ATTACKER_IBAN = "GB33BUKB20201555555555"
+# Second tenant's payee. v3: was FR7612345000019876543210987, which fails the mod-97 check; every seeded IBAN is
+# now a valid (fictional) IBAN because the ledger and the policy reject invalid ones.
+OTHER_IBAN = "FR6012345000019876543210987"
 
 SEED_BENEFICIARIES = [
     {"beneficiary_id": "b_univ", "user_id": DEMO_USER_ID, "display_name": "Université Paris-Saclay",
@@ -67,7 +70,7 @@ SEED_BENEFICIARIES = [
      "aliases": ["mom", "mum", "mother"], "iban": MOM_IBAN, "category": "family",
      "added_at": datetime(2026, 8, 20, 10, 0, tzinfo=timezone.utc), "allowlisted": True},
     {"beneficiary_id": "b_other", "user_id": "u_other", "display_name": "Other Customer Payee",
-     "aliases": [], "iban": "FR7612345000019876543210987", "category": "other",
+     "aliases": [], "iban": OTHER_IBAN, "category": "other",
      "added_at": datetime(2026, 1, 1, tzinfo=timezone.utc), "allowlisted": True},
 ]
 
