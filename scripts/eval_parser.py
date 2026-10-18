@@ -23,6 +23,8 @@ def main() -> int:
     ap.add_argument("--suite", required=True)
     ap.add_argument("--model", default=None)
     ap.add_argument("--out", default=None, help="output folder (default out/eval_<parser>_<suite>)")
+    ap.add_argument("--runxfail", action="store_true",
+                    help="ignore xfail markers (they document rules-parser limits); count every case as pass/fail")
     a = ap.parse_args()
     out = Path(a.out or ROOT / "out" / f"eval_{a.parser}_{Path(a.suite).name}")
     out.mkdir(parents=True, exist_ok=True)
@@ -32,7 +34,7 @@ def main() -> int:
     if a.model:
         env["BG_LOCAL_MODEL"] = a.model
     subprocess.run([sys.executable, "-m", "pytest", a.suite, "-q", "-p", "no:cacheprovider",
-                    f"--junitxml={xml}"], cwd=ROOT, env=env)
+                    f"--junitxml={xml}", *(["--runxfail"] if a.runxfail else [])], cwd=ROOT, env=env)
     cases = []
     for tc in ET.parse(xml).getroot().iter("testcase"):
         st = "failed" if tc.find("failure") is not None or tc.find("error") is not None else (
