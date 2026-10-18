@@ -149,3 +149,10 @@ Backward compatible: every v2 name still exists; new parameters are optional.
   `text_sha256` and `text_chars` instead of the raw message, and the redaction also masks `123456.` codes and
   IBANs written with `-` or `.`. Chat replies are plain language. Rule ids stay in `PolicyDecision` and
   `ConfirmationRequest` (the card), never in sentences.
+
+## v4 additions (2026-10-18, local LLM parser)
+Backward compatible. `ParsedRequest.parser` is now `Literal["claude", "rules", "local"]`; "local" means the intent
+parser `bg.agent.LocalLLMParser` (Qwen served by Ollama, stdlib HTTP, schema-constrained output, same pydantic
+validation as ClaudeParser, falls back to the rules parser with parser "rules" and a note). `build_default` reads
+`BG_PARSER` (`rules` default / `local` / `claude`) and `BG_LOCAL_MODEL` only when no parser is passed. The LLM still
+only produces typed intents.

@@ -65,21 +65,33 @@ DOC_LABELS = {"doc_tuition_nov": "Attach tuition invoice", "doc_rent_nov": "Atta
 MAX_UPLOAD_CHARS = 20_000
 
 # --------------------------------------------------------------------------- backend wiring
-def make_backend(poisoned_fx: bool = False, use_claude: bool = False):
+_LAST_PARSER: dict[str, str] = {}      # label of the parser that answered the latest message (technical details only)
+
+
+def _audit_sink(rec: dict) -> None:
+    if rec.get("step") == "parse" and rec.get("parser"):
+        _LAST_PARSER["label"] = str(rec["parser"])
+
+
+def make_backend(poisoned_fx: bool = False, use_claude: bool = False, use_local: bool = False):
     if os.environ.get("BG_FAKE_BACKEND") == "1":
         from ui.fake_backend import build_fake
         return build_fake(poisoned_fx=poisoned_fx)
     parser = None
-    if use_claude and os.environ.get("ANTHROPIC_API_KEY"):
+    if use_local:
+        from bg.agent import LocalLLMParser
+        parser = LocalLLMParser(model=os.environ.get("BG_LOCAL_MODEL", "qwen2.5:7b-instruct"))
+    elif use_claude and os.environ.get("ANTHROPIC_API_KEY"):
         from bg.agent import ClaudeParser
         parser = ClaudeParser()
     from bg.app import build_default
-    return build_default(poisoned_fx=poisoned_fx, parser=parser)
+    return build_default(poisoned_fx=poisoned_fx, parser=parser, audit_sink=_audit_sink)
 
 
 def reset_backend() -> None:
     s = st.session_state
-    s.backend = make_backend(s.get("poisoned", False), s.get("use_claude", False))
+    s.backend = make_backend(s.get("poisoned", False), s.get("use_claude", False),
+                         s.get("use_local", False))
     s.session_id = s.backend.new_session(DEMO_USER_ID)
     s.history, s.actions, s.events, s.attached = [], {}, {}, []
     s.otp_fails, s.edit_hint = {}, set()
@@ -88,6 +100,8 @@ def reset_backend() -> None:
     s.verify_result = None
     s.tamper_result = None
     s.titles = {}
+    s.parsers = {}
+    _LAST_PARSER.clear()
     reset_guided_progress()
 
 
@@ -110,6 +124,8 @@ def init_state() -> None:
     s = st.session_state
     s.setdefault("poisoned", False)
     s.setdefault("use_claude", False)
+    s.setdefault("use_local", False)
+    s.setdefault("parsers", {})
     s.setdefault("attack_results", {})
     s.setdefault("custom_docs", [])
     s.setdefault("upload_gen", 0)
@@ -136,6 +152,7 @@ def record_turn(turn) -> None:
         s.actions[av.action.action_id] = av
         cr = av.confirmation_request
         if cr is not None and av.action.action_id not in s.titles:
+            s.parsers.setdefault(av.action.action_id, _LAST_PARSER.get("label", "rules"))
             s.titles[av.action.action_id] = cr.title     # kept for the technical details after execution
     for e in turn.security_events:
         s.events[e.event_id] = e
@@ -268,6 +285,8 @@ def render_technical(av) -> None:
         if av.decision:
             rows += [("Policy version", av.decision.policy_version),
                      ("Policy explanation", av.decision.explanation)]
+        if a.action_id in st.session_state.get("parsers", {}):
+            rows.append(("Parser that answered", st.session_state.parsers[a.action_id]))
         if a.action_id in st.session_state.titles:
             rows.append(("Agent's summary", st.session_state.titles[a.action_id]))
         if av.confirmation_request:
@@ -487,6 +506,8 @@ def render_sidebar(ov: dict) -> None:
                   help="Set ANTHROPIC_API_KEY. Without it the offline rules parser is used.")
         if s.use_claude and not have_key:
             st.caption("No ANTHROPIC_API_KEY found: using the offline rules parser.")
+        st.toggle("Local Qwen model (Ollama)", key="use_local", on_change=reset_backend,
+                  help="Uses a local model through Ollama (localhost:11434). Falls back to the rules parser if it is unreachable. Takes priority over Claude.")
         st.toggle("Lying exchange-rate feed", key="poisoned", on_change=reset_backend,
                   help="The simulated exchange-rate provider slips instructions into its response.")
         if st.button("Reset demo", key="reset", width="stretch"):
@@ -820,12 +841,14 @@ def render_attack_result(res) -> None:
     with st.container(border=False, key=f"atk_{a.key}"):
         head = pill("check", "BLOCKED", "ok") if (res.blocked and not res.error) else pill("x", "NOT BLOCKED", "bad")
         st.markdown(f"<div class='bg-atk-head'>{head}<span>{esc_html(a.name)}</span></div>", unsafe_allow_html=True)
-        st.markdown(f"**Attack:** {esc_md(a.description or a.user_text)}")
+        st.markdown(f"**Attack:** {esc_md(a.plain_description or a.description or a.user_text)}")
         st.code(a.script, language=None, wrap_lines=True)
-        st.markdown(f"**Expected defence:** {esc_md(a.expected_defence)}")
+        st.markdown(f"**How it is stopped:** {esc_md(a.plain_defence or a.expected_defence)}")
         if res.error:
             st.error(f"Run failed (counted as NOT blocked): {esc_md(res.error)}")
         with st.expander("Evidence"):
+            st.markdown(f"**Technical description:** {esc_md(a.description or a.user_text)}")
+            st.markdown(f"**Technical defence:** {esc_md(a.expected_defence)}")
             for line in res.evidence:
                 st.markdown(f"- {esc_md(humanize(line))}")
 
@@ -838,7 +861,8 @@ def tab_attacks() -> None:
         run_attacks(ATTACKS)
     cols = st.columns(2)
     for i, a in enumerate(ATTACKS):
-        if cols[i % 2].button(a.name, key=f"run_{a.key}", width="stretch"):
+        lone = i == len(ATTACKS) - 1 and len(ATTACKS) % 2 == 1      # last odd item spans the full width
+        if (st if lone else cols[i % 2]).button(a.name, key=f"run_{a.key}", width="stretch"):
             run_attacks([a])
     done = [results[a.key] for a in ATTACKS if a.key in results]
     if done:

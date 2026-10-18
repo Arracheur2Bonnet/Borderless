@@ -171,7 +171,7 @@ FinancialIntent = Annotated[
 
 class ParsedRequest(Frozen):
     intents: list[FinancialIntent]
-    parser: Literal["claude", "rules"]
+    parser: Literal["claude", "rules", "local"]
     raw_text: str
     notes: list[str] = []
 

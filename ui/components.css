@@ -261,7 +261,8 @@ hr { border-color: var(--sep) !important; margin: var(--s-4) 0 !important; }
 
 /* ===================================================================== guided bar: translucent material */
 div:has(> .st-key-guided_bar) { position: sticky; top: 2.75rem; z-index: 50; }
-.st-key-guided_bar { background: var(--bg-material); -webkit-backdrop-filter: var(--blur-material); backdrop-filter: var(--blur-material);
+.st-key-guided_bar { background: var(--bg-surface); /* opaque: nothing scrolls legibly underneath */
+  
   border: 1px solid var(--sep) !important; border-radius: var(--r-lg); box-shadow: var(--shadow-lg); padding: var(--s-4) var(--s-5) var(--s-4) !important; }
 .st-key-guided_bar [data-testid="stVerticalBlock"] { gap: var(--s-3); }
 .bg-stepper { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--s-2); }
@@ -333,7 +334,6 @@ div:has(> .st-key-guided_bar) { position: sticky; top: 2.75rem; z-index: 50; }
 [data-testid="stChatMessageAvatarCustom"] span, [data-testid="stChatMessageAvatarCustom"] [data-testid="stIconMaterial"] {
   color: var(--accent) !important; font-size: 20px; }
 [data-testid="stHeader"] { background: var(--bg-material) !important; -webkit-backdrop-filter: var(--blur-material); backdrop-filter: var(--blur-material); }
-.st-key-guided_bar { background: color-mix(in srgb, var(--bg-surface) 88%, transparent); }
 .bg-legend { margin-bottom: 0; }
 div:has(> .st-key-guided_bar) { top: 2.5rem; }
 

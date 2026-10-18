@@ -1194,7 +1194,7 @@ class _Orchestrator:
             after_bills = sims[off + n_bills - 1].balances_after.get(eur.account_id, Decimal("0"))
             ans = (f"After {bills} you would have {_m(after_bills)} EUR{fx_note}; sending {extra_label} on top would "
                    f"leave {_m(eur_after)} EUR, {'which keeps' if reserve_ok else 'below'} your {_m(reserve)} EUR reserve. "
-                   + ("So yes, you can afford it." if reserve_ok else "So not without dipping into your reserve.")
+                   + ("So yes, you can afford it." if reserve_ok else "You can't do that without dipping into your reserve.")
                    + usd_note)
         elif n_bills:
             ans = (f"After paying {bills} you would have {_m(eur_after)} EUR"
