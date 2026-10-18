@@ -15,3 +15,4 @@ deep-research.txt
 FinTechathon*.txt
 verify-report/
 out/
+!deliverables/pitch/keynote/*.html
