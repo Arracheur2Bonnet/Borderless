@@ -1,5 +1,7 @@
 # BorderlessGuard: white-box security audit
 
+> Performed by a separate AI agent (Claude) with full read access to the code, acting as a white-box auditor after the two blind tests. It did not write the code it audited. All 12 findings were fixed or mitigated afterwards in commits 2ce6035 and 13dded5; the fix status of each finding is below.
+
 I read the code under `bg/` and `ui/app.py` and checked it against the claims in `deliverables/security_self_assessment.md`. For every issue, a test in `tests/audit/` runs it against the real system (`bg.app.build_default` or the real components). For each confirmed bug, the test asserts the secure behaviour and is marked `xfail(strict=True, reason="AUDIT-n: ...")`. When the bug is fixed, the test turns into an XPASS and fails the run until the marker is removed.
 
 ```
