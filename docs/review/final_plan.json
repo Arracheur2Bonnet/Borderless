@@ -1,0 +1,227 @@
+{
+  "generated": "2026-10-19",
+  "deadline": "2026-10-20T23:59:00+08:00 (17:59 CEST)",
+  "source_report": "docs/review/final_compliance.md",
+  "tasks": [
+    {
+      "id": "P0-01-registration",
+      "priority": "P0",
+      "owner": "user",
+      "files": [],
+      "problem": "No registration has been sent. Registration and submission share the 20 Oct 23:59 UTC+8 deadline, the organisers confirm within 48 h, and eligibility needs a team of 2-5 full-time students at non-Chinese institutions with at least 60% non-Chinese nationals, all 18 or older. The repo shows a single author.",
+      "change": "Fill Attachment 3 (international-registration-form-en.xlsx, not the empty team-information-form.xlsx): team name, Topic C, entry title BorderlessGuard, team email, the 151-word proposal summary in final_compliance.md 1.5, every member with passport/ID number, student ID, university, major, year, passport bio-page image and proof of enrolment; leader signature and date. Email to fintechathon@ican-x.com with subject 'International Track Registration – <Team Name> – <Team Leader Name>'.",
+      "acceptance": "Email sent on 19 Oct; team has 2-5 eligible members meeting the 60% rule; confirmation reply received (or a follow-up sent if none within 24 h).",
+      "effort_h": 1.5
+    },
+    {
+      "id": "P0-02-public-repo",
+      "priority": "P0",
+      "owner": "user",
+      "files": ["README.md"],
+      "problem": "https://github.com/Arracheur2Bonnet/Borderless returns HTTP 404 to an anonymous request, so the README clone commands (lines 61, 72), the CI badge (line 3) and the 'GitHub repository link' the rules ask for do not work for judges.",
+      "change": "Make the repository public (or grant the organisers access), push the final main, check that the CI badge renders and the latest CI run is green on Ubuntu and Windows.",
+      "acceptance": "curl -s -o /dev/null -w '%{http_code}' https://github.com/Arracheur2Bonnet/Borderless prints 200; a fresh clone in an empty folder runs scripts/verify_all.py to ALL CHECKS PASSED.",
+      "effort_h": 0.5
+    },
+    {
+      "id": "P0-03-keynote-in-git",
+      "priority": "P0",
+      "owner": "ui-designer",
+      "files": [".gitignore", "deliverables/pitch/keynote/index.html", "deliverables/pitch/keynote/README.md"],
+      "problem": "deliverables/pitch/keynote/index.html is the hand-written slide source but is ignored by .gitignore line 11 (*.html). A clone has no keynote, and build_keynote.py fails on its first read (line 54). keynote/README.md line 20 also says slide 12 has no script section, which is no longer true.",
+      "change": "Add '!deliverables/pitch/keynote/index.html' after the *.html rule, commit index.html, delete README line 20.",
+      "acceptance": "git ls-files deliverables/pitch/keynote/index.html prints the path; on a fresh clone, python deliverables/pitch/build_keynote.py --skip-tests completes.",
+      "effort_h": 0.3
+    },
+    {
+      "id": "P0-04-deck-pptx-pdf",
+      "priority": "P0",
+      "owner": "ui-designer",
+      "files": ["deliverables/pitch/keynote/index.html", "deliverables/pitch/build_deck.py", "scripts/check_keynote.py", "deliverables/pitch/BorderlessGuard_deck.pptx"],
+      "problem": "The site lists 'Presentation Deck · PPTX · Required' with an official template (cover with project and team name, THANKS slide). The stage deck is HTML (15 slides) and the backup PPTX has 14 different slides, no team name and no template cover. Keynote slide 3 says 'Every action gets a signed receipt' (only the latest receipt's anchor is signed) and slide 13 says 'One local model measured blind' (7B and 3B were).",
+      "change": "Fix the two slide texts. Add the team name and members to slide 1 (or a team line on the cover). Export the 15 keynote slides at 1920x1080 with Playwright, build one PPTX: official template cover (project name, team name, Topic C), the 15 slide images with speaker notes from notes.js, the template THANKS slide; export the same as PDF. Rebuild notes and re-run the number checks.",
+      "acceptance": "build_keynote.py passes its number asserts; check_keynote.py passes at 1920x1080 and 1366x768; the PPTX has 17 slides (cover, 15, thanks) in 16:9 with notes on slides 2-16; the PDF page count matches; the speaker script still times under 10 minutes.",
+      "effort_h": 2
+    },
+    {
+      "id": "P0-05-demo-video",
+      "priority": "P0",
+      "owner": "user",
+      "files": ["deliverables/pitch/demo_video_script.md"],
+      "problem": "No video exists. The site and the demo video guide mark it as required (the PDF says optional). The guide asks for a project and team introduction, the end-to-end demo, safety, innovation and results, 16:9, preferably 1080p, legible English subtitles, no copyrighted material, filename Track-TeamName-DemoVideo.",
+      "change": "Add a 10-15 s opening card (project, Topic C, team names) and a 5 s results card (69/70 blind attacks blocked, 0 wrong payments) to the script, then record as scripted (guided demo, offline), burn in English captions, keep under 5:00. Fix the script line 42 card text ('Pay 50.00 EUR to Samira Haddad (family)'). Upload to a link that does not expire.",
+      "acceptance": "MP4, 1920x1080, duration under 5:00, captions legible at 100% zoom, every guided tick green on camera, file named InternationalAI-TopicC-<Team>-DemoVideo.mp4, link opens in a private browser window.",
+      "effort_h": 3.5
+    },
+    {
+      "id": "P0-06-technical-document-docx",
+      "priority": "P0",
+      "owner": "docs-writer",
+      "files": ["deliverables/technical_document.md"],
+      "problem": "The required technical document exists only as 9,000 words of Markdown, with no team/track/date header and an order that does not follow the official template (01 Project Overview, 02 System Architecture, 03 Agent Design, 04 Security Design, 05 Deployment and Testing). The Mermaid diagram will not render in Word.",
+      "change": "Create the DOCX from international-technical-document-en.docx: fill the header (team name; 'International AI Track, Topic C: Cross-border & Student Finance Assistant'; 2026-10-20), a one-page executive summary, then the five sections mapped as in final_compliance.md 2.4 (including a Topic C coverage table and a models/data/external-services table), the architecture as a PNG, the long evaluation as an appendix. Add a 'How this was built' paragraph (human authors, AI assistance, which AI agents wrote which test sets). Export PDF.",
+      "acceptance": "DOCX opens in Word and LibreOffice; headings 01-05 in template order with the template's bullet prompts answered; diagram visible; every number matches the Markdown source and a fresh verify_all run; PDF exported.",
+      "effort_h": 2.5
+    },
+    {
+      "id": "P0-07-security-and-evidence-docx",
+      "priority": "P0",
+      "owner": "docs-writer",
+      "files": ["deliverables/security_self_assessment.md", "deliverables/execution_evidence.md"],
+      "problem": "The self-assessment has no 'Data and Privacy' section (template 03: provenance, consent, minimisation, storage, deletion) and no roles table or rollback statement (template 01). Neither document is on its template. The execution-evidence template asks for timestamp, action, result and screenshot per log entry.",
+      "change": "Write SSA 01 roles and permissions table (customer, bank operator who unlocks, LLM parser with no permission, FX provider untrusted, other tenants), confirmation and rollback (cancel or reject before execution; no reversal after; receipts for denials), 03 Data and Privacy (synthetic seed data, fictional watchlist, only message text and payee names reach a parser, local Qwen keeps data on the machine, in-memory or SQLite storage, reset deletes, audit log stores SHA-256 and length, IBANs masked, no OTPs), 04 known risks as risk/impact/mitigation/plan. Build both DOCX files on their templates with header fields; EE gets a table for T01, T13, T14, T15, T16 with timestamp, action, result, screenshot.",
+      "acceptance": "Both DOCX open cleanly; every template heading present in order; SSA 03 exists and each statement points to code (bg/agent/orchestrator.py _safe/_mask_ibans, bg/ledger/receipts.py); EE timestamps match the JSONL logs.",
+      "effort_h": 2.5
+    },
+    {
+      "id": "P0-08-contradictions",
+      "priority": "P0",
+      "owner": "docs-writer",
+      "files": ["deliverables/technical_document.md", "deliverables/security_self_assessment.md", "deliverables/pitch/speaker_script.md", "deliverables/pitch/keynote/notes.js", "deliverables/pitch/build_deck.py", "deliverables/pitch/qa_prep.md", "deliverables/pitch/demo_video_script.md", "bg/contracts/params.py", "README.md"],
+      "problem": "Contradictions a judge can catch: technical_document.md 13.4 last bullet says multi-part vague messages are mis-split while 5.6 and a live run show they are clarified (C1); the audit is said to have read the code 'as of 13dded5' although it was added with the fixes in 2ce6035 (C2); speaker script says PowerPoint while the stage deck is the HTML keynote (C6); 'French and German: five of five' (C7); PPTX slide 14 calls v2 'blind v2 set' (C12); params.py fee comment (C13); Docker verify claim (C17); Qiang Yang's title (C11); video card text (C23); v1 authorship and v1 pre-fix state not stated (C15, C16).",
+      "change": "Apply the fixes in final_compliance.md Section 3, items C1, C2, C6, C7, C11, C12, C13, C15, C16, C17, C20, C23; regenerate notes.js with build_keynote.py; rebuild the PPTX.",
+      "acceptance": "grep finds no 'as of commit `13dded5`', no 'PowerPoint' in the stage directions, no 'French and German: five', no '# blind v2 set'; technical_document.md 13.4 has no mis-split bullet; verify_all passes; build_keynote passes.",
+      "effort_h": 1.5
+    },
+    {
+      "id": "P0-09-readme-template-and-licences",
+      "priority": "P0",
+      "owner": "docs-writer",
+      "files": ["README.md"],
+      "problem": "README has no team name or project-overview block, no environment-variable table, no live-demo line, and the licence table omits python-pptx, Pillow, Playwright, PyMuPDF (AGPL-3.0), Ollama, Qwen2.5-7B-Instruct (Apache-2.0) and Qwen2.5-3B-Instruct (Qwen Research License, non-commercial). The rules require third-party components to be properly licensed. Authorship by AI agents is visible in every commit trailer but never stated plainly.",
+      "change": "Add a top block (Track, Team, Project, one line), an env-var table (BG_PARSER, BG_LOCAL_MODEL, BG_RECEIPT_KEY, ANTHROPIC_API_KEY, BG_LLM_STATS), a 'Repository and deployment' block (GitHub URL, hosted demo if P1-02 is done, Docker), complete the licence table, add 'How this was built' (same text as the technical document).",
+      "acceptance": "Each of the 7 RDM template sections maps to a README heading; every package in requirements-dev.txt and every model used in deliverables/ has a licence row.",
+      "effort_h": 1
+    },
+    {
+      "id": "P0-10-submission-package",
+      "priority": "P0",
+      "owner": "user",
+      "files": [],
+      "problem": "No submission email or package exists. A zip of the working folder would include untracked research files, saved site copies and a French PDF.",
+      "change": "On 20 Oct morning CEST: fresh clone, verify_all.py, git archive of the final commit; name every file InternationalAI-TopicC-<Team>-<Item>; send to fintechathon@ican-x.com with technical document (DOCX+PDF), deck (PPTX+PDF), video link, security self-assessment, execution evidence, GitHub URL and archive. Subject 'International Track Submission – Topic C – <Team Name> – BorderlessGuard'.",
+      "acceptance": "Email sent before 20 Oct 12:00 CEST; every link opens from a private window; a reply or auto-acknowledgement is saved.",
+      "effort_h": 1
+    },
+    {
+      "id": "P1-01-fallback-capabilities",
+      "priority": "P1",
+      "owner": "backend-engineer",
+      "files": ["bg/agent/rules_parser.py", "bg/agent/orchestrator.py", "bg/contracts/models.py", "tests/unit/agent/test_agent_v3.py", "ui/util.py"],
+      "problem": "'hello', 'what can you do?', 'help me build a credit history', 'schedule 100 euros to mom every month' and 'what did I spend last month?' all get 'Sorry, I didn't get that. Try: ...'. The rubric names fallback capability explicitly.",
+      "change": "Recognise greetings, thanks and capability questions and answer with the four capabilities and one example each plus quick-reply chips; give specific, honest replies for out-of-scope Topic C requests (recurring payments, credit score, spending history if not built). Never create an action. Mirror in the local and Claude prompts (an Unsupported category or a small Help intent).",
+      "acceptance": "12 new tests, each phrasing gets a non-generic reply with actions == [] and no security event; full suite passes; adversarial 69/69 and benign 29/29 unchanged; README and technical document mention the behaviour.",
+      "effort_h": 2
+    },
+    {
+      "id": "P1-02-hosted-demo",
+      "priority": "P1",
+      "owner": "user",
+      "files": ["Dockerfile", "README.md"],
+      "problem": "Judges can only try the agent by installing it. A one-click demo raises Innovation & Interaction and Task Completion; the bonus for 'demonstrated real-world deployment' is unlikely for a sandbox and must not be claimed.",
+      "change": "Deploy the existing Dockerfile to Hugging Face Spaces (or Streamlit Community Cloud once public) with BG_RECEIPT_KEY as a secret; add the URL to README, deck cover and document header.",
+      "acceptance": "From a fresh browser, <url>/?guided=1 runs 6/6 green ticks; no demo-key notice; 'SANDBOX · no real money' visible.",
+      "effort_h": 1.5
+    },
+    {
+      "id": "P1-03-claude-eval",
+      "priority": "P1",
+      "owner": "backend-engineer",
+      "files": ["scripts/eval_parser.py", "deliverables/blind_llm/", "README.md", "deliverables/technical_document.md"],
+      "problem": "'The Claude parser is not tested yet' appears on four slides and in every document.",
+      "change": "With the user's ANTHROPIC_API_KEY, run eval_parser.py --parser claude on tests/heldout_v2 (--runxfail), tests/adversarial and tests/benign; commit the reports unchanged in one commit before any prompt change; update the documents and deck with Wilson CIs and an honest framing (first run for this parser; rest of the system already fixed against v2).",
+      "acceptance": "deliverables/blind_llm/claude_heldout_v2/ has report.md, junit.xml, llm_calls.jsonl; the commit touches no file under bg/; numbers in README, technical document, deck and qa_prep match report.md.",
+      "effort_h": 2
+    },
+    {
+      "id": "P1-04-verification-of-payee",
+      "priority": "P1",
+      "owner": "backend-engineer",
+      "files": ["bg/contracts/params.py", "bg/contracts/models.py", "bg/policy/engine.py", "bg/agent/orchestrator.py", "scenarios/tasks.py", "tests/unit/policy/test_v2_rules.py"],
+      "problem": "Adding a payee checks format, mod-97, name collisions and sanctions, but not whether the name matches the account, which EU providers must check since October 2025 (Verification of Payee). This is the main real-world defence against the invoice IBAN-swap scam the demo is about.",
+      "change": "Simulated name-to-IBAN directory; outcomes match / close match / no match / unavailable; close match asks 'did you mean X?'; no match keeps step-up and adds a warning plus one scam question; new rule PAYEE_VERIFICATION (R3). Update rule counts everywhere.",
+      "acceptance": "Unit tests for the four outcomes; new mission T21 completes; dev suites and v2 unchanged; grep for add-payee rule counts finds only the new number; security-auditor review of the new rule.",
+      "effort_h": 3.5
+    },
+    {
+      "id": "P1-05-harness-cli",
+      "priority": "P1",
+      "owner": "backend-engineer",
+      "files": ["bg/cli.py", "tests/unit/test_cli.py", "scripts/verify_all.py", "README.md"],
+      "problem": "Task Completion is scored on 'scripted tasks in a simulated environment'. Organisers or judges who want to run their own scripts can only use Python internals or the Streamlit UI.",
+      "change": "python -m bg.cli reads JSON lines (message, confirm with optional otp, reject, overview, new_session) and writes one JSON object per turn; optional --http on localhost with the same operations using only the standard library. Document under 'For evaluators' in README.",
+      "acceptance": "A committed JSONL replay of T01 through the CLI ends at EUR 600.00, USD 196.74, 3 receipts; an HTTP test does the same; both run inside verify_all.py.",
+      "effort_h": 3
+    },
+    {
+      "id": "P1-06-topic-c-labels",
+      "priority": "P1",
+      "owner": "backend-engineer",
+      "files": ["scenarios/tasks.py", "deliverables/task_completion.md", "deliverables/evidence/", "deliverables/technical_document.md"],
+      "problem": "Missions are labelled with the domestic track's scenario names ('01 Smart transfers', '02 Bill analysis', '06 Cross-scenario orchestration'), not with Topic C (remittances, tuition, credit building, multi-currency).",
+      "change": "Relabel each mission to a Topic C area or a security family; regenerate task_completion.md and the evidence; add a Topic C coverage table (covered / partly / not) to the technical document.",
+      "acceptance": "grep 'Smart transfers' returns nothing outside docs/review; verify_all passes including the evidence-diff step after committing the regenerated files.",
+      "effort_h": 0.7
+    },
+    {
+      "id": "P1-07-internal-docs-out",
+      "priority": "P1",
+      "owner": "user",
+      "files": ["docs/review/judge_panel.md", "docs/review/anti_slop.md", "docs/review/differentiation.md", "docs/notes/", "deliverables/pitch/qa_prep.md", "tests/regression/test_judge_findings.py"],
+      "problem": "Internal prep files are public: a mock panel that profiles the real judges by name (with a wrong title for Qiang Yang), an 'anti-slop' audit, a French research prompt, and stale numbers (629 tests, 'no Dockerfile', 'demo video MISSING') that contradict the README.",
+      "change": "Move them to a private branch, or prefix each with 'Historical, superseded (2026-10-17)'. Keep docs/review/security_audit.md and docs/review/final_compliance.md if wanted. Update the references in technical_document.md 12.6.1 and the docstring of tests/regression/test_judge_findings.py ('internal mock review').",
+      "acceptance": "No public file names a judge; no public file quotes 629 or 621 tests; tests still pass.",
+      "effort_h": 0.5
+    },
+    {
+      "id": "P2-01-blind-v3",
+      "priority": "P2",
+      "owner": "security-auditor",
+      "files": ["tests/heldout_v3/", "deliverables/blind_v3/"],
+      "problem": "Every fix after the frozen runs (292f748, 60f6448, 2ce6035, 13dded5, d3e0f49) is regression-tested only; there is no post-fix generalisation estimate.",
+      "change": "A separate agent with v2's file restrictions writes 40-60 cases aimed at LLM extraction and grounding; freeze cases and results in one commit with no bg/ change; run rules and Qwen 7B (and Claude if available).",
+      "acceptance": "Frozen commit exists before any fix; reports with Wilson CIs; documents updated with the numbers whatever they are.",
+      "effort_h": 5.5
+    },
+    {
+      "id": "P2-02-remittance-cost-line",
+      "priority": "P2",
+      "owner": "backend-engineer",
+      "files": ["bg/agent/orchestrator.py", "ui/app.py", "tests/unit/agent/test_agent_v3.py"],
+      "problem": "Topic C names remittances and multi-currency management; cost transparency is the main real-world pain and is not shown as a percentage.",
+      "change": "Show the fee and its percentage of the amount before the fee on every FX card, in the plan reply and in affordability answers. Optional later: MAD corridor for the mother's Moroccan IBAN.",
+      "acceptance": "Card and reply tests; golden-path reply in README regenerated from a live run; keynote checks pass.",
+      "effort_h": 1.5
+    },
+    {
+      "id": "P2-03-payment-statement",
+      "priority": "P2",
+      "owner": "backend-engineer",
+      "files": ["bg/ledger/receipts.py", "ui/app.py", "tests/unit/ledger/test_ledger_v2.py"],
+      "problem": "Nothing covers the 'credit building' part of Topic C.",
+      "change": "Signed statement of executed rent and tuition payments from the customer's receipt chain, verifiable with the bank's verify function; Receipts-tab button; honest limits (HMAC, no bureau).",
+      "acceptance": "Statement lists exactly the executed rent and tuition receipts; one altered line fails verification; denials excluded.",
+      "effort_h": 3
+    },
+    {
+      "id": "P2-04-monthly-view",
+      "priority": "P2",
+      "owner": "backend-engineer",
+      "files": ["bg/agent/rules_parser.py", "bg/agent/orchestrator.py"],
+      "problem": "'What did I spend last month?' gets the generic fallback.",
+      "change": "Read-only summary: spending by payee and currency, upcoming bills, EUR needed and USD to cover it, reserve status.",
+      "acceptance": "Totals correct after the golden path; no action; probe no longer returns the generic fallback.",
+      "effort_h": 2.5
+    },
+    {
+      "id": "P2-05-french-rules-parser",
+      "priority": "P2",
+      "owner": "backend-engineer",
+      "files": ["bg/agent/rules_parser.py", "tests/unit/agent/test_agent_parsers.py"],
+      "problem": "The persona lives in France, but 'envoie 50 euros à maman' fails with the default offline parser.",
+      "change": "French patterns for pay, send, rent, tuition and family payees.",
+      "acceptance": "v2 N01-fr passes with the rules parser; English suites unchanged; 10 new French tests.",
+      "effort_h": 3.5
+    }
+  ]
+}
