@@ -258,6 +258,13 @@ class RulesParser:
             parts = [p for p in re.split(r"\s*(?:,\s*)?\b(?:and then|and also|and another|and|then|plus)\b\s*", low_ni)
                      if p.strip()]
             amount_parts = [p for p in parts if _amounts(p) or _BARE_NUM_RE.search(p)]
+            # "send 100 to mom and some money to the landlord": one part has no amount. Never merge or drop it.
+            vague_parts = [p for p in parts if p not in amount_parts and
+                           (_match_name(p, names) or re.search(r"\b(money|cash|some|something|funds)\b", p))]
+            if amount_parts and vague_parts:
+                return [Clarify(question="You asked for more than one payment and I could not read an exact amount "
+                                         "for every part. Please send them one at a time, each with a payee and an "
+                                         "amount, for example 'send 100 EUR to mom'.")]
             if len(amount_parts) >= 2:
                 out: list[FinancialIntent] = []
                 last_ref: str | None = None

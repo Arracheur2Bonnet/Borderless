@@ -54,3 +54,12 @@ def test_rate_questions_are_answered_read_only(text, needle):
     _o, _s, turn = _run(text)
     assert not turn.actions, "a rate question must not propose an action"
     assert needle in turn.assistant_text, turn.assistant_text
+
+
+@pytest.mark.parametrize("text", [
+    "send 100 to mom and some money to the landlord",
+    "send 100 to mom and money to jean",
+])
+def test_multi_payment_with_a_vague_part_is_clarified_not_merged(text):
+    _o, _s, turn = _run(text)
+    assert not turn.actions, f"vague multi-payment produced actions: {_payments(turn)}"
