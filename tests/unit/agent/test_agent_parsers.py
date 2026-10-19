@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from bg.agent import ClaudeParser, RulesParser
+from bg.agent import RulesParser
 from bg.contracts import params
 from bg.contracts.models import (
     AddBeneficiary, Clarify, FxConvert, Pay, PayObligations, ReadOverview, Unsupported,
@@ -126,77 +126,3 @@ def test_pay_rent_only():
 def test_pay_tuition_with_reserve_variant():
     i = one("Settle my tuition and rent and leave 300 euros in my account")
     assert i.obligation_kinds == ["tuition", "rent"] and i.keep_reserve == Decimal("300")
-
-
-# ---------------------------------------------------------------- ClaudeParser with a fake client
-class _Block:
-    def __init__(self, type_, text=""):
-        self.type, self.text = type_, text
-
-
-class _Resp:
-    def __init__(self, stop_reason="end_turn", content=None):
-        self.stop_reason, self.content = stop_reason, content or []
-
-
-class _Messages:
-    def __init__(self, resp=None, exc=None):
-        self.resp, self.exc, self.kwargs = resp, exc, None
-
-    def create(self, **kw):
-        self.kwargs = kw
-        if self.exc:
-            raise self.exc
-        return self.resp
-
-
-class _Client:
-    def __init__(self, resp=None, exc=None):
-        self.messages = _Messages(resp, exc)
-
-
-GOOD = '{"intents":[{"kind":"pay","beneficiary_ref":"mom","amount_mode":"exact","amount":"50","currency":"EUR","iban_hint":null,"memo":""}]}'
-
-
-def test_claude_success_and_request_shape():
-    c = _Client(_Resp(content=[_Block("thinking", "hmm"), _Block("text", GOOD)]))
-    r = ClaudeParser(client=c).parse("send 50 euros to mom", beneficiary_names=["mom", "Jean Dupont"])
-    assert r.parser == "claude" and isinstance(r.intents[0], Pay) and r.intents[0].amount == Decimal("50")
-    kw = c.messages.kwargs
-    assert kw["model"] == "claude-opus-5-5" and kw["thinking"] == {"type": "adaptive"}
-    assert kw["output_config"]["effort"] == "low" and kw["output_config"]["format"]["type"] == "json_schema"
-    assert "tools" not in kw and kw["messages"][-1]["role"] == "user" and kw["max_tokens"] >= 4000
-    assert "untrusted" in kw["system"].lower()
-    assert "FR76" not in kw["messages"][0]["content"]
-
-
-def test_claude_refusal_falls_back():
-    r = ClaudeParser(client=_Client(_Resp("refusal"))).parse("send 50 euros to mom", beneficiary_names=["mom"])
-    assert r.parser == "rules" and r.notes and isinstance(r.intents[0], Pay)
-
-
-def test_claude_invalid_json_falls_back():
-    r = ClaudeParser(client=_Client(_Resp(content=[_Block("text", "{nope")]))).parse("what's my balance", beneficiary_names=[])
-    assert r.parser == "rules" and r.notes and isinstance(r.intents[0], ReadOverview)
-
-
-def test_claude_schema_violation_falls_back():
-    bad = '{"intents":[{"kind":"transfer_everything","iban":"X"}]}'
-    r = ClaudeParser(client=_Client(_Resp(content=[_Block("text", bad)]))).parse("what's my balance", beneficiary_names=[])
-    assert r.parser == "rules"
-
-
-def test_claude_api_error_falls_back():
-    r = ClaudeParser(client=_Client(exc=RuntimeError("boom"))).parse("what's my balance", beneficiary_names=[])
-    assert r.parser == "rules" and "RuntimeError" in r.notes[0]
-
-
-def test_claude_max_tokens_falls_back():
-    r = ClaudeParser(client=_Client(_Resp("max_tokens", [_Block("text", GOOD)]))).parse("show accounts", beneficiary_names=[])
-    assert r.parser == "rules"
-
-
-def test_claude_no_api_key_falls_back(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    r = ClaudeParser().parse("what's my balance", beneficiary_names=[])
-    assert r.parser == "rules" and r.notes

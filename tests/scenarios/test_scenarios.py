@@ -10,7 +10,7 @@ from scenarios.tasks import TASKS
 
 @pytest.mark.parametrize("task", TASKS, ids=[t["id"] for t in TASKS])
 def test_scripted_task(task, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)   # offline, deterministic parser
+    monkeypatch.delenv("BG_PARSER", raising=False)   # offline, deterministic rules parser
     failures = evaluate(task, run_task(task))
     assert not failures, f"{task['id']} not completed:\n  - " + "\n  - ".join(failures)
 

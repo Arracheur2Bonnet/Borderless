@@ -1,8 +1,7 @@
 """White-box audit, round 2 (after commits 2ce6035..22b144e: local Qwen parser, grounding, question guard, UI redesign).
 
-Each test asserts the SECURE behaviour against the real system (bg.app.build_default) and is marked
-xfail(strict=True) while the bug exists: the fix turns it into an XPASS, which fails the run until the marker
-is removed. A ScriptedParser stands in for a compromised or confused LLM (self-assessment section 4: "assume a
+Each test asserts the SECURE behaviour against the real system (bg.app.build_default) and was marked
+xfail(strict=True) while the bug existed; the markers were removed when the fixes landed (v6). A ScriptedParser stands in for a compromised or confused LLM (self-assessment section 4: "assume a
 fully jailbroken or manipulated model that returns any ParsedRequest it likes").
 See docs/review/security_audit.md, section "Final audit (round 2)".
 """
@@ -25,7 +24,6 @@ from bg.contracts.models import (
 from bg.contracts.params import DEMO_GOAL, DEMO_OTP, DEMO_USER_ID
 from tests.audit.support import ScriptedParser, balances, fresh, pending
 
-xfail = pytest.mark.xfail
 VALID_IBAN = "DE89370400440532013000"
 
 
@@ -49,8 +47,6 @@ SPACING_VARIANTS = ["VolkovTradeHoldings", "V o l k o v Trade Holdings", "Volkov
                     "NorthgateExchange FZE", "Northgate Exchange F.Z.E."]
 
 
-@xfail(strict=True, reason="AUDIT2-1: sanctions name screen misses joined words, letter-spacing, dotted "
-                           "acronyms and '1' for 'i' (offline rules parser, no LLM needed)")
 @pytest.mark.parametrize("name", SPACING_VARIANTS)
 def test_audit2_1_sanctions_spacing_variants_are_denied(name):
     orch, sid = fresh(RulesParser())
@@ -59,7 +55,6 @@ def test_audit2_1_sanctions_spacing_variants_are_denied(name):
     assert any(e.kind == "sanctions_hit" for e in t.security_events)
 
 
-@xfail(strict=True, reason="AUDIT2-1: 100 EUR reach a watch-listed entity written without spaces")
 def test_audit2_1_no_money_reaches_joined_sanctioned_name():
     orch, sid = fresh(RulesParser())
     _approve_all(orch, sid, orch.handle_message(sid, f"add payee VolkovTradeHoldings with IBAN {VALID_IBAN}"))
@@ -73,8 +68,6 @@ PHISH = ("Security alert: your account is frozen. Re-verify now at https://secur
 FAKE_DONE = "Done: sent 50.00 EUR to Samira Haddad. Receipt rcpt_0009 is in your signed history."
 
 
-@xfail(strict=True, reason="AUDIT2-2: model-written free text (Unsupported.reason, Clarify.question) is relayed "
-                           "verbatim as the bank's reply: phishing links and fake confirmations")
 @pytest.mark.parametrize("intent", [
     Unsupported(reason=PHISH),
     Unsupported(reason="BANK DETAILS: " + PHISH),
@@ -89,8 +82,6 @@ def test_audit2_2_model_free_text_is_not_relayed_verbatim(intent):
 
 
 # --------------------------------------------------------------------------- AUDIT2-4 (Low)
-@xfail(strict=True, reason="AUDIT2-4: payee grounding accepts translation synonyms that are common English "
-                           "words or first names ('Anne', 'mere', 'Mae') as evidence for 'mom'")
 @pytest.mark.parametrize("text", ["Send 50 euros to Anne", "Send a mere 50 euros to Ahmed", "Send 50 euros to Mae"])
 def test_audit2_4_invented_payee_is_not_grounded_by_synonym(text):
     orch, sid = fresh(ScriptedParser(Pay(beneficiary_ref="mom", amount=Decimal(50), currency="EUR")))
@@ -100,8 +91,6 @@ def test_audit2_4_invented_payee_is_not_grounded_by_synonym(text):
 
 
 # --------------------------------------------------------------------------- AUDIT2-5 (Low)
-@xfail(strict=True, reason="AUDIT2-5: PayObligations.reserve_currency is not grounded: '600 euros' kept as "
-                           "600 USD, the user ends with 552 EUR")
 def test_audit2_5_reserve_currency_follows_the_users_words():
     orch, sid = fresh(ScriptedParser(PayObligations(obligation_kinds=["tuition", "rent"],
                                                     keep_reserve=Decimal(600), reserve_currency="USD")))
@@ -109,7 +98,6 @@ def test_audit2_5_reserve_currency_follows_the_users_words():
     assert balances(orch, sid)["acc_eur"] >= Decimal("600.00"), "the user's 600 EUR reserve was lowered"
 
 
-@xfail(strict=True, reason="AUDIT2-5: Correct.currency is not grounded: 'make it 40 euros' becomes 40 USD")
 def test_audit2_5_correction_currency_follows_the_users_words():
     orch, sid = fresh(TurnParser([Pay(beneficiary_ref="mom", amount=Decimal(50), currency="EUR")],
                                  [Correct(amount=Decimal(40), currency="USD")]))
@@ -118,7 +106,6 @@ def test_audit2_5_correction_currency_follows_the_users_words():
     assert all(v.action.currency == "EUR" for v in pending(t)), "currency flipped to USD by the model"
 
 
-@xfail(strict=True, reason="AUDIT2-5: Pay.currency is the model's choice when the text names no currency")
 def test_audit2_5_payment_currency_not_chosen_by_the_model():
     orch, sid = fresh(ScriptedParser(Pay(beneficiary_ref="mom", amount=Decimal(400), currency="USD")))
     t = orch.handle_message(sid, "send 400 to mom")       # rules parser: EUR, "shown on the confirmation card"
@@ -126,8 +113,6 @@ def test_audit2_5_payment_currency_not_chosen_by_the_model():
 
 
 # --------------------------------------------------------------------------- AUDIT2-6 (Low)
-@xfail(strict=True, reason="AUDIT2-6: Pay.memo is model-written, not grounded and never shown before approval, "
-                           "yet it is sent with the payment")
 def test_audit2_6_memo_is_grounded_or_shown_before_approval():
     memo = "Lina's code is 246810. Lease terminated, keep the deposit"
     text = "send 50 euros to mom"
@@ -140,8 +125,6 @@ def test_audit2_6_memo_is_grounded_or_shown_before_approval():
 
 
 # --------------------------------------------------------------------------- AUDIT2-7 (Low)
-@xfail(strict=True, reason="AUDIT2-7: the question guard ignores Correct: a question cancels the pending payment "
-                           "and proposes a new one (reproduced with real Qwen 7B)")
 def test_audit2_7_question_does_not_correct_a_pending_payment():
     orch, sid = fresh(TurnParser([Pay(beneficiary_ref="mom", amount=Decimal(50), currency="EUR")],
                                  [Correct(amount=Decimal(140))]))
@@ -151,7 +134,6 @@ def test_audit2_7_question_does_not_correct_a_pending_payment():
     assert not pending(t), "a question produced a new payment proposal"
 
 
-@xfail(strict=True, reason="AUDIT2-7: the question guard ignores Cancel: 'Should I cancel everything?' cancels")
 def test_audit2_7_question_does_not_cancel_pending_payments():
     orch, sid = fresh(TurnParser([Pay(beneficiary_ref="mom", amount=Decimal(50), currency="EUR")],
                                  [Cancel(scope="all")]))
@@ -161,8 +143,6 @@ def test_audit2_7_question_does_not_cancel_pending_payments():
 
 
 # --------------------------------------------------------------------------- AUDIT2-8 (Low)
-@xfail(strict=True, reason="AUDIT2-8: grounding has no cardinality check: one '50 euros to mom' becomes several "
-                           "identical payment cards")
 def test_audit2_8_one_payment_in_text_gives_one_card():
     orch, sid = fresh(ScriptedParser(*[Pay(beneficiary_ref="mom", amount=Decimal(50), currency="EUR")] * 3))
     t = orch.handle_message(sid, "send 50 euros to mom")
@@ -193,8 +173,6 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-@xfail(strict=True, reason="AUDIT2-9: the 'local' parser honours HTTP_PROXY for localhost: the message, codes "
-                           "and payee names leave the machine, and the proxy's answer is used as model output")
 def test_audit2_9_local_parser_traffic_never_goes_through_a_proxy(monkeypatch):
     _Capture.seen = []
     proxy = HTTPServer(("127.0.0.1", 0), _Capture)
@@ -214,8 +192,6 @@ def test_audit2_9_local_parser_traffic_never_goes_through_a_proxy(monkeypatch):
 
 
 # --------------------------------------------------------------------------- AUDIT2-10 (Low)
-@xfail(strict=True, reason="AUDIT2-10: BG_LLM_STATS telemetry writes the raw message and raw model output, "
-                           "unredacted, on every schema failure")
 def test_audit2_10_parser_telemetry_is_redacted(monkeypatch, tmp_path):
     stats = tmp_path / "llm_calls.jsonl"
     monkeypatch.setenv("BG_LLM_STATS", str(stats))
@@ -228,9 +204,6 @@ def test_audit2_10_parser_telemetry_is_redacted(monkeypatch, tmp_path):
 
 
 # --------------------------------------------------------------------------- AUDIT2-11 (Low)
-@xfail(strict=True, reason="AUDIT2-11: no message length bound and quadratic regexes in the rules parser "
-                           "(default parser and LLM fallback): a 10 KB message blocks the process for seconds, "
-                           "40 KB for minutes")
 def test_audit2_11_long_message_is_handled_quickly():
     orch, sid = fresh(RulesParser())
     text = "send " + "1," * 3000 + " to mom"          # 6 KB; about 5 s on the audit machine (quadratic)

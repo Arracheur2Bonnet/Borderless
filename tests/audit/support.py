@@ -9,14 +9,14 @@ from bg.contracts.params import DEMO_USER_ID
 
 
 class ScriptedParser:
-    """Stands in for a compromised or simply creative Claude parser: returns fixed typed intents.
+    """Stands in for a compromised or simply creative model parser: returns fixed typed intents.
     The security model (self-assessment section 4) says the system must stay safe whatever it returns."""
 
     def __init__(self, *intents):
         self.intents = list(intents)
 
     def parse(self, text, *, beneficiary_names, pending_question=None):
-        return ParsedRequest(intents=self.intents, parser="claude", raw_text=text)
+        return ParsedRequest(intents=self.intents, parser="local", raw_text=text)
 
 
 def fresh(parser=None, user_id: str = DEMO_USER_ID, **kw):

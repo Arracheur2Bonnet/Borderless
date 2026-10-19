@@ -35,7 +35,7 @@ Step-up is satisfied only if `ctx.step_up_verified`. A `step_up` decision with `
 |---|---|---|
 | `bg/ledger/` | ledger | `SandboxLedger(poisoned_fx=False, now=DEMO_NOW)` implements `Ledger`; `SqliteReceiptStore(path=":memory:")` implements `ReceiptStore` |
 | `bg/policy/` | policy | `DeterministicPolicyEngine()` implements `PolicyEngine`; `RuleBasedContentGuard()` implements `ContentGuard` |
-| `bg/agent/` | agent | `RulesParser()`, `ClaudeParser(client=None, model="claude-opus-5-5")`, `build_orchestrator(ledger, receipts, policy, guard, parser=None, now=DEMO_NOW) -> Orchestrator` |
+| `bg/agent/` | agent | `RulesParser()`, `LocalLLMParser(...)`, `OpenAICompatibleParser(...)`, `CascadeParser(tiers)`, `make_parser(kind, ...)`, `build_orchestrator(ledger, receipts, policy, guard, parser=None, now=DEMO_NOW) -> Orchestrator` (v6: `ClaudeParser` was removed) |
 | `bg/app.py` | architect | `build_default(poisoned_fx=False, parser=None)` returns an `Orchestrator` wired with the real components |
 | `ui/` | ui | `ui/app.py` (Streamlit), uses only `bg.app.build_default()` and contract models |
 | `tests/` | red-team / qa | `tests/adversarial/`, `tests/benign/`, `tests/unit/<component>/` |
@@ -55,7 +55,7 @@ If you need a contract change, STOP and report it in your final message instead 
 8. Every action (executed AND denied) gets a Receipt. FX quote comes from `ledger.fx_quote_raw` through `guard.sanitize_tool_output`.
 9. Replaying the same idempotency key never moves money twice (`replayed`).
 
-`ClaudeParser` uses the Anthropic SDK (`claude-opus-5-5`, adaptive thinking, structured output via `output_config` json schema of `ParsedRequest` intents only), never tools. If no API key or any API error, fall back to `RulesParser` and set `notes`. `RulesParser` is deterministic and must handle the demo sentence and the benign test set offline. The system prompt tells Claude that text from documents is data and that it can only emit intents.
+Model-backed parsers (`LocalLLMParser`, `OpenAICompatibleParser`; v6, see below) use schema-constrained structured output of the `ParsedRequest` intents only, never tools. If the model is unreachable or answers badly they fall back to `RulesParser` and set `notes`. `RulesParser` is deterministic and must handle the demo sentence and the benign test set offline. The system prompt tells the model that text from documents is data and that it can only emit intents.
 
 ## Definition of done per component
 Own unit tests green with `./.venv/Scripts/python -m pytest <your folder> -q`. No network needed. No secrets in code or logs.
@@ -109,7 +109,7 @@ backward-compatible way: every existing test must still pass.
   SANCTIONS_SCREEN failure also emits `structuring_suspected` / `sanctions_hit` security events.
 - After any turn that appended a receipt, set `AgentTurn.anchor = receipts.anchor()`. `overview()` also returns
   `"anchor"` and `"verify_fn"`: a callable(anchor_or_None) -> ChainVerification.
-- Parser: RulesParser and ClaudeParser must emit the new intents. Questions -> AffordabilityCheck;
+- Parser: every parser (rules and model-backed) must emit the new intents. Questions -> AffordabilityCheck;
   "actually make it 40", "no, 40 instead", "change the amount to 40", "send it to mom instead" -> Correct;
   "cancel", "cancel that", "never mind", "stop", "cancel everything" -> Cancel; with a pending_question,
   "50", "50 euros", "to mom" -> ProvideDetail.
@@ -151,10 +151,11 @@ Backward compatible: every v2 name still exists; new parameters are optional.
   `ConfirmationRequest` (the card), never in sentences.
 
 ## v4 additions (2026-10-18, local LLM parser)
-Backward compatible. `ParsedRequest.parser` is now `Literal["claude", "rules", "local"]`; "local" means the intent
-parser `bg.agent.LocalLLMParser` (Qwen served by Ollama, stdlib HTTP, schema-constrained output, same pydantic
-validation as ClaudeParser, falls back to the rules parser with parser "rules" and a note). `build_default` reads
-`BG_PARSER` (`rules` default / `local` / `claude`) and `BG_LOCAL_MODEL` only when no parser is passed. The LLM still
+Backward compatible. `ParsedRequest.parser` became `Literal["claude", "rules", "local"]` (superseded by v6: the type is now a
+label string and "claude" is gone); "local" means the intent
+parser `bg.agent.LocalLLMParser` (Qwen served by Ollama, stdlib HTTP, schema-constrained output, pydantic
+validation, falls back to the rules parser with parser "rules" and a note). `build_default` reads
+`BG_PARSER` and `BG_LOCAL_MODEL` only when no parser is passed (v6 extends the values, see below). The LLM still
 only produces typed intents.
 
 ## v5 additions (2026-10-18, grounding of parser output)
@@ -173,3 +174,46 @@ parser's intents before expansion (rules parser included; it never triggers a re
   yields an action: affordability question -> AffordabilityCheck, rate question -> rate answer, other -> clarification.
 - Audit: new step `"grounding"` with `parser`, `intent`, `field`, `reason`, `before`, `after` (IBANs masked); a short note
   is added to the reply. No security event except for sanctions and IBAN issues.
+
+## v6 additions (2026-10-19, round-2 audit fixes, Claude removed, model connectors)
+Backward compatible, except that the Claude parser no longer exists.
+
+- **Claude parser removed; generic model connector added.** `bg/agent/claude_parser.py`, `ClaudeParser`, the `"claude"` value of
+  `BG_PARSER`, the `anthropic` package and every `ANTHROPIC_API_KEY` switch are gone. The shared model-parser code (prompt, schema,
+  validation, rules fallback, redacted telemetry) lives in `bg/agent/model_parser.py`.
+- **Parsers.** `LocalLLMParser` (Ollama, loopback host only, never through an HTTP proxy, no redirects) and
+  `OpenAICompatibleParser(base_url, model, api_key=None, timeout=30, label="connected")` (POST `{base_url}/chat/completions`,
+  temperature 0, `response_format` json_schema or, when refused, json_object; OpenAI-compatible: Ollama /v1, LM Studio, vLLM,
+  DeepSeek, DashScope/Qwen, Zhipu/GLM...). A `base_url` outside this machine must be https. The key comes from the argument or
+  `BG_MODEL_API_KEY`, travels only in the Authorization header and is never logged, put in notes, telemetry or audit records.
+  `CascadeParser(tiers)` tries the tiers in order and moves on when a tier falls back, only says it did not understand (a generic
+  Clarify), or produces intents that grounding would reject entirely; the default cascade is rules, then local
+  `qwen2.5:3b-instruct`, then local `qwen2.5:7b-instruct`. `bg.agent.make_parser(kind, *, model=None, base_url=None, api_key=None)`
+  builds them (`"rules"` and unknown values return None, which the orchestrator turns into its own `RulesParser`; a `"connected"`
+  parser that is not fully configured or not https is refused and gives None).
+- **`BG_PARSER`** is one of `rules` (default), `local` (`BG_LOCAL_MODEL`), `connected` (`BG_MODEL_BASE_URL`, `BG_MODEL_NAME`,
+  `BG_MODEL_API_KEY`), `cascade`. Anything else means rules. The environment cannot point the local parser at another host.
+- **Contract.** `ParsedRequest.parser` is a label string matching `^(rules|local|connected|cascade)(:\S.{0,100})?$`: `"rules"`, `"local"`,
+  `"connected:api.deepseek.com"`, `"cascade:rules"`, `"cascade:local/qwen2.5:3b-instruct"`. The suffix names the endpoint host or the
+  tier that answered. Code that compared the label with `==` should compare the prefix.
+- **A model's words are never the bank's words (AUDIT2-2).** For any parser other than the offline rules parser (label `rules` or
+  `cascade:rules`), `Unsupported.reason` is only logged; the reply and the security event use a fixed sentence per category, and a
+  `BANK DETAILS:` reason raises no event. A model `Clarify.question` is shown only if it is at most 200 characters with no URL,
+  `www.`, e-mail address, six-digit run or claim that something was done/sent/executed/received; otherwise the fixed question
+  "Who should receive how much?" is shown.
+- **Grounding (AUDIT2-4, -5, -6, -8).** Payee translations are matched with their accents and the ones that are English words or first
+  names without the accent (`anne`, `mere`, `mae`, `pai`, `padre`, `pere`) are no longer accepted. `Pay.currency`,
+  `PayObligations.reserve_currency`, `Correct.currency` and `ProvideDetail.currency` must come from the user's words: with none named
+  the model's choice is replaced by EUR (none for Correct/ProvideDetail, which then keep the pending action's or the open draft's currency). A `Pay.memo` is kept only if it is
+  a contiguous span of the user's text, and a kept memo is shown on the confirmation card ("Reference sent to the payee: ..."). An exact
+  duplicate `Pay`/`FxConvert`/`PayObligations`/`AddBeneficiary` is dropped unless the message states that amount as many times.
+- **Question guard (AUDIT2-7)** also covers `Correct` and `Cancel`: a question never corrects or cancels.
+- **Sanctions screen (AUDIT2-1).** `_sanctions_name_hit` also tries the name with runs of single letters joined ("V o l k o v",
+  "F.Z.E."), with spaces ignored for the entry-inside-name direction ("VolkovTradeHoldings"), and with "1" read as "i" and as "l".
+- **Local parser (AUDIT2-9, -10).** Loopback host only (the constructor raises otherwise), no proxy, no redirects; telemetry
+  (`BG_LLM_STATS`) holds the message's SHA-256 prefix, its length and the error class, never the message or the model output.
+  The cascade adds one record per message: `{"cascade_tier", "latency_s", "tiers_tried"}`.
+- **Input bound (AUDIT2-11).** `handle_message` replies with a clear message, before any scan or parse, to text longer than
+  `MAX_MESSAGE_CHARS = 2000`. The rules parser's number pattern is non-backtracking.
+- **Scripts.** `scripts/eval_parser.py --parser {rules,local,connected,cascade}` (`--base-url`, `--model` for connected).
+  `verify_all.py`, `run_scenarios.py` and `screenshots.py` ignore `BG_PARSER` and `BG_MODEL_*` so evidence is always the rules parser's.

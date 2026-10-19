@@ -1,0 +1,156 @@
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.926, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.931, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.402, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.402, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.389, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.39, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.739, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.741, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.436, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.437, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.354, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.355, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.417, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.418, "tiers_tried": 2}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.493, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.494, "tiers_tried": 2}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.376, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.377, "tiers_tried": 2}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"model": "qwen2.5:3b-instruct", "latency_s": 3.766, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 3.767, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.699, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.7, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.562, "fell_back": false, "reason": "ok", "detail": ""}
+{"model": "qwen2.5:7b-instruct", "latency_s": 2.677, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:7b-instruct", "latency_s": 5.241, "tiers_tried": 3}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.518, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.519, "tiers_tried": 2}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.383, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.384, "tiers_tried": 2}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.75, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.751, "tiers_tried": 2}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.565, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.566, "tiers_tried": 2}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.001, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.282, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.282, "tiers_tried": 2}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"model": "qwen2.5:3b-instruct", "latency_s": 2.252, "fell_back": false, "reason": "ok", "detail": ""}
+{"cascade_tier": "local/qwen2.5:3b-instruct", "latency_s": 2.253, "tiers_tried": 2}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}
+{"cascade_tier": "rules", "latency_s": 0.0, "tiers_tried": 1}

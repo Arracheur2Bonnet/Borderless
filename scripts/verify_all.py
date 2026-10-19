@@ -45,7 +45,8 @@ sys.exit(report.main())
 
 def child_env() -> dict:
     env = dict(os.environ)
-    env.pop("ANTHROPIC_API_KEY", None)    # offline guarantee
+    for k in ("BG_PARSER", "BG_LOCAL_MODEL", "BG_MODEL_BASE_URL", "BG_MODEL_NAME", "BG_MODEL_API_KEY", "BG_LLM_STATS"):
+        env.pop(k, None)                  # offline guarantee: the rules parser, no model, no network
     env.pop("BG_RECEIPT_KEY", None)       # demo anchor key -> byte-identical evidence
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"

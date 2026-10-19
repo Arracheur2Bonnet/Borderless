@@ -49,15 +49,22 @@ def _norm_name(name: str) -> str:
 
 
 _LEET = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b"})
+_LEET_I = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b"})   # '1' as 'i'
+_LEET_ALT = {"0": "o", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b"}
 
 
 def _word_match(n: str, e: str) -> bool:
-    """Whole-word containment either way; '?' in `n` is a one-letter wildcard (an unscreenable letter)."""
+    """Whole-word containment either way; '?' in `n` is a one-letter wildcard (an unscreenable letter).
+    v6 (AUDIT2-1): the entry is also looked for with every space removed from the name, so a name written without
+    spaces ("VolkovTradeHoldings") or with different ones is still a hit."""
     if not n or not e:
         return False
     # the entry inside the name: each letter of the entry may appear as '?' in the name
     pe = "".join(f"[{c}?]" if c.isalnum() else re.escape(c) for c in e)
     if re.search(r"(?:^| )" + pe + r"(?: |$)", n):
+        return True
+    flat = "".join(f"[{c}?]" for c in e if c.isalnum())
+    if flat and re.search(flat, n.replace(" ", "")):
         return True
     # the name inside the entry (two words or more): '?' in the name matches any letter of the entry
     if len(n.split()) >= 2:
@@ -65,6 +72,41 @@ def _word_match(n: str, e: str) -> bool:
         if re.search(r"(?:^| )" + pn + r"(?: |$)", e):
             return True
     return False
+
+
+def _join_letter_runs(n: str) -> str:
+    """'v o l k o v trade' -> 'volkov trade': consecutive one-character words are joined (letter-spacing, dotted
+    acronyms such as 'f z e' from 'F.Z.E.')."""
+    out: list[str] = []
+    run = ""
+    for w in n.split():
+        if len(w) == 1:
+            run += w
+            continue
+        if run:
+            out.append(run)
+            run = ""
+        out.append(w)
+    if run:
+        out.append(run)
+    return " ".join(out)
+
+
+def _leet_forms(n: str) -> list[str]:
+    """The name with digits read as letters. '1' is tried as 'l' and as 'i' (every combination for up to 4 ones)."""
+    forms = [n]
+    ones = n.count("1")
+    base = n.translate(str.maketrans(_LEET_ALT))
+    if "1" not in n:
+        return list(dict.fromkeys([*forms, base]))
+    if ones <= 4:
+        from itertools import product
+        for combo in product("li", repeat=ones):
+            it = iter(combo)
+            forms.append("".join(next(it) if ch == "1" else _LEET_ALT.get(ch, ch) for ch in n))
+    else:
+        forms += [n.translate(_LEET), n.translate(_LEET_I)]
+    return list(dict.fromkeys(forms))
 
 
 def _sanctions_name_hit(name: str) -> str | None:
@@ -76,9 +118,14 @@ def _sanctions_name_hit(name: str) -> str | None:
         two words, so a lone common word ("Trade", "Northgate") does not flag legitimate payees.
     v3 (AUDIT-4): a letter that cannot be folded to Latin (Armenian "օ", Cherokee "Ꮩ", ...) is a wildcard, and
     digits used as letters ("V0lkov") are also tried, so look-alike spellings of a listed name still hit.
+    v6 (AUDIT2-1): the name is also tried with runs of single letters joined ("V o l k o v", "F.Z.E."), with the
+    spaces of the name ignored ("VolkovTradeHoldings"), and with "1" read as "i" as well as "l".
     """
     raw = name_skeleton(name, unknown="?")
-    for n in dict.fromkeys((raw, raw.translate(_LEET))):
+    forms: list[str] = []
+    for base in dict.fromkeys((raw, _join_letter_runs(raw))):
+        forms += _leet_forms(base)
+    for n in dict.fromkeys(forms):
         for entry in params.SANCTIONS_WATCHLIST_NAMES:
             e = name_skeleton(entry)
             if _word_match(n, e):

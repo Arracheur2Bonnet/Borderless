@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 Currency = Literal["EUR", "USD"]
 
@@ -80,7 +80,7 @@ class FxQuote(Frozen):
 
 
 # --------------------------------------------------------------------------- intents
-# What the parser (Claude or rule-based) is allowed to output. Nothing else.
+# What the parser (rule-based or a model) is allowed to output. Nothing else.
 
 class ReadOverview(Frozen):
     kind: Literal["read_overview"] = "read_overview"
@@ -169,9 +169,14 @@ FinancialIntent = Annotated[
 ]
 
 
+# v6: which parser answered. "rules", "local" and "connected" are the original labels; a label may carry a suffix
+# after ":" ("connected:api.deepseek.com", "cascade:rules", "cascade:local/qwen2.5:3b-instruct").
+ParserLabel = Annotated[str, StringConstraints(pattern=r"^(?:rules|local|connected|cascade)(?::\S.{0,100})?$")]
+
+
 class ParsedRequest(Frozen):
     intents: list[FinancialIntent]
-    parser: Literal["claude", "rules", "local"]
+    parser: ParserLabel
     raw_text: str
     notes: list[str] = []
 

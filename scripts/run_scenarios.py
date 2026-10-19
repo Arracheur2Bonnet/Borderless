@@ -23,8 +23,10 @@ sys.path.insert(0, str(ROOT))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-# Offline guarantee: never reach a hosted model from the evidence run, even if a key is set.
-os.environ.pop("ANTHROPIC_API_KEY", None)
+# Offline guarantee: the evidence run always uses the deterministic rules parser, never a model, whatever the
+# environment says.
+for _k in ("BG_PARSER", "BG_LOCAL_MODEL", "BG_MODEL_BASE_URL", "BG_MODEL_NAME", "BG_MODEL_API_KEY", "BG_LLM_STATS"):
+    os.environ.pop(_k, None)
 
 from scenarios.engine import dumps, evaluate, run_task, summarise  # noqa: E402
 from scenarios.tasks import TASKS  # noqa: E402

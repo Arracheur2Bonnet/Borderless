@@ -3,7 +3,8 @@
 #   docker build -t borderlessguard .
 #   docker run --rm -p 8501:8501 borderlessguard                              # open http://localhost:8501
 #   docker run --rm borderlessguard python scripts/verify_all.py              # full verification inside the image
-#   docker run --rm -p 8501:8501 -e ANTHROPIC_API_KEY=sk-... borderlessguard  # optional: enable the Claude parser
+#   docker run --rm -p 8501:8501 -e BG_PARSER=connected -e BG_MODEL_BASE_URL=https://... -e BG_MODEL_NAME=... 
+#       -e BG_MODEL_API_KEY=... borderlessguard                                   # optional: a connected model
 #
 # The step-up one-time code in the demo is 246810. For anything beyond a demo, also pass -e BG_RECEIPT_KEY=<secret>.
 FROM python:3.11-slim

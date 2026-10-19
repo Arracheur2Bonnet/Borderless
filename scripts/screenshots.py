@@ -140,7 +140,7 @@ def guided_story(page: Page) -> None:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "BG_FAKE_BACKEND")}
+    env = {k: v for k, v in os.environ.items() if k not in ("BG_PARSER", "BG_MODEL_API_KEY", "BG_FAKE_BACKEND")}
     env["PYTHONPATH"] = str(ROOT)
     proc = subprocess.Popen(
         [sys.executable, "-m", "streamlit", "run", str(ROOT / "ui" / "app.py"), "--server.headless", "true",

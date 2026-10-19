@@ -1,8 +1,12 @@
 """Run a pytest suite folder with a chosen parser and report pass/fail, LLM latency and rules-fallback rate.
 
     python scripts/eval_parser.py --parser local --suite tests/benign --out out/eval_local_benign
-Sets BG_PARSER (and BG_LOCAL_MODEL with --model); LocalLLMParser appends one record per call to BG_LLM_STATS.
-Writes report.json and report.md to the output folder."""
+    python scripts/eval_parser.py --parser cascade --suite tests/heldout_v2 --runxfail --out out/regression_cascade_heldout_v2
+    python scripts/eval_parser.py --parser connected --base-url http://localhost:11434/v1 --model qwen2.5:7b-instruct --suite tests/benign
+        (the API key, if any, comes from BG_MODEL_API_KEY in the environment)
+Sets BG_PARSER (BG_LOCAL_MODEL with --model for local; BG_MODEL_NAME / BG_MODEL_BASE_URL for connected). The model
+parsers append one record per call to BG_LLM_STATS, and the cascade one record per message saying which tier
+answered. Writes report.json and report.md to the output folder."""
 from __future__ import annotations
 
 import argparse
@@ -19,9 +23,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--parser", default="local", choices=["rules", "local", "claude"])
+    ap.add_argument("--parser", default="local", choices=["rules", "local", "connected", "cascade"])
     ap.add_argument("--suite", required=True)
-    ap.add_argument("--model", default=None)
+    ap.add_argument("--model", default=None,
+                    help="local: the Ollama model (BG_LOCAL_MODEL); connected: the model name (BG_MODEL_NAME)")
+    ap.add_argument("--base-url", default=None, help="connected only: OpenAI-compatible base URL (BG_MODEL_BASE_URL)")
     ap.add_argument("--out", default=None, help="output folder (default out/eval_<parser>_<suite>)")
     ap.add_argument("--runxfail", action="store_true",
                     help="ignore xfail markers (they document rules-parser limits); count every case as pass/fail")
@@ -32,7 +38,9 @@ def main() -> int:
     stats.unlink(missing_ok=True)
     env = {**os.environ, "BG_PARSER": a.parser, "BG_LLM_STATS": str(stats)}
     if a.model:
-        env["BG_LOCAL_MODEL"] = a.model
+        env["BG_MODEL_NAME" if a.parser == "connected" else "BG_LOCAL_MODEL"] = a.model
+    if a.base_url:
+        env["BG_MODEL_BASE_URL"] = a.base_url
     subprocess.run([sys.executable, "-m", "pytest", a.suite, "-q", "-p", "no:cacheprovider",
                     f"--junitxml={xml}", *(["--runxfail"] if a.runxfail else [])], cwd=ROOT, env=env)
     cases = []
@@ -40,24 +48,36 @@ def main() -> int:
         st = "failed" if tc.find("failure") is not None or tc.find("error") is not None else (
             "skipped" if tc.find("skipped") is not None else "passed")
         cases.append({"case": f"{tc.get('classname')}::{tc.get('name')}", "status": st})
-    calls = [json.loads(l) for l in stats.read_text(encoding="utf-8").splitlines() if l.strip()] if stats.exists() else []
+    records = [json.loads(l) for l in stats.read_text(encoding="utf-8").splitlines() if l.strip()] if stats.exists() else []
+    calls = [c for c in records if "cascade_tier" not in c]
+    casc = [c for c in records if "cascade_tier" in c]
+    tiers: dict[str, int] = {}
+    for c in casc:
+        tiers[c["cascade_tier"]] = tiers.get(c["cascade_tier"], 0) + 1
+    casc_lat = sorted(c["latency_s"] for c in casc)
     lat = sorted(c["latency_s"] for c in calls if not c["fell_back"])
     fb = [c for c in calls if c["fell_back"]]
     reasons: dict[str, int] = {}
     for c in fb:
         reasons[c["reason"]] = reasons.get(c["reason"], 0) + 1
     n = {k: sum(c["status"] == k for c in cases) for k in ("passed", "failed", "skipped")}
-    rep = {"parser": a.parser, "model": a.model or env.get("BG_LOCAL_MODEL", "default"), "suite": a.suite,
+    rep = {"parser": a.parser, "model": a.model or env.get("BG_LOCAL_MODEL", "default"), "base_url": a.base_url, "suite": a.suite,
            "cases": len(cases), **n, "llm_calls": len(calls), "fallback_calls": len(fb),
            "fallback_rate": round(len(fb) / len(calls), 4) if calls else None, "fallback_reasons": reasons,
            "latency_s": {"mean": round(statistics.mean(lat), 3), "median": round(statistics.median(lat), 3),
                          "p95": round(lat[int(0.95 * (len(lat) - 1))], 3), "max": lat[-1]} if lat else None,
+           "cascade": {"messages": len(casc), "answered_by": tiers,
+                       "latency_s": {"median": round(statistics.median(casc_lat), 4), "mean": round(statistics.mean(casc_lat), 4),
+                                     "p95": casc_lat[int(0.95 * (len(casc_lat) - 1))], "max": casc_lat[-1]}} if casc else None,
            "results": cases}
     (out / "report.json").write_text(json.dumps(rep, indent=2), encoding="utf-8")
     md = [f"# Parser evaluation: {a.parser} ({rep['model']}) on {a.suite}", "",
           f"- cases: {len(cases)}  passed: {n['passed']}  failed: {n['failed']}  skipped: {n['skipped']}",
           f"- LLM calls: {len(calls)}  fell back to rules: {len(fb)} (rate {rep['fallback_rate']})  reasons: {reasons}",
-          f"- latency per successful call (s): {rep['latency_s']}", "", "| case | status |", "|---|---|"]
+          f"- latency per successful call (s): {rep['latency_s']}"]
+    if casc:
+        md.append(f"- cascade: {len(casc)} messages, answered by {tiers}, latency per message (s): {rep['cascade']['latency_s']}")
+    md += ["", "| case | status |", "|---|---|"]
     md += [f"| {c['case']} | {c['status']} |" for c in cases]
     (out / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print(json.dumps({k: v for k, v in rep.items() if k != "results"}, indent=2))

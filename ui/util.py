@@ -48,12 +48,21 @@ def short(h: str | None, n: int = 8) -> str:
 _MD_SPECIAL = re.compile(r"([\\`*_{}\[\]<>#|~$])")
 _MD_BULLET = re.compile(r"^(\s*)([-+=])", re.M)
 _MD_ORDERED = re.compile(r"^(\s*\d+)([.)])", re.M)
+# GFM "autolink literals": a scheme URL, a www. domain, an e-mail address or a mailto:/xmpp: address becomes a
+# clickable <a> without any Markdown syntax. Backslash-escaping the ":" / "." / "@" breaks each of them.
+_MD_SCHEME = re.compile(r"(https?|ftp|mailto|xmpp)(:)", re.I)
+_MD_WWW = re.compile(r"(www)(\.)", re.I)
 
 
 def esc_md(text: Any) -> str:
-    """Make arbitrary text render literally inside st.markdown: no HTML, no links/images, no emphasis,
-    no LaTeX, no Streamlit colour directives. Single newlines are kept as line breaks."""
+    """Make arbitrary text render literally inside st.markdown: no HTML, no links/images (also no bare URLs,
+    www. addresses or e-mail addresses), no emphasis, no LaTeX, no Streamlit colour directives. Single newlines
+    are kept as line breaks. The same text is safe in widget labels and help texts, which render Markdown too."""
     s = _MD_SPECIAL.sub(r"\\\1", "" if text is None else str(text))
+    # no clickable links from untrusted text (AUDIT2-2): "https\://", "www\.", "name\@host"
+    s = _MD_SCHEME.sub(lambda m: m.group(1) + "\\" + m.group(2), s)
+    s = _MD_WWW.sub(lambda m: m.group(1) + "\\" + m.group(2), s)
+    s = s.replace("@", "\\@")
     # "- x" / "1. x" at a line start would become a list: escape the marker ("\-", "1\.")
     s = _MD_BULLET.sub(lambda m: m.group(1) + "\\" + m.group(2), s)
     s = _MD_ORDERED.sub(lambda m: m.group(1) + "\\" + m.group(2), s)
@@ -227,7 +236,7 @@ def quick_replies(entry: dict[str, Any], *, pending_question: str | None, pendin
             for b in payees:
                 aliases = get(b, "aliases") or []
                 ref = aliases[0] if aliases else get(b, "display_name")
-                chips.append((f"To {get(b, 'display_name')}", f"to {ref}"))
+                chips.append((f"To {esc_md(get(b, 'display_name'))}", f"to {ref}"))
         chips.append(("Cancel", "cancel"))
     elif proj is not None:
         if get(proj, "reserve_ok"):

@@ -283,7 +283,6 @@ div:has(> .st-key-guided_bar) { position: sticky; top: 2.75rem; z-index: 50; }
 .bg-guided-head svg { width: 16px; height: 16px; color: var(--accent); }
 .bg-caption { font-size: var(--fs-headline); line-height: var(--lh-headline); font-weight: var(--fw-medium); color: var(--label); }
 .bg-facts { display: flex; gap: var(--s-2); flex-wrap: wrap; }
-.g-target { scroll-margin-top: 340px; }
 
 /* ===================================================================== receipts + attack test */
 .bg-lede { font-size: var(--fs-body); color: var(--label-2); max-width: 780px; }
@@ -347,8 +346,9 @@ div:has(> .st-key-guided_bar) { top: 2.5rem; }
 
 /* ===================================================================== fixes round 4 */
 [data-testid="stHeader"] { height: 3.75rem; background: color-mix(in srgb, var(--bg-canvas) 90%, transparent) !important; }
-div:has(> .st-key-guided_bar) { top: 3.9rem; }
-.g-target { scroll-margin-top: 360px; }
+/* The sticky bar sits on an opaque band of the page colour that starts right under the header, so no line of the
+   previous message peeks out above or beside it. scroll_to_target() adds the matching scroll-padding. */
+div:has(> .st-key-guided_bar) { top: 3.75rem; padding: var(--s-2) 0 var(--s-4); background: var(--bg-canvas); }
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] { width: 100%; max-width: 100%; }
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stLayoutWrapper"]:has(> [class*="st-key-bubble_"]) {
   display: flex; justify-content: flex-end; }

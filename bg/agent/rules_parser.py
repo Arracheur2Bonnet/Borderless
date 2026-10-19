@@ -22,7 +22,9 @@ _ODD_IBAN_RE = re.compile(r"\b[A-Za-z]{2}[^\W_]{2}(?:[ .\-]?[^\W_]{2,4}){3,8}\b"
 _CUR = {"eur": "EUR", "euro": "EUR", "euros": "EUR", "€": "EUR",
         "usd": "USD", "dollar": "USD", "dollars": "USD", "$": "USD", "bucks": "USD"}
 _CUR_WORD = r"(?:euros?|eur|dollars?|usd|bucks)"
-_NUM = r"([0-9][0-9,]*(?:\.[0-9]+)?)"
+# v6 (AUDIT2-11): non-backtracking number (possessive quantifiers, no start inside a digit run): "1,1,1,...,1" and
+# long digit runs are matched in linear time. Thousands groups are exactly three digits.
+_NUM = r"((?<![0-9])(?:[0-9]{1,3}+(?:,[0-9]{3})++(?![0-9])|[0-9]++)(?:\.[0-9]++)?)"
 # includes frequent typos ("sned 40 eur to mom"): a typo must not make a request unreadable
 _PAY_VERB = r"\b(send|pay|transfer|wire|settle|remit|sned|snd|semd|pya|transfr|tranfer|trasnfer)\b"
 _RELATIVE = (r"\b(half|third|quarter|portion|partial(?:ly)?|part of|some of|most of|a bit|a little|"
@@ -157,7 +159,22 @@ def payment_draft_hint(text: str, names: list[str]) -> tuple[str | None, Decimal
     return ref, amount, cur
 
 
+# The two answers that mean "I could not read this at all". A cascade moves on to the next tier on either.
+EMPTY_QUESTION = "What would you like to do?"
+NOT_UNDERSTOOD_QUESTION = ("Sorry, I didn't get that. Try: \"what's my balance?\", \"pay my rent\", "
+                           "\"send 50 euros to mom\" or \"convert 200 dollars\".")
+GENERIC_CLARIFY_QUESTIONS = frozenset({EMPTY_QUESTION, NOT_UNDERSTOOD_QUESTION})
+
+
+def is_generic_clarify(intents: list) -> bool:
+    """True when the parser only said it did not understand (no payee/amount detail in the question)."""
+    return bool(intents) and all(isinstance(i, Clarify) and i.question in GENERIC_CLARIFY_QUESTIONS for i in intents)
+
+
 class RulesParser:
+    tier_label = "rules"
+    parser_tag = "rules"
+
     def parse(self, text: str, *, beneficiary_names: list[str],
               pending_question: str | None = None) -> ParsedRequest:
         # NFKC first: fullwidth digits and letters become ASCII; anything else non-ASCII is never a number
@@ -169,7 +186,7 @@ class RulesParser:
     def _parse(self, text: str, names: list[str], pending_question: str | None = None) -> list[FinancialIntent]:
         low = text.lower().strip()
         if not low:
-            return [Clarify(question="What would you like to do?")]
+            return [Clarify(question=EMPTY_QUESTION)]
 
         bad = self._unsupported(low, text)
         if bad:
@@ -287,8 +304,7 @@ class RulesParser:
                      r"rates?|exchange rate)\b", low_ni):
             return [ReadOverview()]
 
-        return [Clarify(question="Sorry, I didn't get that. Try: \"what's my balance?\", \"pay my rent\", "
-                                 "\"send 50 euros to mom\" or \"convert 200 dollars\".")]
+        return [Clarify(question=NOT_UNDERSTOOD_QUESTION)]
 
     def _bills_and_payments(self, low: str, names: list[str],
                             reserve: Decimal | None) -> list[FinancialIntent] | None:

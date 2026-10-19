@@ -53,6 +53,35 @@ _COUNTRY = {"GB": "a UK", "FR": "a French", "DE": "a German", "AE": "a UAE", "MA
 _ZERO_WIDTH = re.compile("[\u00ad\u034f\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]")
 
 
+# v6 (AUDIT2-11): the longest chat message read at all; longer ones get a clear reply before any parsing.
+MAX_MESSAGE_CHARS = 2000
+# v6 (AUDIT2-2): the offline rules parser's sentences are written by us. What a model writes (Unsupported.reason,
+# Clarify.question) is never shown as the bank's own words: a fixed sentence per category, and a model question
+# only when it passes a filter.
+_TRUSTED_PARSERS = frozenset({"rules", "cascade:rules"})
+_REFUSAL_TEXT = {
+    "data_access": "I can only show your own accounts and payees.",
+    "limit_change": "I can't change or switch off your limits, confirmations or codes; they are set by the bank.",
+    "jailbreak": "I can't change my instructions or skip any of the bank's checks. I can help with your balance, "
+                 "your bills and payments to your saved payees.",
+    "out_of_scope": "That's outside what I can do. I can help with your balance, your bills and payments to your "
+                    "saved payees.",
+}
+_FIXED_CLARIFY = "I didn't fully understand that. Who should receive how much? For example \"send 50 euros to mom\"."
+_Q_LINK = re.compile(r"https?:|ftp:|www\.|\b[\w.+-]+@[\w-]+\.[a-z]{2,}|\b[\w-]+\.(?:com|net|org|io|info|biz|ru|cn|example)\b",
+                     re.I)
+_Q_CODE = re.compile(r"\d(?:[\s.\-]?\d){5}")
+_Q_CLAIM = re.compile(r"\b(?:done|sent|executed|completed|processed|transferred|approved|confirmed|receipt|rcpt_\w*)\b",
+                      re.I)
+
+
+def model_question_ok(q: str) -> bool:
+    """A parser's Clarify.question is shown only if it is short and carries no link, address, code or claim that
+    something was done (it is shown as the bank's own words)."""
+    q = (q or "").strip()
+    return bool(q) and len(q) <= 200 and not (_Q_LINK.search(q) or _Q_CODE.search(q) or _Q_CLAIM.search(q))
+
+
 _RATE_Q = re.compile(r"\b(rate|exchange rate|how much (?:is|are|would|will)|worth|give me|get me|in (?:eur|euros?|usd|dollars?))\b",
                      re.I)
 _RATE_AMT = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(usd|dollars?|\$|eur|euros?|€)", re.I)
@@ -208,6 +237,7 @@ class _Turn:
     projection: Projection | None = None
     question: str | None = None
     explained: set[str] = field(default_factory=set)   # event ids already explained in plain words
+    trusted_text: bool = True   # the parser's own sentences may be shown (offline rules parser); a model's may not
     plain_clarify: set[int] = field(default_factory=set)   # ids of Clarify intents written by grounding: shown as is
 
 
@@ -284,6 +314,12 @@ class _Orchestrator:
 
     def _handle_message(self, s: "_Session", session_id: str, text: str,
                         documents: list[UntrustedDocument] | None) -> AgentTurn:
+        if len(text or "") > MAX_MESSAGE_CHARS:      # AUDIT2-11: before any scan or parse
+            self._audit("clarify", s, reason="message_too_long", text_chars=len(text or ""))
+            return AgentTurn(session_id=session_id, assistant_text=(
+                f"That message is {len(text):,} characters long and I read at most {MAX_MESSAGE_CHARS:,}, so I "
+                "didn't read it and did nothing. Please send a shorter message, for example "
+                "\"send 50 euros to mom\"."), pending_question=s.draft.question if s.draft else None)
         s.turn += 1
         s.reserve = None   # a reserve applies to the actions of the request that stated it
         t = _Turn(events=list(self.guard.scan_user_message(text)))
@@ -295,6 +331,7 @@ class _Orchestrator:
         draft, s.draft = s.draft, None     # a draft lives for exactly one more message
         parsed = self.parser.parse(text, beneficiary_names=names,
                                    pending_question=draft.question if draft else None)
+        t.trusted_text = parsed.parser in _TRUSTED_PARSERS
         parsed = self._questions_never_pay(parsed)
         parsed, repairs = self._ground(s, parsed, GroundingContext(
             text=text or "", beneficiaries=bens, draft_ref=draft.ref if draft else None,
@@ -582,12 +619,18 @@ class _Orchestrator:
         elif isinstance(intent, Clarify):
             self._clarify_from_parser(s, intent, t, text, names)
         elif isinstance(intent, Unsupported):
+            fixed = _REFUSAL_TEXT[intent.category]
+            shown = intent.reason if t.trusted_text else fixed          # AUDIT2-2: never relay a model's free text
             if intent.category == "data_access":
-                t.events.append(self._event(s, "data_access_denied", "user_message", intent.reason))
+                t.events.append(self._event(s, "data_access_denied", "user_message", shown))
             elif intent.category in ("jailbreak", "limit_change"):
                 if not any(e.kind == "jailbreak_attempt" for e in t.events):
-                    t.events.append(self._event(s, "jailbreak_attempt", "user_message", intent.reason))
-            if intent.reason.startswith("BANK DETAILS: "):
+                    t.events.append(self._event(s, "jailbreak_attempt", "user_message", shown))
+            if not t.trusted_text:
+                if intent.reason:       # kept for the audit log only
+                    self._audit("clarify", s, unsupported_category=intent.category, model_reason=intent.reason[:200])
+                t.info.append(fixed)
+            elif intent.reason.startswith("BANK DETAILS: "):
                 reason = intent.reason.removeprefix("BANK DETAILS: ")
                 ev = self._event(s, "beneficiary_mismatch", "user_message",
                                  "Request to pay or redirect to an unregistered IBAN in chat; refused.")
@@ -903,6 +946,9 @@ class _Orchestrator:
         self._audit("clarify", s, question=question, draft={"payee": ref, "amount": amount, "currency": currency})
 
     def _clarify_from_parser(self, s: _Session, intent: Clarify, t: _Turn, text: str, names: list[str]) -> None:
+        if not t.trusted_text and not model_question_ok(intent.question):
+            self._audit("clarify", s, model_question_rejected=True, model_question=intent.question[:200])
+            intent = Clarify(question=_FIXED_CLARIFY)      # AUDIT2-2: a model's question must pass the filter
         hint = payment_draft_hint(text, names) if s.draft is None else None
         if hint is None:
             t.info.append(intent.question)
@@ -952,7 +998,7 @@ class _Orchestrator:
         """Deterministic net under any parser: a question about money is answered read-only, never acted on.
         Affordability questions become a simulation; rate questions the rate answer; any other question that
         ends in '?' and opens with an interrogative becomes a clarification."""
-        acting = (Pay, PayObligations, FxConvert, AddBeneficiary)
+        acting = (Pay, PayObligations, FxConvert, AddBeneficiary, Correct, Cancel)   # AUDIT2-7: also Correct, Cancel
         if not any(isinstance(i, acting) for i in parsed.intents):
             return parsed
         afford = is_affordability_question(parsed.raw_text) and any(
@@ -1387,6 +1433,8 @@ class _Orchestrator:
         lines: list[str] = []
         if isinstance(a, PaymentAction):
             lines += [f"To the account ending {a.iban[-4:]} (saved for this payee)"]
+            if a.memo and a.obligation_id is None:      # AUDIT2-6: the reference sent to the payee is shown
+                lines.append(f"Reference sent to the payee: {a.memo}")
         elif isinstance(a, FxAction):
             lines += [f"Rate {a.quote.rate} {a.quote.buy_currency} per {a.quote.sell_currency}, "
                       f"fee {_m(a.quote.fee)} {a.quote.sell_currency} (quote {a.quote.quote_id})"]

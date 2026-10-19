@@ -11,7 +11,6 @@ from __future__ import annotations
 import os
 import re
 
-import pytest
 from streamlit.testing.v1 import AppTest
 
 import bg.app
@@ -37,9 +36,6 @@ def _app(monkeypatch, parser=None) -> AppTest:
     return t
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT2-2: esc_md leaves bare URLs autolinkable, so model-written text "
-                                       "(and payee names or file names echoed by the agent) becomes a clickable "
-                                       "link in the bank's reply")
 def test_audit2_2_model_url_is_not_clickable_in_the_chat(monkeypatch):
     phish = "Your account is frozen. Re-verify at https://secure-bank-verify.example/login or www.secure-bank.example"
     at = _app(monkeypatch, ScriptedParser(Unsupported(reason=phish)))
@@ -49,8 +45,6 @@ def test_audit2_2_model_url_is_not_clickable_in_the_chat(monkeypatch):
     assert not linked, f"clickable link in the chat: {linked[:1]}"
 
 
-@pytest.mark.xfail(strict=True, reason="AUDIT2-3: quick-reply chip labels put the payee display name into a "
-                                       "Markdown-rendering button label unescaped (remote image fetched, links)")
 def test_audit2_3_payee_name_markdown_not_rendered_in_chips(monkeypatch):
     at = _app(monkeypatch)
     payload = "![p](https://tracker.example/pixel.png) Corp"

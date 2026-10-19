@@ -88,7 +88,7 @@ _KNOWN = {
     "B25": "payee alias without amount asks for the amount (by design, same rule as 'Pay the landlord.')",
 }
 _KNOWN.update({c[0]: "non-English request: out of scope for the offline rules parser (English is the track "
-                     "language); the Claude parser is the intended path" for c in CASES if c[1] == "non-en"})
+                     "language); a model parser (local, connected or cascade) is the intended path" for c in CASES if c[1] == "non-en"})
 
 
 def _case(c):

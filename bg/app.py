@@ -6,15 +6,23 @@ from bg.contracts.params import DEMO_NOW
 
 
 def _parser_from_env():
-    """BG_PARSER: "rules" (default, the orchestrator's own RulesParser), "local" (Ollama) or "claude"."""
+    """BG_PARSER selects the intent parser: "rules" (default, the orchestrator's own RulesParser), "local" (Ollama on
+    localhost, model BG_LOCAL_MODEL), "connected" (an OpenAI-compatible endpoint: BG_MODEL_BASE_URL, BG_MODEL_NAME,
+    BG_MODEL_API_KEY) or "cascade" (rules, then local qwen2.5:3b, then local qwen2.5:7b). Anything else -> rules.
+    The environment can choose the parser and name a model and an endpoint; it cannot make the local parser leave
+    this machine (a remote endpoint is only reachable through "connected", and only over https)."""
     import os
+
+    from bg.agent import make_parser
     kind = os.environ.get("BG_PARSER", "rules").strip().lower()
     if kind == "local":
-        from bg.agent import LocalLLMParser
-        return LocalLLMParser(model=os.environ.get("BG_LOCAL_MODEL", "qwen2.5:7b-instruct"))
-    if kind == "claude":
-        from bg.agent import ClaudeParser
-        return ClaudeParser()
+        return make_parser("local", model=os.environ.get("BG_LOCAL_MODEL") or None)
+    if kind == "connected":
+        return make_parser("connected", model=os.environ.get("BG_MODEL_NAME") or None,
+                           base_url=os.environ.get("BG_MODEL_BASE_URL") or None,
+                           api_key=os.environ.get("BG_MODEL_API_KEY") or None)
+    if kind == "cascade":
+        return make_parser("cascade")
     return None
 
 

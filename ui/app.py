@@ -65,33 +65,71 @@ DOC_LABELS = {"doc_tuition_nov": "Attach tuition invoice", "doc_rent_nov": "Atta
 MAX_UPLOAD_CHARS = 20_000
 
 # --------------------------------------------------------------------------- backend wiring
-_LAST_PARSER: dict[str, str] = {}      # label of the parser that answered the latest message (technical details only)
+# The "Language model" selector. Every option goes through bg.agent.make_parser(kind, ...); the parser only ever
+# PROPOSES typed intents, so switching it changes who understands the sentence, never what is allowed.
+PARSER_KINDS = {
+    "rules": "Rules only (instant)",
+    "cascade": "Smart cascade: rules, then local Qwen",
+    "local": "Local model (Ollama)",
+    "connected": "Connect a model (OpenAI-compatible)",
+}
+LOCAL_MODELS = ("qwen2.5:7b-instruct", "qwen2.5:3b-instruct")
+MAX_CHAT_CHARS = 2000                    # AUDIT2-11: also enforced by the agent; stated in the input placeholder
+FALLBACK_NOTICE = "The selected model did not answer, so the built-in rules handled this message."
+
+try:                                    # the factory lives in the backend; the UI still starts without it
+    from bg.agent import make_parser
+except ImportError:                     # pragma: no cover - depends on the backend build
+    make_parser = None
 
 
 def _audit_sink(rec: dict) -> None:
+    """Remember which parser/tier answered the latest message (shown in Technical details)."""
     if rec.get("step") == "parse" and rec.get("parser"):
-        _LAST_PARSER["label"] = str(rec["parser"])
+        try:
+            st.session_state["last_parser"] = str(rec["parser"])
+        except Exception:               # no Streamlit session (e.g. a script run outside the app)
+            pass
 
 
-def make_backend(poisoned_fx: bool = False, use_claude: bool = False, use_local: bool = False):
+def build_parser(kind: str = "rules", *, model: str | None = None, base_url: str | None = None,
+                 api_key: str | None = None):
+    """(parser or None, notice). None means the default path (the orchestrator's own rules parser)."""
+    if kind == "rules":
+        return None, ""
+    if kind == "connected" and not (base_url and model):
+        return None, "Enter the base URL and model name, then press Connect. Until then the rules are used."
+    if make_parser is None:
+        return None, "This build has no model backend: the built-in rules are used."
+    try:
+        parser = make_parser(kind, model=model or None, base_url=base_url or None, api_key=api_key or None)
+    except Exception:                   # never echo the error text: it may hold the key
+        parser = None
+    if parser is None:                  # the backend refuses what it cannot use safely (e.g. a remote http URL)
+        return None, ("The model could not be set up (a remote endpoint must use https), "
+                      "so the built-in rules are used.")
+    return parser, ""
+
+
+def make_backend(poisoned_fx: bool = False, parser=None, *, sink=None):
+    """Build the orchestrator around `parser` (None = the default rules parser)."""
     if os.environ.get("BG_FAKE_BACKEND") == "1":
         from ui.fake_backend import build_fake
         return build_fake(poisoned_fx=poisoned_fx)
-    parser = None
-    if use_local:
-        from bg.agent import LocalLLMParser
-        parser = LocalLLMParser(model=os.environ.get("BG_LOCAL_MODEL", "qwen2.5:7b-instruct"))
-    elif use_claude and os.environ.get("ANTHROPIC_API_KEY"):
-        from bg.agent import ClaudeParser
-        parser = ClaudeParser()
     from bg.app import build_default
-    return build_default(poisoned_fx=poisoned_fx, parser=parser, audit_sink=_audit_sink)
+    return build_default(poisoned_fx=poisoned_fx, parser=parser, audit_sink=sink)
 
 
 def reset_backend() -> None:
     s = st.session_state
-    s.backend = make_backend(s.get("poisoned", False), s.get("use_claude", False),
-                         s.get("use_local", False))
+    kind = s.get("parser_kind", "rules")
+    if kind not in PARSER_KINDS:
+        kind = s.parser_kind = "rules"
+    model = s.get("local_model") if kind == "local" else s.get("conn_model") if kind == "connected" else None
+    base_url = s.get("conn_base_url") if kind == "connected" else None
+    api_key = s.get("conn_api_key") if kind == "connected" else None      # only ever lives in session_state
+    parser, s.setup_notice = build_parser(kind, model=model, base_url=base_url, api_key=api_key)
+    s.backend = make_backend(s.get("poisoned", False), parser, sink=_audit_sink)
     s.session_id = s.backend.new_session(DEMO_USER_ID)
     s.history, s.actions, s.events, s.attached = [], {}, {}, []
     s.otp_fails, s.edit_hint = {}, set()
@@ -101,7 +139,7 @@ def reset_backend() -> None:
     s.tamper_result = None
     s.titles = {}
     s.parsers = {}
-    _LAST_PARSER.clear()
+    s.last_parser = ""
     reset_guided_progress()
 
 
@@ -123,8 +161,13 @@ def start_guided() -> None:
 def init_state() -> None:
     s = st.session_state
     s.setdefault("poisoned", False)
-    s.setdefault("use_claude", False)
-    s.setdefault("use_local", False)
+    if "parser_kind" not in s:          # BG_PARSER=local keeps meaning "start on the local model"
+        env_kind = os.environ.get("BG_PARSER", "").strip().lower()
+        s.parser_kind = env_kind if env_kind in ("cascade", "local") else "rules"
+    s.setdefault("local_model", os.environ.get("BG_LOCAL_MODEL", LOCAL_MODELS[0])
+                 if os.environ.get("BG_LOCAL_MODEL", LOCAL_MODELS[0]) in LOCAL_MODELS else LOCAL_MODELS[0])
+    s.setdefault("setup_notice", "")
+    s.setdefault("last_parser", "")
     s.setdefault("parsers", {})
     s.setdefault("attack_results", {})
     s.setdefault("custom_docs", [])
@@ -152,7 +195,7 @@ def record_turn(turn) -> None:
         s.actions[av.action.action_id] = av
         cr = av.confirmation_request
         if cr is not None and av.action.action_id not in s.titles:
-            s.parsers.setdefault(av.action.action_id, _LAST_PARSER.get("label", "rules"))
+            s.parsers.setdefault(av.action.action_id, s.get("last_parser") or "rules")
             s.titles[av.action.action_id] = cr.title     # kept for the technical details after execution
     for e in turn.security_events:
         s.events[e.event_id] = e
@@ -463,6 +506,37 @@ def render_event_details(events, names: dict[str, str]) -> None:
 
 
 # --------------------------------------------------------------------------- sidebar
+def render_model_selector() -> None:
+    """One "Language model" selector. Changing it rebuilds the backend (a fresh sandbox), like the old toggles."""
+    s = st.session_state
+    st.selectbox("Language model", list(PARSER_KINDS), format_func=PARSER_KINDS.__getitem__, key="parser_kind",
+                 on_change=reset_backend,
+                 help="Who reads your sentence. The model only proposes; fixed rules and your approval still "
+                      "decide what moves. Changing it restarts the demo.")
+    kind = s.parser_kind
+    if kind == "rules":
+        st.caption("Offline and instant. The built-in parser handles the demo requests.")
+    elif kind == "cascade":
+        st.caption("Rules answer first. Only what they cannot read goes to a local Qwen 3B, then Qwen 7B (Ollama). "
+                   "Nothing leaves this machine.")
+    elif kind == "local":
+        st.selectbox("Local model", LOCAL_MODELS, key="local_model", on_change=reset_backend)
+        st.caption("Runs on this machine through Ollama (localhost). If it is not running, the rules take over.")
+    else:
+        with st.form("connect_form", border=False):
+            st.text_input("Base URL", key="conn_base_url", placeholder="https://host/v1")
+            st.text_input("Model name", key="conn_model", placeholder="model name")
+            st.text_input("API key", key="conn_api_key", type="password", autocomplete="off",
+                          help="Kept in this browser session only. Never shown, never written to disk or logs.")
+            st.form_submit_button("Connect", on_click=reset_backend, width="stretch")
+        st.caption("Any OpenAI-compatible server: a frontier model or another local one. "
+                   "With a remote endpoint your messages leave this machine.")
+    if s.get("setup_notice"):
+        st.caption(esc_md(s.setup_notice))
+    elif kind in ("local", "connected") and (s.get("last_parser") or "").startswith("rules"):
+        st.caption(FALLBACK_NOTICE)
+
+
 def render_sidebar(ov: dict) -> None:
     s = st.session_state
     with st.sidebar:
@@ -501,13 +575,7 @@ def render_sidebar(ov: dict) -> None:
         st.markdown("<div class='bg-side-label'>Demo controls</div>", unsafe_allow_html=True)
         st.toggle("Guided demo (6 steps)", key="guided", on_change=start_guided,
                   help="One click per step. Every step runs the real agent, rules and sandbox ledger.")
-        have_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
-        st.toggle("Use Claude (needs API key)", key="use_claude", on_change=reset_backend,
-                  help="Set ANTHROPIC_API_KEY. Without it the offline rules parser is used.")
-        if s.use_claude and not have_key:
-            st.caption("No ANTHROPIC_API_KEY found: using the offline rules parser.")
-        st.toggle("Local Qwen model (Ollama)", key="use_local", on_change=reset_backend,
-                  help="Uses a local model through Ollama (localhost:11434). Falls back to the rules parser if it is unreachable. Takes priority over Claude.")
+        render_model_selector()
         st.toggle("Lying exchange-rate feed", key="poisoned", on_change=reset_backend,
                   help="The simulated exchange-rate provider slips instructions into its response.")
         if st.button("Reset demo", key="reset", width="stretch"):
@@ -623,13 +691,19 @@ def render_guided() -> None:
 
 
 def scroll_to_target() -> None:
-    """Bring the step's result into view (stage / video). No effect in tests."""
-    if not st.session_state.get("g_target"):
-        return
+    """Guided demo only. Measures the sticky bar and tells the scroll container to keep that much clear
+    (scroll-padding), so nothing is hidden under the bar when the page scrolls or a control takes focus; then,
+    when a step has a result, brings it into view (stage / video). No effect in tests."""
     import streamlit.components.v1 as components
+    scroll = bool(st.session_state.get("g_target"))
     nonce = f"{st.session_state.g_done}-{st.session_state.g_target}"      # a new iframe per step, so it runs
-    js = ("setTimeout(function(){var d=window.parent.document;var t=d.querySelector('.g-target');"
-          "if(t){t.scrollIntoView({behavior:'smooth',block:'start'});}}, 450);")
+    js = ("setTimeout(function(){var d=window.parent.document;var bar=d.querySelector('.st-key-guided_bar');"
+          "var sc=bar;while(sc&&!/(auto|scroll)/.test(window.parent.getComputedStyle(sc).overflowY)){sc=sc.parentElement;}"
+          "var w=bar?bar.parentElement:null;"       # the sticky wrapper: its top offset + its height = what stays covered
+          "var h=w?Math.ceil(parseFloat(window.parent.getComputedStyle(w).top)+w.getBoundingClientRect().height)+16:0;"
+          "if(sc){sc.style.scrollPaddingTop=h+'px';}"
+          + ("var t=d.querySelector('.g-target');if(t){t.scrollIntoView({behavior:'smooth',block:'start'});}" if scroll else "")
+          + "}, 450);")
     components.html("<script>/* " + esc_html(nonce) + " */ " + js + "</script>", height=0)
 
 
@@ -720,7 +794,7 @@ def tab_assistant() -> None:
 
     hint = ("Answer the agent's question, e.g. 50 euros" if s.pending_question
             else "Ask BorderlessGuard… or correct: \"actually make it 40\", \"cancel that\"")
-    text = st.chat_input(hint, key="chat")
+    text = st.chat_input(f"{hint} (max {MAX_CHAT_CHARS:,} characters)", key="chat", max_chars=MAX_CHAT_CHARS)
     if text:
         submit(text)
         st.rerun()
@@ -737,7 +811,7 @@ def render_chips(entry: dict, payees: list) -> None:
         cols = st.columns(len(chips) + max(0, 4 - len(chips)))
         for j, (label, msg) in enumerate(chips):
             if cols[j].button(label, key=f"chip_{j}", width="stretch",
-                              help=f"Sends: \"{msg}\". It is checked like any typed message."):
+                              help=f"Sends: \"{esc_md(msg)}\". It is checked like any typed message."):
                 submit(msg)
                 st.rerun()
 
@@ -830,7 +904,7 @@ def tab_proof(ov: dict) -> None:
 
 def run_attacks(attacks) -> None:
     results = st.session_state.attack_results
-    factory = lambda poisoned: make_backend(poisoned, False)  # noqa: E731
+    factory = lambda poisoned: make_backend(poisoned)  # noqa: E731    (attacks always run on the rules parser)
     with st.spinner("Running attacks, each on a fresh sandbox account…"):
         for a in attacks:
             results[a.key] = run_attack(a, factory)

@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from bg.agent import ClaudeParser, RulesParser, build_orchestrator
+from bg.agent import RulesParser, build_orchestrator
 from bg.contracts import params
 from bg.contracts.models import (
     AffordabilityCheck, Cancel, Clarify, Correct, FxAction, ParsedRequest, Pay, PayObligations, PaymentAction,
@@ -107,7 +107,7 @@ def test_cancel_drops_draft():
 def test_detail_without_draft_is_not_guessed():
     class P:
         def parse(self, text, *, beneficiary_names, pending_question=None):
-            return ParsedRequest(intents=[ProvideDetail(amount=D("50"))], parser="claude", raw_text=text)
+            return ParsedRequest(intents=[ProvideDetail(amount=D("50"))], parser="local", raw_text=text)
     orch, _, _, sid = system(parser=P())
     t = orch.handle_message(sid, "50")
     assert t.actions == [] and "not waiting" in t.assistant_text
@@ -242,7 +242,7 @@ def test_question_from_any_parser_never_pays():
     class Bad:   # a parser that wrongly turns a question into payments
         def parse(self, text, *, beneficiary_names, pending_question=None):
             return ParsedRequest(intents=[PayObligations(obligation_kinds=["tuition", "rent"]),
-                                          Pay(beneficiary_ref="mom", amount=D("300"))], parser="claude", raw_text=text)
+                                          Pay(beneficiary_ref="mom", amount=D("300"))], parser="local", raw_text=text)
     orch, ledger, receipts, sid = system(parser=Bad())
     t = orch.handle_message(sid, "can I afford to send 300 to mom after my bills?")
     assert t.actions == [] and t.projection is not None and ledger.exec_calls == 0
@@ -427,46 +427,3 @@ def test_regressions_kept():
     assert isinstance(one("pay half of what I owe the landlord"), Clarify)
     assert isinstance(one("no, I want to pay my rent"), PayObligations)
     assert one("Exchange some USD to get 300 EUR.").buy_amount == D("300")
-
-
-# ------------------------------------------------------------------ ClaudeParser v2
-class _Block:
-    def __init__(self, text):
-        self.type, self.text = "text", text
-
-
-class _Resp:
-    stop_reason = "end_turn"
-
-    def __init__(self, text):
-        self.content = [_Block(text)]
-
-
-class _Client:
-    def __init__(self, text=None, exc=None):
-        outer = self
-
-        class M:
-            def create(self, **kw):
-                outer.kw = kw
-                if exc:
-                    raise exc
-                return _Resp(text)
-        self.messages = M()
-
-
-def test_claude_new_intents_and_pending_question_in_prompt():
-    c = _Client('{"intents":[{"kind":"provide_detail","amount":"50","currency":"EUR","beneficiary_ref":null}]}')
-    r = ClaudeParser(client=c).parse("50 euros", beneficiary_names=["mom"], pending_question="How much to mom?")
-    assert r.parser == "claude" and isinstance(r.intents[0], ProvideDetail)
-    assert "How much to mom?" in c.kw["messages"][0]["content"]
-    assert "affordability_check" in c.kw["system"] and "never pay" in c.kw["system"].lower()
-    schema = json.dumps(c.kw["output_config"]["format"]["schema"])
-    for kind in ("affordability_check", "provide_detail", "correct", "cancel"):
-        assert kind in schema
-
-
-def test_claude_fallback_uses_pending_question():
-    r = ClaudeParser(client=_Client(exc=RuntimeError("x"))).parse(
-        "50", beneficiary_names=["mom"], pending_question="How much should I send to mom?")
-    assert r.parser == "rules" and isinstance(r.intents[0], ProvideDetail)

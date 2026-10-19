@@ -126,7 +126,11 @@ def _variants(tok: str) -> set[str]:
 
 
 def _word_number_values(words: list[str]) -> set[Decimal]:
-    vals: set[Decimal] = set()
+    return set(_word_number_list(words))
+
+
+def _word_number_list(words: list[str]) -> list[Decimal]:
+    vals: list[Decimal] = []
     i = 0
     while i < len(words):
         w = words[i]
@@ -151,7 +155,7 @@ def _word_number_values(words: list[str]) -> set[Decimal]:
                     break
                 j += 1
             if seen:
-                vals.add(Decimal(total + cur))
+                vals.append(Decimal(total + cur))
             i = max(j, i + 1)
         else:
             i += 1
@@ -163,13 +167,23 @@ def text_amounts(text: str) -> set[Decimal]:
     t = _ascii_digits(unicodedata.normalize("NFKC", text or ""))
     t = _IBAN_RE.sub(" ", t)                  # digits inside an IBAN are not amounts
     found: set[Decimal] = set()
+    for vals in _token_values(t):
+        found |= vals
+    found |= {d for d in _word_number_values(_words(t))}
+    return found
 
-    def add(s: str, mult: int = 1) -> None:
-        d = parse_amount(s)
-        if d is not None:
-            found.add(d * mult if mult != 1 else d)
 
+def _token_values(t: str) -> list[set[Decimal]]:
+    """For each numeric token of `t` (already NFKC, ASCII digits, IBANs removed), the amounts it can mean."""
+    out: list[set[Decimal]] = []
     for m in _NUM_TOKEN.finditer(t):
+        found: set[Decimal] = set()
+
+        def add(s: str, mult: int = 1) -> None:
+            d = parse_amount(s)
+            if d is not None:
+                found.add(d * mult if mult != 1 else d)
+
         tok, k = m.group(1), m.group(2)
         pieces = re.split(r"[    ]", tok)
         cands = {tok.replace(" ", "").replace(" ", "").replace(" ", "").replace(" ", "")}
@@ -179,8 +193,16 @@ def text_amounts(text: str) -> set[Decimal]:
                 add(v, 1000 if k else 1)
                 if k:
                     add(v)
-    found |= {d for d in _word_number_values(_words(t))}
-    return found
+        out.append(found)
+    return out
+
+
+def amount_mentions(text: str, amount: Decimal) -> int:
+    """How many times the text states `amount` (each numeric token or spelled-out number counts once)."""
+    t = _ascii_digits(unicodedata.normalize("NFKC", text or ""))
+    t = _IBAN_RE.sub(" ", t)
+    return (sum(1 for vals in _token_values(t) if amount in vals)
+            + sum(1 for d in _word_number_list(_words(t)) if d == amount))
 
 
 def fx_derived(amounts: set[Decimal]) -> set[Decimal]:
@@ -197,8 +219,8 @@ def _amount_ok(amount: Decimal, known: set[Decimal]) -> bool:
 
 
 # ---------------------------------------------------------------------------------------------- currencies
-_EUR_RE = re.compile(r"\b(?:euros?|eur|euro)\b|€|欧元|유로|евро|يورو|यूरो", re.I)
-_USD_RE = re.compile(r"\b(?:dollars?|usd|bucks?|us\$)\b|\$|dólar(?:es)?|dolar(?:es)?|美元|달러|доллар|دولار|डॉलर", re.I)
+_EUR_RE = re.compile(r"\b(?:euros?|eur|euro)\b|€|欧元|歐元|ユーロ|유로|евро|يورو|यूरो", re.I)
+_USD_RE = re.compile(r"\b(?:dollars?|usd|bucks?|us\$|dollari|dollaro)\b|\$|dólar(?:es)?|dolar(?:es)?|美元|美金|ドル|달러|доллар|دولار|डॉलर", re.I)
 
 
 def text_currencies(text: str) -> set[str]:
@@ -266,10 +288,13 @@ def kind_grounded(kind: str, text: str) -> bool:
 
 # ---------------------------------------------------------------------------------------------- payees
 # A few translations of the payee words the registry uses; an LLM may translate 'maman' to 'mom'.
+# v6 (AUDIT2-4): they are matched WITH their accents (see `_Text.has_syn`), and the ones that are English words or
+# first names once the accent is gone ('mère' -> 'mere', 'mãe' -> 'mae', 'père', 'anne', 'pai') are listed only in
+# their accented form.
 _PAYEE_SYNONYMS: dict[str, list[str]] = {
-    "mom": ["maman", "mama", "mamma", "mère", "mere", "mutter", "mami", "mamá", "madre", "mãe", "mae", "moeder",
-            "мама", "мать", "妈妈", "母亲", "엄마", "أمي", "ماما", "माँ", "मां", "anne", "mom", "mum", "mother"],
-    "dad": ["papa", "père", "pere", "vater", "padre", "pai", "vader", "папа", "отец", "爸爸", "아빠", "أبي", "बाप"],
+    "mom": ["maman", "mama", "mamma", "mère", "mutter", "mami", "mamá", "madre", "mãe", "moeder",
+            "мама", "мать", "妈妈", "母亲", "엄마", "أمي", "ماما", "माँ", "मां", "mom", "mum", "mother"],
+    "dad": ["papa", "père", "vater", "vader", "папа", "отец", "爸爸", "아빠", "أبي", "बाप"],
     "landlord": ["propriétaire", "proprietaire", "vermieter", "hauswirt", "arrendador", "casero", "propietario",
                  "senhorio", "padrone", "locatore", "verhuurder", "房东", "арендодатель", "집주인", "ev sahibi"],
     "university": ["université", "universite", "universität", "universidad", "universidade", "università",
@@ -283,17 +308,26 @@ def _identifiers(b: Beneficiary) -> list[str]:
     return [b.beneficiary_id, b.display_name, *b.aliases]
 
 
+def _acc(s: str) -> str:
+    """Casefolded, NFC, accents KEPT."""
+    return unicodedata.normalize("NFC", unicodedata.normalize("NFKC", s or "").casefold())
+
+
+def _words_acc(s: str) -> list[str]:
+    return "".join(ch if ch.isalnum() else " " for ch in _acc(s)).split()
+
+
 def _synonyms_of(b: Beneficiary) -> set[str]:
     ids = {_plain(x) for x in _identifiers(b)}
     out: set[str] = set()
     for group in _SYN_GROUPS:
         if ids & group:
             for g in group:
-                out.update(_plain(x) for x in _PAYEE_SYNONYMS.get(g, []))
+                out.update(_acc(x) for x in _PAYEE_SYNONYMS.get(g, []))
             out.update(group & {_plain(x) for x in _PAYEE_SYNONYMS})
     for g, syn in _PAYEE_SYNONYMS.items():
         if g in ids:
-            out.update(_plain(x) for x in syn)
+            out.update(_acc(x) for x in syn)
     return out
 
 
@@ -309,6 +343,7 @@ class _Text:
         self.raw = text or ""
         self.words = _words(self.raw)
         self.skel = _skel_words(self.raw)
+        self.words_acc = _words_acc(self.raw)
         self.iban_flat = normalize_iban(self.raw)
         self.amounts = text_amounts(self.raw)
         self.currencies = text_currencies(self.raw)
@@ -318,6 +353,10 @@ class _Text:
 
     def has_any(self, ws: Sequence[str]) -> bool:
         return any(self.has_word(w) for w in ws if w)
+
+    def has_syn(self, ws: Sequence[str]) -> bool:
+        """A translation of a payee word, matched with its accents ('mère' is not 'mere')."""
+        return any(_has_span(_words_acc(w), self.words_acc) for w in ws if w)
 
 
 def _resolve(ref: str, bens: Sequence[Beneficiary]) -> Beneficiary | None:
@@ -339,7 +378,7 @@ def ref_grounded(ref: str | None, tx: _Text, ctx: GroundingContext) -> bool:
         return True
     b = _resolve(ref, ctx.beneficiaries)
     if b is not None:
-        if tx.has_any(_identifiers(b)) or tx.has_any(sorted(_synonyms_of(b))):
+        if tx.has_any(_identifiers(b)) or tx.has_syn(sorted(_synonyms_of(b))):
             return True
         if ctx.draft_ref:
             d = _resolve(ctx.draft_ref, ctx.beneficiaries)
@@ -420,7 +459,33 @@ def ground_intents(intents: list, ctx: GroundingContext) -> tuple[list, list[Rep
     for i in intents:
         fn = _HANDLERS.get(getattr(i, "kind", ""))
         out.append(fn(i, tx, ctx, known, reps) if fn else i)
-    return out, reps
+    return _drop_duplicates(out, tx, reps), reps
+
+
+def _drop_duplicates(intents: list, tx: _Text, reps: list[Repair]) -> list:
+    """AUDIT2-8: grounding checks one intent at a time, so a model that repeats an intent would give several
+    identical cards. An exact duplicate is dropped unless the user's text states that amount as many times."""
+    seen: dict[Any, int] = {}
+    out: list = []
+    for i in intents:
+        key: Any = None
+        allowed = 1
+        if isinstance(i, Pay) and i.amount_mode == "exact" and i.amount is not None:
+            key = ("pay", _plain(i.beneficiary_ref or ""), i.amount, i.currency)
+            allowed = max(1, amount_mentions(tx.raw, i.amount))
+        elif isinstance(i, FxConvert):
+            key = ("fx", i.sell_currency, i.buy_currency, i.buy_amount)
+            allowed = max(1, amount_mentions(tx.raw, i.buy_amount))
+        elif isinstance(i, (PayObligations, AddBeneficiary)):
+            key = ("same", i.model_dump_json())
+        if key is not None:
+            seen[key] = seen.get(key, 0) + 1
+            if seen[key] > allowed:
+                reps.append(Repair(i.kind, "duplicate", "identical intent repeated more often than the message states it",
+                                   note="You asked for that once, so I made it once."))
+                continue
+        out.append(i)
+    return out
 
 
 def _g_amount(i, kind: str, name: str, amount: Decimal | None, known: set[Decimal], reps: list[Repair],
@@ -446,11 +511,23 @@ def _mask(v: Any) -> Any:
     return ("****" + normalize_iban(str(v))[-4:]) if v and _is_iban_like(str(v)) else v
 
 
-def _g_currency(i, kind: str, cur: str | None, tx: _Text, reps: list[Repair]) -> str | None:
-    if cur is None or len(tx.currencies) != 1 or cur in tx.currencies:
+def _g_currency(i, kind: str, cur: str | None, tx: _Text, reps: list[Repair], default: str | None = "EUR",
+                field: str = "currency") -> str | None:
+    """The currency must come from the user's words. v6 (AUDIT2-5): when the text names none, the model's choice is
+    replaced by `default` (EUR, or None = leave it to the pending action or the open draft)."""
+    if cur is None or cur in tx.currencies:
+        return cur
+    if not tx.currencies:
+        if default == cur:
+            return cur
+        reps.append(Repair(kind, field, "currency not named in the user's message", before=cur, after=default,
+                           note=f"You didn't name a currency, so I did not use {cur}"
+                                + (f" and used {default}." if default else ".")))
+        return default
+    if len(tx.currencies) != 1:
         return cur
     fixed = next(iter(tx.currencies))
-    reps.append(Repair(kind, "currency", "currency contradicts the user's message", before=cur, after=fixed,
+    reps.append(Repair(kind, field, "currency contradicts the user's message", before=cur, after=fixed,
                        note=f"You wrote amounts in {fixed}, so I used {fixed}, not {cur}."))
     return fixed
 
@@ -465,10 +542,20 @@ def _pay(i: Pay, tx, ctx, known, reps):
         upd["iban_hint"] = None
     if i.amount_mode == "exact" and i.amount is not None and not _g_amount(i, "pay", "amount", i.amount, known, reps):
         upd.update(amount_mode="unspecified", amount=None)
-    cur = _g_currency(i, "pay", i.currency, tx, reps)
+    cur = _g_currency(i, "pay", i.currency, tx, reps, default="EUR")
     if cur != i.currency:
         upd["currency"] = cur
+    if i.memo and not _memo_in_text(i.memo, tx):
+        reps.append(Repair("pay", "memo", "payment reference is not a span of the user's message", before=i.memo[:40],
+                           note="I left out the payment reference because it isn't in what you wrote."))
+        upd["memo"] = ""
     return i.model_copy(update=upd) if upd else i
+
+
+def _memo_in_text(memo: str, tx: _Text) -> bool:
+    """AUDIT2-6: the memo is sent to the payee, so it may only be words the user wrote (a contiguous span)."""
+    w = _words_acc(memo)
+    return bool(w) and _has_span(w, tx.words_acc)
 
 
 def _fx(i: FxConvert, tx, ctx, known, reps):
@@ -525,6 +612,9 @@ def _obligations(i: PayObligations, tx, ctx, known, reps):
         reps.append(Repair("pay_obligations", "keep_reserve", "reserve stated by the user was missing", after=stated,
                            note=f"You asked to keep {stated:f}, so I kept it."))
         upd["keep_reserve"] = stated
+    rc = _g_currency(i, "pay_obligations", i.reserve_currency, tx, reps, field="reserve_currency")
+    if rc != i.reserve_currency:
+        upd["reserve_currency"] = rc
     return i.model_copy(update=upd) if upd else i
 
 
@@ -534,6 +624,9 @@ def _detail(i: ProvideDetail, tx, ctx, known, reps):
         upd["amount"] = None
     if i.beneficiary_ref and not _g_ref("provide_detail", "beneficiary_ref", i.beneficiary_ref, tx, ctx, reps):
         upd["beneficiary_ref"] = None
+    cur = _g_currency(i, "provide_detail", i.currency, tx, reps, default=None)
+    if cur != i.currency:
+        upd["currency"] = cur
     return i.model_copy(update=upd) if upd else i
 
 
@@ -543,6 +636,9 @@ def _correct(i: Correct, tx, ctx, known, reps):
         upd["amount"] = None
     if i.beneficiary_ref and not _g_ref("correct", "beneficiary_ref", i.beneficiary_ref, tx, ctx, reps):
         upd["beneficiary_ref"] = None
+    cur = _g_currency(i, "correct", i.currency, tx, reps, default=None)
+    if cur != i.currency:
+        upd["currency"] = cur
     return i.model_copy(update=upd) if upd else i
 
 
