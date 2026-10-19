@@ -31,8 +31,10 @@ The PowerPoint file required by the organisers is **generated from this keynote*
     ./.venv/Scripts/python deliverables/pitch/build_deck.py          # renders the 15 slides, packs the PPTX, exports the PDF
 
 Output (in `deliverables/submission/`): `InternationalAI-TopicC-Centrale-Deck.pptx` and `.pdf`: the cover of the official
-template (project and team names filled in, the year "2025" painted out of the artwork), the 15 keynote slides as full-bleed
-1920x1080 images (final build state of each slide) with the speaker notes of `notes.js`, then the template's THANKS slide.
+template (project and team names filled in, the year "2025" painted out of the artwork), the 15 keynote slides (final build
+state of each slide; slide 1 shows its hook, because its title card repeats the cover), then the template's THANKS slide.
+In the PPTX the slides are full-bleed 1920x1080 images with the speaker notes of `notes.js`; in the PDF they are vector
+pages printed by Playwright (sharp, selectable text), between `../render/official_cover.pdf` and `../render/official_thanks.pdf`.
 The slide images are also kept in `deliverables/pitch/render/slide_NN.png`.
 
 The old 14-slide python-pptx deck `deliverables/pitch/BorderlessGuard_deck.pptx` was **removed**: it mapped the 15 script

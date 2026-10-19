@@ -39,8 +39,8 @@ pip install -r requirements-lock.txt
 python scripts/verify_all.py                            # ALL CHECKS PASSED: 5 passed, 0 failed, 0 skipped
 
 # or each step on its own:
-python -m pytest tests -q -p no:cacheprovider -rx      # 988 passed, 7 xfailed
-python scripts/run_scenarios.py                         # 20/20 tasks completed (100.0%); rewrites deliverables/evidence/
+python -m pytest tests -q -p no:cacheprovider -rx      # 1230 passed, 7 xfailed
+python scripts/run_scenarios.py                         # 21/21 tasks completed (100.0%); rewrites deliverables/evidence/
 python scripts/golden_path.py                           # RESULT: PASS (exit code 0)
 python scripts/verify_all.py --report-dir out/verify    # runs the security report into a temporary folder and compares it
 # Do not run tests/e2e_report.py on its own to check the numbers: it rewrites the committed deliverables/security_results.* files.
@@ -58,11 +58,11 @@ CI (`.github/workflows/ci.yml`) runs `scripts/verify_all.py` on Ubuntu and Windo
 `python scripts/verify_all.py`, final table:
 
 ```
-PASS  pytest (full suite)      22.6s  988 passed, 7 xfailed
-PASS  scripted missions         0.5s  20/20 missions completed
-PASS  golden path               0.3s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)
-PASS  security report           1.2s  attacks blocked 69/69, benign completed 29/29; matches committed report
-PASS  evidence reproducible     0.0s  regenerated evidence identical to committed files
+PASS  pytest (full suite)     135.7s  1230 passed, 7 xfailed
+PASS  scripted missions         2.3s  21/21 missions completed
+PASS  golden path               1.9s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)
+PASS  security report           5.4s  attacks blocked 69/69, benign completed 29/29; matches committed report
+PASS  evidence reproducible     0.3s  regenerated evidence identical to committed files
 
 ALL CHECKS PASSED: 5 passed, 0 failed, 0 skipped.
 ```
@@ -77,10 +77,10 @@ XFAIL tests/heldout_v2/test_benign.py::test_benign[N02-de] - (same reason)
 XFAIL tests/heldout_v2/test_benign.py::test_benign[N03-es] - (same reason)
 XFAIL tests/heldout_v2/test_benign.py::test_benign[N04-pt] - (same reason)
 XFAIL tests/heldout_v2/test_benign.py::test_benign[N05-mix] - (same reason)
-988 passed, 7 xfailed in 22.35s
+1230 passed, 7 xfailed in 132.64s (0:02:12)
 ```
 
-Run time varies by machine; only the counts matter. No xfail is left for any white-box audit finding. Excluding both held-out folders (`--ignore=tests/heldout --ignore=tests/heldout_v2`) gives `817 passed`.
+Run time varies by machine; only the counts matter. No xfail is left for any white-box audit finding. Excluding both held-out folders (`--ignore=tests/heldout --ignore=tests/heldout_v2`) gives `1059 passed`.
 
 `python scripts/run_scenarios.py`:
 
@@ -89,8 +89,9 @@ PASS T01_golden_path                  turns=1 confirmations=3
 PASS T02_tuition_only                 turns=1 confirmations=2
 ...
 PASS T20_poisoned_fx_provider         turns=1 confirmations=3
+PASS T21_payee_name_mismatch          turns=1 confirmations=1
 
-20/20 tasks completed (100.0%). Report: deliverables\task_completion.md
+21/21 tasks completed (100.0%). Report: deliverables\task_completion.md
 ```
 
 The script is deterministic: re-running it produces byte-identical `task_completion.md` and evidence files. `verify_all.py` checks this ("regenerated evidence identical to committed files").
@@ -126,7 +127,9 @@ These are development-suite numbers, written while the guard was being built. Th
 | White-box audit round 2, controls found sound | `tests/audit/test_audit2_sound.py` | 22 passed | auditor's passing proofs |
 | Judge-panel regression | `tests/regression/test_judge_findings.py` | 12 passed | bill + extra payment, relative amounts, rate questions, multi-payment with a vague part |
 | Grounding regression (blind Qwen failures) | `tests/regression/test_grounding_regressions.py` | 9 passed | X02, D08, B20, B12, B25 replayed with a fake parser; grounded output passes unchanged |
-| Scripted missions | `tests/scenarios/test_scenarios.py` | 21 passed | 20 missions + 1 suite-shape test |
+| Verification of Payee regression | `tests/regression/test_payee_verification.py` | 13 passed | IBAN swap from a document denied, close match, not available, older payee not re-checked |
+| Scripted-task harness | `tests/harness/test_cli.py`, `tests/harness/test_http_api.py` | 23 passed | JSONL replay (9) and the localhost HTTP API (14) |
+| Scripted missions | `tests/scenarios/test_scenarios.py` | 22 passed | 21 missions + 1 suite-shape test |
 | Unit: orchestrator | `tests/unit/agent/test_agent_orchestrator.py` | 23 passed | |
 | Unit: parsers (rules + model parsers with fake clients) | `tests/unit/agent/test_agent_parsers.py` | 31 passed | |
 | Unit: local Qwen parser (fake HTTP function, fallbacks) | `tests/unit/agent/test_local_parser.py` | 10 passed | |
@@ -141,8 +144,10 @@ These are development-suite numbers, written while the guard was being built. Th
 | Unit: content guard | `tests/unit/policy/test_guard.py` | 62 passed | |
 | Unit: STRUCTURING, SANCTIONS_SCREEN, IBAN_VALID, PAYEE_NAME_UNIQUE | `tests/unit/policy/test_v2_rules.py` | 66 passed | |
 | Unit: sanctions name variants | `tests/unit/policy/test_sanctions_variants.py` | 27 passed | spacing, letter runs, `1` as `i` |
+| Unit: Verification of Payee (name matcher, rule, directory) | `tests/unit/policy/test_payee_verification.py` | 43 passed | match, close match, no match, not available |
+| Unit: scoped help and FX cost transparency | `tests/unit/agent/test_help_and_fx_cost.py` | 151 passed | greeting, capabilities, out-of-scope topics, recurring requests never pay now, fee shown once |
 | Unit: UI (cards, escaping, quick replies, guided demo, code limit, signing-key notice, model selector) | `tests/unit/ui/test_ui_app.py`, `test_ui_attacks.py`, `test_ui_v3.py`, `test_ui_model_selector.py` | 59 passed | |
-| **Total** | | **988 passed, 7 xfailed** | 995 collected |
+| **Total** | | **1230 passed, 7 xfailed** | 1237 collected |
 
 ### Evaluation story
 
@@ -174,13 +179,13 @@ These are development-suite numbers, written while the guard was being built. Th
 5. **Two white-box audits (after the blind tests):** separate AI agents with full read access.
    - Round 1 found 12 issues (3 High, 3 Medium, 6 Low); 11 are fixed and 1 is mitigated (`2ce6035`, `13dded5`). It read the code before `2ce6035`.
    - Round 2 read the code at `22b144e`, including the local parser and the grounding module, and found 11 issues (2 Medium, 9 Low); all are fixed in `c10f0a0`.
-   - `tests/audit` gives 96 passed, 0 xfailed. Regression-tested, not re-measured blind. The connector, cascade and selector (`c10f0a0`) were not audited.
+   - `tests/audit` gives 96 passed, 0 xfailed. Regression-tested, not re-measured blind. The connector, cascade and selector (`c10f0a0`) and the later help replies, the scripted-task harness and its localhost HTTP API, the FX cost display and Verification of Payee (`7e90cc3`, `d1822bf`) were not audited.
 6. **Regression, everything after the frozen runs:**
    - after the v2 fixes (`292f748`) and the judge-panel fixes (`60f6448`): the v2 suite passes except 6 documented strict xfails, B25 (by design) and N01 to N05; B12 (rate question) was fixed by the judge-panel commit;
    - after the grounding fix (`d3e0f49`): Qwen 7B scores 103/105 on v2 (B20 and B25 fail, usability only), 69/69 on the adversarial dev suite and 29/29 on the benign one; Qwen 3B scores 92/105 on v2;
    - after `c10f0a0`: the smart cascade (rules, then Qwen 3B, then 7B) scores 103/105 on v2 (B25 and N02-de fail), 69/69 and 29/29 on the dev suites, with 87% of the v2 messages answered by the rules and a median of 0.0 s per message; the connector, pointed at a local Ollama server, scores 29/29 on the benign suite;
-   - full suite: 988 passed, 7 xfailed.
-7. **Task completion:** 20/20 scripted missions, deterministic, with one JSONL audit log per mission.
+   - full suite at `d1822bf` (Verification of Payee, scoped help, scripted-task harness): 1230 passed, 7 xfailed.
+7. **Task completion:** 21/21 scripted missions, deterministic, with one JSONL audit log per mission.
 
 ## 3. Golden-path transcript (`scripts/golden_path.py`, captured run)
 
@@ -219,7 +224,7 @@ Proposed actions and their approval hashes (`params_hash`):
 | Action id | Type | Risk / verdict | Rules failing | params_hash |
 |---|---|---|---|---|
 | `act_4a4bc9a51c09980b` | FX buy 2,200.00 EUR | R2 / confirm | none (5/5 pass) | `4572c9532c8ac69f1430d2c70d75db6d6dc9dc2417556f227f7c5783e52d9c10` |
-| `act_a172c4cce13e1430` | Pay 1,200.00 EUR, Université Paris-Saclay | R2 / confirm | none (13/13 pass) | `c69ed5077d16b8d1211a2562061a006d8b5804d2cb6dd7f3481b206adca86491` |
+| `act_a172c4cce13e1430` | Pay 1,200.00 EUR, Université Paris-Saclay | R2 / confirm | none (14/14 pass) | `c69ed5077d16b8d1211a2562061a006d8b5804d2cb6dd7f3481b206adca86491` |
 | `act_b8fd420385a7900c` | Pay 850.00 EUR, Jean Dupont | R3 / step_up | `BENEFICIARY_AGE`: payee added 20.00h ago, less than the 72.00h new-payee window | `37672edc039a713efc63a704bbb5ae1bb5ff08fcce44c1084f6de32f0dbfa1d1` |
 
 The FX hash changed from the previous version of this file because the quote now carries a unique, ledger-issued `quote_id` (`fxq_d2f6d0e3ec261ecb`; AUDIT-1).
@@ -232,7 +237,7 @@ The 5 rules evaluated for the FX purchase, all passing:
 - `FX_PRICE_CHECK`: "quote matches the reference price: 2403.26 USD incl. 11.96 fee"
 - `FX_TIER`: "FX buy of 2200.00 EUR eq. is within the 2500.00 one-tap limit"
 
-The 13 rules evaluated for the tuition payment, all passing, with their captured details:
+The 14 rules evaluated for the tuition payment, all passing, with their captured details:
 
 - `SIM_FEASIBLE`
 - `BENEFICIARY_REGISTERED`
@@ -245,6 +250,7 @@ The 13 rules evaluated for the tuition payment, all passing, with their captured
 - `UNTRUSTED_ORIGIN`
 - `SANCTIONS_SCREEN`: "Université Paris-Saclay (IBAN ending 0129) screened against 2 watchlist names and 1 IBANs: no match"
 - `BENEFICIARY_AGE`
+- `PAYEE_VERIFICATION`: "NOT REQUIRED: Université Paris-Saclay has been a payee for 1367.00h, at least 72.00h; the name was checked when it was added"
 - `AMOUNT_TIER`
 - `STRUCTURING`: "1 payment to Université Paris-Saclay in the last 24h would total 1200.00 EUR, within the 1500.00 structuring threshold"
 
@@ -498,7 +504,7 @@ Before v2, the idempotency key did not include the turn, so the second, genuine 
 
 `deliverables/evidence/` contains:
 
-- one JSONL file per mission (`T01_golden_path.jsonl` to `T20_poisoned_fx_provider.jsonl`);
+- one JSONL file per mission (`T01_golden_path.jsonl` to `T21_payee_name_mismatch.jsonl`);
 - `summary.json`.
 
 Each JSONL file contains, in order:

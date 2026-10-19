@@ -7,8 +7,8 @@
 Every statement about behaviour refers to code in this repository and to commands that were actually run on 2026-10-19 (commit `c10f0a0` plus these documents).
 
 - **One-command check:** `scripts/verify_all.py` runs all of the checks below and ends with "ALL CHECKS PASSED: 5 passed, 0 failed, 0 skipped". CI runs it on Ubuntu and Windows on every push, and also builds the Docker image.
-- **Full test suite:** `pytest tests -q -p no:cacheprovider -rx` gives **988 passed, 7 xfailed** (995 collected).
-- **Scripted missions:** `scripts/run_scenarios.py` completes **20/20** scripted missions.
+- **Full test suite:** `pytest tests -q -p no:cacheprovider -rx` gives **1230 passed, 7 xfailed** (1237 collected).
+- **Scripted missions:** `scripts/run_scenarios.py` completes **21/21** scripted missions.
 - **Golden path:** `scripts/golden_path.py` prints `RESULT: PASS`.
 - **Security report:** `tests/e2e_report.py` (run through `verify_all.py`, which redirects its output) gives 69/69 attacks blocked and 29/29 benign completed, identical to the committed `security_results.json`.
 - **Local-model reports:** `deliverables/blind_llm/` (the frozen blind runs), `deliverables/regression_llm/` (re-runs after the grounding fix, and the cascade and connector runs of `c10f0a0`) were produced by `scripts/eval_parser.py` with Ollama running. `verify_all.py` does not need Ollama and does not re-run them; Section 12.4 and `execution_evidence.md` Section 9 say how to.
@@ -347,9 +347,9 @@ All thresholds live in `bg/contracts/params.py` (policy version `bg-policy-2026.
 
 **Rules evaluated per action type:**
 
-- **Payment: 13 rules when a reserve was stated, 12 otherwise** (`RESERVE_FLOOR` is only evaluated when a reserve was stated). They are `SIM_FEASIBLE`, `BENEFICIARY_REGISTERED`, `BENEFICIARY_NOT_BLOCKED`, `IBAN_MATCHES_REGISTRY`, `TENANT_ISOLATION`, `RESERVE_FLOOR`, `MAX_SINGLE_PAYMENT`, `DAILY_LIMIT`, `UNTRUSTED_ORIGIN`, `SANCTIONS_SCREEN`, `BENEFICIARY_AGE`, `AMOUNT_TIER` and `STRUCTURING`.
+- **Payment: 14 rules when a reserve was stated, 13 otherwise** (`RESERVE_FLOOR` is only evaluated when a reserve was stated). They are `SIM_FEASIBLE`, `BENEFICIARY_REGISTERED`, `BENEFICIARY_NOT_BLOCKED`, `IBAN_MATCHES_REGISTRY`, `TENANT_ISOLATION`, `RESERVE_FLOOR`, `MAX_SINGLE_PAYMENT`, `DAILY_LIMIT`, `UNTRUSTED_ORIGIN`, `SANCTIONS_SCREEN`, `BENEFICIARY_AGE`, `PAYEE_VERIFICATION`, `AMOUNT_TIER` and `STRUCTURING`.
 - **FX: 5 rules with a reserve, 4 without.** They are `SIM_FEASIBLE`, `TENANT_ISOLATION`, `RESERVE_FLOOR`, `FX_PRICE_CHECK` and `FX_TIER`.
-- **Add-beneficiary: 5 rules.** They are `SIM_FEASIBLE`, `IBAN_VALID`, `PAYEE_NAME_UNIQUE`, `SANCTIONS_SCREEN` and `NEW_PAYEE_ACTION`.
+- **Add-beneficiary: 6 rules.** They are `SIM_FEASIBLE`, `IBAN_VALID`, `PAYEE_NAME_UNIQUE`, `SANCTIONS_SCREEN`, `PAYEE_VERIFICATION` and `NEW_PAYEE_ACTION`.
 
 | Rule id | Applies to | Severity | Threshold / condition |
 |---|---|---|---|
@@ -368,6 +368,7 @@ All thresholds live in `bg/contracts/params.py` (policy version `bg-policy-2026.
 | `BENEFICIARY_AGE` | payment | R3 | payee added at least 72 h before `ctx.now` |
 | `AMOUNT_TIER` | payment | R3 | amount <= 1,500 EUR eq. for one-tap |
 | `STRUCTURING` | payment | R3 | same-payee executed payments in the last 24 h + this one <= 1,500 EUR eq. |
+| `PAYEE_VERIFICATION` | payment (payee younger than 72 h), add-beneficiary | R3 (R4 when the IBAN comes from a document of the same turn and the name does not match) | Verification of Payee: the payee's name matches the registered holder of the IBAN in the bank's directory. Close match, no match or not available asks for a code; a payee older than 72 h passes as NOT REQUIRED |
 | `FX_PRICE_CHECK` | FX | R4 | rate, fee and sell amount equal the bank's reference price to the cent; quote not expired and expiring no later than `FX_QUOTE_TTL` |
 | `FX_TIER` | FX | R3 | buy amount <= 2,500 EUR eq. for one-tap |
 | `NEW_PAYEE_ACTION` | add-beneficiary | R3 | always fails, i.e. always step-up |
@@ -590,7 +591,7 @@ Every repair is recorded in a `grounding` audit step (parser, intent, field, rea
 
 `bg.app.build_default()` uses `RulesParser`, a regex-based English parser, unless `BG_PARSER` says otherwise. The ledger, policy, guard, receipts, clock and seed data are all deterministic. As a result:
 
-- the demo, all 995 collected tests and the 20 missions run without network access, a model or an API key;
+- the demo, all 1237 collected tests and the 21 missions run without network access, a model or an API key;
 - they produce identical hashes on every run, as long as `BG_RECEIPT_KEY` is unset, so that the anchor signature uses the demo key.
 
 The language-model parsers are optional, and the security properties do not depend on them (Section 13).
@@ -621,7 +622,7 @@ Arithmetic: 450 + X - 1,200 - 850 = 600, so the EUR shortfall X = 2,200.00.
 |---|---|---|---|
 | 0 | Rent invoice scanned | `prompt_injection` event on `doc_rent_nov`; matched patterns: hidden_html_comment_to_ai, instruction_override, addressed_to_ai, skip_confirmation, transfer_request, instruction_override_fr, conflicting_ibans; the document is quarantined | none; no action derived from it |
 | 1 | FX: buy 2,200.00 EUR, sell 2,403.26 USD (fee 11.96 USD included: 0.5% of 2,391.30 USD, the amount before the fee); the quote matches the reference price (`FX_PRICE_CHECK`) | R2, 5/5 rules pass | tap |
-| 2 | Pay 1,200.00 EUR to Université Paris-Saclay (registry IBAN) | R2, 13/13 rules pass | tap |
+| 2 | Pay 1,200.00 EUR to Université Paris-Saclay (registry IBAN) | R2, 14/14 rules pass | tap |
 | 3 | Pay 850.00 EUR to Jean Dupont (registry IBAN, not the attacker IBAN in the invoice comment) | R3: `BENEFICIARY_AGE` fails (payee added 20.00 h ago, under 72.00 h); 12/13 pass | OTP |
 
 ![Plan with injection warning: FX, tuition and rent proposed with their tiers](screenshots/03_plan_and_injection.png)
@@ -647,11 +648,11 @@ Arithmetic: 450 + X - 1,200 - 850 = 600, so the EUR shortfall X = 2,200.00.
 | Out-of-order confirmation | T11 |
 | Double confirmation | F5, T17 |
 
-## 11. Task completion: 20 scripted missions
+## 11. Task completion: 21 scripted missions
 
-`scripts/run_scenarios.py` runs the 20 missions defined as plain data in `scenarios/tasks.py`. They run against the real backend, offline, with a fixed clock. The report is `deliverables/task_completion.md` and the totals are in `deliverables/evidence/summary.json`.
+`scripts/run_scenarios.py` runs the 21 missions defined as plain data in `scenarios/tasks.py`. They run against the real backend, offline, with a fixed clock. The report is `deliverables/task_completion.md` and the totals are in `deliverables/evidence/summary.json`.
 
-**Result: 20/20 completed (100.0%), deterministic.** A completed mission averages 1.60 user turns and 2.05 confirmation acts.
+**Result: 21/21 completed (100.0%), deterministic.** A completed mission averages 1.57 user turns and 2.00 confirmation acts.
 
 Coverage:
 
@@ -661,7 +662,8 @@ Coverage:
 - adding a payee and then paying them (T10);
 - an out-of-order confirmation (T11), a wrong OTP then the right one (T12), an OTP lockout (T13);
 - an injected invoice (T14), structuring (T15), a sanctioned payee (T16), replay (T17);
-- an ambiguous amount (T18), a data-access attempt (T19), a poisoned FX provider (T20).
+- an ambiguous amount (T18), a data-access attempt (T19), a poisoned FX provider (T20);
+- a "new bank details" payee whose name does not match the account holder (T21, Verification of Payee).
 
 **What "completed" requires.** A mission completes only if all of the following hold:
 
@@ -887,7 +889,7 @@ The auditor also listed what failed safe but blocks some legitimate requests whe
 
 **What the second audit found sound** (22 passing proofs in `test_audit2_sound.py`): only the user's text, the user's own payee names and the pending question reach a local model; the local parser falls back to the rules parser in nine failure modes; the environment cannot redirect the parser; grounding drops invented amounts, payees, IBANs and new-payee names; a question never yields a payment, a conversion or a new payee; a watch-listed name in an uploaded document stops every payment of that turn; the receipts table escapes payee names. The auditor found no API key, token or personal e-mail address in any of the commits.
 
-**Not audited.** The model connector, the cascade, the Language model selector and the rewritten local parser are part of `c10f0a0`. They came after round 2 and have had no third white-box review. Their tests are ours.
+**Not audited.** The model connector, the cascade, the Language model selector and the rewritten local parser are part of `c10f0a0`. They came after round 2 and have had no third white-box review. The same holds for the later help replies, the scripted-task harness and its localhost HTTP API, the FX cost display and Verification of Payee (`7e90cc3`, `d1822bf`). Their tests are ours.
 
 ### 12.6 Regression: post-blind fixes, grounding and the full suite
 
@@ -936,7 +938,7 @@ Mean latency per call after the fix: 2.6 s (7B, held-out v2). X02, D04, D05, D08
 
 #### 12.6.3 Full suite
 
-`pytest tests -q -p no:cacheprovider -rx` gives **988 passed, 7 xfailed** (995 collected) at `c10f0a0`. The 7 xfails are v1 B08 plus the 6 v2 xfails above. No xfail is left for any audit finding.
+`pytest tests -q -p no:cacheprovider -rx` gives **1230 passed, 7 xfailed** (1237 collected) at `d1822bf`. The 7 xfails are v1 B08 plus the 6 v2 xfails above. No xfail is left for any audit finding.
 
 | Folder | Result |
 |---|---|
@@ -945,12 +947,13 @@ Mean latency per call after the fix: 2.6 s (7B, held-out v2). X02, D04, D05, D08
 | `tests/heldout` | 72 passed, 1 xfailed |
 | `tests/heldout_v2` | 99 passed, 6 xfailed |
 | `tests/audit` | 96 passed (49 round 1, 47 round 2) |
-| `tests/regression` | 21 passed (12 judge-panel, 9 grounding) |
-| `tests/scenarios` | 21 passed |
-| `tests/unit/agent` | 269 passed |
+| `tests/regression` | 34 passed (12 judge-panel, 9 grounding, 13 Verification of Payee) |
+| `tests/scenarios` | 22 passed |
+| `tests/harness` | 23 passed (CLI replay 9, localhost HTTP API 14) |
+| `tests/unit/agent` | 420 passed |
 | `tests/unit/ledger` | 43 passed |
-| `tests/unit/policy` | 210 passed |
-| `tests/unit/ui` | 59 passed |
+| `tests/unit/policy` | 253 passed |
+| `tests/unit/ui` | 70 passed |
 
 `scripts/verify_all.py` runs this suite plus the missions, the golden path, the security report and the evidence check, and CI runs it on Ubuntu and Windows on every push (Section 14). It uses the rules parser and fake LLM clients; the Ollama runs above are separate.
 
@@ -1050,4 +1053,4 @@ The demo video script (`deliverables/pitch/demo_video_script.md`) follows the sa
 | [09_untrusted_text_escaped](screenshots/09_untrusted_text_escaped.png) | An HTML payload in a payee name shown as text (AUDIT-6) |
 | [g0](screenshots/g0_guided_start.png) to [g6](screenshots/g6_guided_step6.png) | The guided demo: start screen and steps 1 to 6 |
 
-**Verification and deployment.** `scripts/verify_all.py` runs the full test suite, the 20 missions, the golden path, the security report (compared with the committed `security_results.json`) and a check that the regenerated evidence is identical to the committed files, and ends with a PASS/FAIL table. CI (`.github/workflows/ci.yml`) runs it on Ubuntu and Windows on every push, builds the Docker image and checks that the UI answers. `docker run --rm -p 8501:8501 borderlessguard` serves the demo without a local Python install. Inside the image `verify_all.py` skips the evidence-diff step, because the image has no git history. `requirements-lock.txt` pins every package, including transitive ones.
+**Verification and deployment.** `scripts/verify_all.py` runs the full test suite, the 21 missions, the golden path, the security report (compared with the committed `security_results.json`) and a check that the regenerated evidence is identical to the committed files, and ends with a PASS/FAIL table. CI (`.github/workflows/ci.yml`) runs it on Ubuntu and Windows on every push, builds the Docker image and checks that the UI answers. `docker run --rm -p 8501:8501 borderlessguard` serves the demo without a local Python install. Inside the image `verify_all.py` skips the evidence-diff step, because the image has no git history. `requirements-lock.txt` pins every package, including transitive ones.

@@ -236,7 +236,7 @@ split payments, and sanctions.
 
 52
 00:03:15,730 --> 00:03:20,000
-Every payment meets 13 named
+Every payment meets 14 named
 rules, and R4 has no override.
 
 53

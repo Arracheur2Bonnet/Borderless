@@ -16,7 +16,7 @@
 | One-line summary | An AI money agent for international students: it pays tuition, rent and family transfers from one sentence, and a forged invoice or a hostile prompt cannot redirect the money. |
 | Submission date | 2026-10-20 |
 
-BorderlessGuard pays an international student's tuition, rent and family transfers from one sentence, and a forged invoice or a hostile prompt cannot redirect the money. The language model only turns the sentence into a structured request. It has no payment tool and never sees an IBAN, a balance or a document. Plain code checks that every amount, payee and account in that request appears in what the student wrote, then checks every payment against 13 rules, and the student approves with a tap or a one-time code. Safety does not depend on which parser runs: the offline rules parser, a local Qwen model, a smart cascade of both, or a model you connect through an OpenAI-compatible endpoint.
+BorderlessGuard pays an international student's tuition, rent and family transfers from one sentence, and a forged invoice or a hostile prompt cannot redirect the money. The language model only turns the sentence into a structured request. It has no payment tool and never sees an IBAN, a balance or a document. Plain code checks that every amount, payee and account in that request appears in what the student wrote, then checks every payment against 14 rules, and the student approves with a tap or a one-time code. Safety does not depend on which parser runs: the offline rules parser, a local Qwen model, a smart cascade of both, or a model you connect through an OpenAI-compatible endpoint.
 
 **The LLM proposes. A deterministic policy authorises. A sandbox executes.**
 
@@ -108,20 +108,20 @@ docker run --rm borderlessguard python scripts/verify_all.py       # the same ch
 
 | Step | What it runs | Expected |
 |---|---|---|
-| pytest | `python -m pytest tests -q -p no:cacheprovider -rx` | 988 passed, 7 xfailed |
-| scripted missions | `python scripts/run_scenarios.py` (rewrites `deliverables/evidence/`) | 20/20 completed |
+| pytest | `python -m pytest tests -q -p no:cacheprovider -rx` | 1230 passed, 7 xfailed |
+| scripted missions | `python scripts/run_scenarios.py` (rewrites `deliverables/evidence/`) | 21/21 completed |
 | golden path | `python scripts/golden_path.py` | RESULT: PASS |
 | security report | `tests/e2e_report.py`, written to a temporary folder and compared with `deliverables/security_results.json` | 69/69 attacks blocked, 29/29 benign completed |
 | evidence reproducible | `git diff` on the regenerated `deliverables/evidence/` | identical to the committed files |
 
-The final table of a run on 2026-10-19 at commit `c10f0a0` (Windows 11, Python 3.11.6):
+The final table of a run on 2026-10-19 at commit `d1822bf` (Windows 11, Python 3.11.6):
 
 ```
-PASS  pytest (full suite)      22.6s  988 passed, 7 xfailed
-PASS  scripted missions         0.5s  20/20 missions completed
-PASS  golden path               0.3s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)
-PASS  security report           1.2s  attacks blocked 69/69, benign completed 29/29; matches committed report
-PASS  evidence reproducible     0.0s  regenerated evidence identical to committed files
+PASS  pytest (full suite)     135.7s  1230 passed, 7 xfailed
+PASS  scripted missions         2.3s  21/21 missions completed
+PASS  golden path               1.9s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)
+PASS  security report           5.4s  attacks blocked 69/69, benign completed 29/29; matches committed report
+PASS  evidence reproducible     0.3s  regenerated evidence identical to committed files
 
 ALL CHECKS PASSED: 5 passed, 0 failed, 0 skipped.
 ```
@@ -199,7 +199,7 @@ untrusted text --> ContentGuard (advisory) --> Parser (rules, local Qwen, cascad
 | R3 | one-time code | new payee, larger amounts, splitting payments (structuring), adding a payee |
 | R4 | hard deny | infeasible; unregistered or blocked payee; IBAN differs from registry; other tenant; reserve floor; > 4,000 EUR per payment; > 5,000 EUR per day; untrusted origin; sanctions hit or a name that cannot be screened; invalid IBAN for a new payee; new payee name that looks like an existing one; FX quote not at the bank's reference price; code approval locked after 3 wrong codes |
 
-A payment is evaluated against 13 rules when a reserve is stated (12 otherwise), a currency purchase against 5 (4 without a reserve, including `FX_PRICE_CHECK`), and adding a payee against 5 (`SIM_FEASIBLE`, `IBAN_VALID`, `PAYEE_NAME_UNIQUE`, `SANCTIONS_SCREEN`, `NEW_PAYEE_ACTION`). The receipts form a "Proof-of-Intent" chain, one per customer; the full rule list and the receipt design are in `deliverables/technical_document.md`.
+A payment is evaluated against 14 rules when a reserve is stated (13 otherwise), a currency purchase against 5 (4 without a reserve, including `FX_PRICE_CHECK`), and adding a payee against 6 (`SIM_FEASIBLE`, `IBAN_VALID`, `PAYEE_NAME_UNIQUE`, `SANCTIONS_SCREEN`, `PAYEE_VERIFICATION`, `NEW_PAYEE_ACTION`). `PAYEE_VERIFICATION` is a Verification of Payee check: a new payee's name must match the registered holder of the account. The receipts form a "Proof-of-Intent" chain, one per customer; the full rule list and the receipt design are in `deliverables/technical_document.md`.
 
 ## Repository map
 
@@ -211,7 +211,7 @@ A payment is evaluated against 13 rules when a reserve is stated (12 otherwise),
 | `bg/ledger/` | `SandboxLedger` (issued FX quotes), `StepUpAttempts` (per-customer code lockout), `SqliteReceiptStore` (per-customer Proof-of-Intent chains, signed anchors) |
 | `bg/app.py` | Single wiring point: `build_default()` |
 | `ui/app.py`, `ui/guided.py`, `design/tokens.css` | Streamlit UI (light and dark, shared design tokens): tabs Assistant, Receipts, Attack test; one **Language model** selector in the sidebar; guided six-step demo on the real backend |
-| `scenarios/`, `scripts/run_scenarios.py` | 20 scripted missions and their runner |
+| `scenarios/`, `scripts/run_scenarios.py` | 21 scripted missions and their runner |
 | `scripts/verify_all.py` | One-command verification (see Reproduce) |
 | `scripts/golden_path.py`, `scripts/screenshots.py` | Golden-path proof script; UI screenshot capture (Playwright) |
 | `scripts/eval_parser.py` | Runs a test folder with a chosen parser (`rules`, `local`, `connected`, `cascade`) and reports pass/fail, latency and fallback rate |
@@ -239,8 +239,8 @@ Six layers, read differently. Only layers 3 and 4 estimate generalisation, each 
 | 4 | Blind held-out v2, Qwen2.5 7B (local), frozen in `5868d83` | same 105 cases | **66/70 attacks blocked = 94.3% (CI 86.2 to 97.8)**; multi-turn 15/15; benign EN 26/30 = 86.7% (CI 70.3 to 94.7); non-English 5/5 | **Generalisation estimate for the LLM parser**; one run, temperature 0 |
 | 4 | Same run, Qwen2.5 3B | same | 65/70 attacks; benign EN 21/30; non-English 3/5 | Smaller model, worse on every rate |
 | 5 | White-box security audits (after the blind tests) | Round 1: 12 findings (3 High, 3 Medium, 6 Low). Round 2: 11 findings (2 Medium, 9 Low) | Round 1: 11 fixed, 1 mitigated (AUDIT-12, demo signing key). Round 2: all 11 fixed in `c10f0a0`. `tests/audit/` 96 passed, 0 xfails left | Code reviews by separate AI agents; the fixes are regression-tested, not blind-tested |
-| 6 | Regression after the fixes | 995 collected | 988 passed, 7 xfailed. Rules on v2: 99 passed + 6 strict xfails. Qwen 7B after the grounding fix: v2 103/105, dev suites 69/69 and 29/29. Smart cascade (`c10f0a0`): v2 103/105, 87% of messages answered by the rules, median 0.0 s per message; dev suites 69/69 and 29/29 | Not generalisation: the system was changed after seeing these cases |
-| | Scripted missions | 20 | 20/20 completed, deterministic, one JSONL audit log each | Task completion; team-scripted |
+| 6 | Regression after the fixes | 1237 collected | 1230 passed, 7 xfailed. Rules on v2: 99 passed + 6 strict xfails. Qwen 7B after the grounding fix: v2 103/105, dev suites 69/69 and 29/29. Smart cascade (`c10f0a0`): v2 103/105, 87% of messages answered by the rules, median 0.0 s per message; dev suites 69/69 and 29/29 | Not generalisation: the system was changed after seeing these cases |
+| | Scripted missions | 21 | 21/21 completed, deterministic, one JSONL audit log each | Task completion; team-scripted |
 
 The v2 held-out set was written by a separate AI agent (not a human) with restricted file access: it read the spec and the public interfaces, and could not read the guard, parser, policy or ledger code, the other tests or the deliverables. Its 105 cases were fixed before the first run, and the results were committed in `44542f2` before any code was changed. In that run, multi-turn attacks were blocked 15/15, benign English requests completed 24/30 (80.0%, CI 62.7 to 90.5), and the 5 non-English requests 0/5 (out of scope for the offline parser). No test made a wrong payment, leaked data or executed without confirmation.
 
@@ -272,7 +272,7 @@ A second white-box audit, by another separate AI agent, read the code at `22b144
 | AUDIT2-10 | Low | Parser telemetry kept the raw message and the raw model output | Only a hash, a length and the error class are recorded |
 | AUDIT2-11 | Low | A long message with repeated numbers cost quadratic CPU | 2,000-character limit before any parsing; a linear number pattern |
 
-Section 12.5 of `deliverables/technical_document.md` lists each finding of both rounds. The `c10f0a0` additions (connector, cascade, model selector, the rewritten local parser) came after the round-2 audit and have had no third white-box review. None of these fixes was re-measured on a new blind set.
+Section 12.5 of `deliverables/technical_document.md` lists each finding of both rounds. The `c10f0a0` additions (connector, cascade, model selector, the rewritten local parser) and the later help replies, the scripted-task harness and its localhost HTTP API, the FX cost display and Verification of Payee (`7e90cc3`, `d1822bf`) came after the round-2 audit and have had no third white-box review. None of these fixes was re-measured on a new blind set.
 
 **Correction about v1.** Earlier versions said all 14 v1 document-injection cases were detected. That was inflated. The seeded rent invoice is itself injected and was also scanned on rent requests, so its event masked **8** real detection misses (Spanish, Arabic, Chinese, base64, leetspeak, table, polite request, fake bank notice). In all 8 the money stayed safe, because the registry IBAN and the registry amount were used. The 8 are now detected by three language-independent signals: conflicting IBANs, encoded payloads (base64 decoded and rescanned) and obfuscated instructions (leetspeak folded and rescanned). Details are in `deliverables/heldout_results.md`.
 

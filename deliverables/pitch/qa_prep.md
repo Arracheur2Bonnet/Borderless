@@ -27,13 +27,13 @@ weakness, say so first, then say what we would do. Never argue with a judge abou
 | Results frozen before fixes | rules: commit `44542f2` ("results frozen BEFORE any fix"), fixes in `292f748`. Qwen: commit `5868d83`, grounding fix in `d3e0f49` | `git log`; check with `git cat-file -e <hash>` |
 | Sample size needed for a 95% lower bound above 95% | 73 cases with no miss, or 110 cases with one miss (Wilson) | computed, not run |
 | Development suites (not blind) | 69/69 adversarial, 29/29 benign (98 cases) | `deliverables/security_results.md` |
-| Scripted missions | 20/20 completed, mean 1.60 user turns, 2.05 confirmations, JSONL audit log per mission | `deliverables/task_completion.md`, `deliverables/evidence/` |
-| Whole repo | 988 passed, 7 xfailed (2026-10-19, commit `c10f0a0`; 995 collected) | live `pytest tests -q -p no:cacheprovider` |
+| Scripted missions | 21/21 completed, mean 1.57 user turns, 2.00 confirmations, JSONL audit log per mission | `deliverables/task_completion.md`, `deliverables/evidence/` |
+| Whole repo | 1230 passed, 7 xfailed (2026-10-19, commit `d1822bf`; 1237 collected) | live `pytest tests -q -p no:cacheprovider` |
 | White-box audits (after the two blind tests) | Round 1: 12 findings (3 high, 3 medium, 6 low), 11 fixed, 1 mitigated (demo signing key). Round 2: 11 findings (2 medium, 9 low), all fixed. 96 audit tests pass | `docs/review/security_audit.md`; fixes in `2ce6035` (bg/), `13dded5` (AUDIT-6, UI) and `c10f0a0` (round 2) |
 | Smart cascade (regression, not blind) | rules, then Qwen 3B, then 7B: v2 103/105; dev suites 69/69 and 29/29; rules answer 119 of 137 messages (87%); median 0.0 s per message | `deliverables/regression_llm/regression_cascade_*`; `c10f0a0` |
 | Model connector | OpenAI-compatible, https for remote hosts, key from `BG_MODEL_API_KEY`. Run only against local Ollama (benign 29/29) and fake servers. **No frontier model measured** | `deliverables/regression_llm/regression_connected_benign/`; `tests/unit/agent/test_connectors.py` |
 | Commits to cite | `44542f2` blind v2 frozen (rules); `5868d83` blind v2 frozen (Qwen); `292f748` post-blind fixes; `60f6448` judge-panel fixes; `2ce6035` audit round-1 fixes; `d3e0f49` grounding; `c10f0a0` audit round-2 fixes, connector and cascade | `git cat-file -e <hash>` |
-| Rules on one payment | 13 named rules (10 x R4, 3 x R3: BENEFICIARY_AGE, AMOUNT_TIER, STRUCTURING) | live golden path, `bg/policy/engine.py` |
+| Rules on one payment | 14 named rules (10 x R4, 4 x R3: BENEFICIARY_AGE, PAYEE_VERIFICATION, AMOUNT_TIER, STRUCTURING) | live golden path, `bg/policy/engine.py` |
 | Thresholds | R2 tap: payment <= 1,500 EUR, FX <= 2,500; R4: > 4,000 per payment, > 5,000 per day; new payee < 72 h; structuring > 1,500 EUR to one payee in 24 h; 3 OTP attempts | `bg/contracts/params.py` |
 | Problem-slide stakes | BEC losses USD 2,770,151,146 (FBI IC3 2024, p. 10); prompt injection = LLM01 (OWASP LLM Top 10 2025) | `deliverables/pitch/sources.md` |
 
@@ -153,7 +153,7 @@ timestamping; on-chain anchoring is not implemented.
 **14. What stops the LLM from being jailbroken?**
 The design does not need to stop it. The LLM only emits structured intents; it has no tool that moves money, never
 builds an action and never sees an IBAN or document text. Actions are built by code from the registry and judged by
-13 rules that the model cannot talk to. A fully jailbroken parser can at worst propose a different intent among the
+14 rules that the model cannot talk to. A fully jailbroken parser can at worst propose a different intent among the
 user's own payees, which still meets the same rules and the same confirmation card.
 
 **15. Is the guard just regexes?**
@@ -385,7 +385,7 @@ to it.
    not calibrated on data. **WEAK.** Strong: calibrate against a published payment-size distribution and report what
    share of normal student payments each threshold would step up.
 2. **"What is your false-positive rate: how often do you bother a legitimate user?"** We have no real-user data. In
-   the 20 scripted missions the mean is 2.05 confirmations and 1.60 messages per task. **WEAK.** Strong: a small
+   the 21 scripted missions the mean is 2.00 confirmations and 1.57 messages per task. **WEAK.** Strong: a small
    usability test with a friction count.
 3. **"Can the agent advise when to convert dollars?"** No. The rate is fixed in the sandbox and we do not forecast
    FX. **WEAK.** Strong: show the affordability projection under a rate band (for example plus or minus 5%) so Lina
@@ -496,12 +496,12 @@ to it.
    (`handle_message`, `confirm`) is channel-independent. **WEAK.** Strong: a minimal chat-bot or JSON-lines CLI.
 5. **"How is it deployed?"** One command, offline, with pinned versions in `requirements-lock.txt`. A Dockerfile and a
    CI workflow (Ubuntu and Windows) exist. There is no hosted demo.
-6. **"How do you test?"** Unit tests, development adversarial and benign suites, two blind sets, 20 scripted
+6. **"How do you test?"** Unit tests, development adversarial and benign suites, two blind sets, 21 scripted
    missions with JSONL logs, and strict xfails for known limits so a silent change fails the build.
 7. **"Is it reproducible?"** Yes: fixed demo clock, deterministic parser and ledger, identical receipt hashes on
    re-run.
 8. **"What if the LLM API fails?"** Any error, refusal or malformed output falls back to the rules parser, with a note.
-9. **"How do the rules scale?"** The policy is a pure function over one action and the simulated state; 13 rules per
+9. **"How do the rules scale?"** The policy is a pure function over one action and the simulated state; 14 rules per
    payment. Cost is negligible next to an LLM call.
 10. **"Are the interfaces stable?"** The data contracts were frozen first (pydantic models in `bg/contracts/`), and
     every module is wired in one place, `bg/app.py`.

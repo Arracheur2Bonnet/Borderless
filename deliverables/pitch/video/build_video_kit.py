@@ -171,15 +171,15 @@ def check_numbers() -> list[str]:
     from ui.attacks import ATTACKS
     need(len(ATTACKS) == 7 and "seven known attacks" in text, "7 attacks in the app")
     html = read("deliverables/pitch/keynote/index.html")
-    need(len(re.findall(r'<div class="ctrl', html)) == 8 and "Eight controls" in text, "8 controls (keynote slide 9)")
-    # 13 rules from a live golden-path run
+    need(len(re.findall(r'<div class="ctrl[ "]', html)) == 8 and "Eight controls" in text, "8 controls (keynote slide 9)")
+    # 14 rules from a live golden-path run
     from bg.app import build_default
     from bg.contracts.models import UntrustedDocument
     o = build_default()
     sid = o.new_session(P.DEMO_USER_ID)
     t = o.handle_message(sid, P.DEMO_GOAL, [UntrustedDocument(**d) for d in P.SEED_DOCUMENTS])
     pay = next(v for v in t.actions if v.action.action_type == "payment" and v.action.beneficiary_id == "b_univ")
-    need(len(pay.decision.rules) == 13 and "13 named rules" in text, "13 named rules (live run)")
+    need(len(pay.decision.rules) == 14 and "14 named rules" in text, "14 named rules (live run)")
     srcs = read("deliverables/pitch/sources.md")
     need("Business Email Compromise  $2,770,151,146" in srcs and "2.77 billion" in text, "FBI IC3 2024: USD 2.77 bn")
     need("LLM01" in srcs and "top risk for AI applications, says OWASP" in text, "OWASP LLM01: prompt injection")
@@ -463,7 +463,7 @@ Target: {tc(total)} (official limit 5:00, our limit 4:45). 1920x1080, 30 fps, H.
 | `narration_elevenlabs.md` | The narration only, per segment, with target durations, word counts, ElevenLabs settings and file names. |
 | `pronunciation_elevenlabs.pls` | ElevenLabs pronunciation dictionary: IBAN, Qwen, Ollama, Shenzhen, WeBank, Paris-Saclay, OWASP, FATE, FISCO BCOS, R4. |
 | `subtitles_en.srt` | English subtitles, {len(make_subs())} cues, timed to the segments (also copied to `deliverables/submission/{FILE}.srt`). |
-| `film.html`, `film.css`, `film.js`, `film_data.js` | Film mode: the seven non-live scenes, auto-playing, offline. Reuses `../keynote/keynote.css` and the design tokens `../keynote/assets/tokens.css`. |
+| `film.html`, `film.css`, `film.js`, `film_data.js` | Film mode: the seven non-live scenes, auto-playing, offline. Uses `film_base.css` (a frozen copy of the first keynote stylesheet) and the design tokens `../keynote/assets/tokens.css`. |
 | `check_film.py` | Playwright check of film.html (no network, no console error, every scene screenshot). |
 | `build_video_kit.py` | Regenerates the SRT, the narration file, film_data.js, the pronunciation file, this README and `../demo_video_script.md`. |
 | `../demo_video_script.md` | The shot list: timecodes, what is on screen, exact UI labels, narration. |

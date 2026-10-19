@@ -92,7 +92,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the first card"
+     "point at the big number on the left"
     ],
     [
      "say",
@@ -108,7 +108,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the second card"
+     "point at the \"#1\" on the right"
     ],
     [
      "say",
@@ -124,7 +124,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the third card"
+     "click: the line at the bottom appears"
     ],
     [
      "say",
@@ -180,7 +180,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the boxes, left to right"
+     "point along the line, left to right: the dashed line in the middle is where authority starts"
     ]
    ],
    [
@@ -548,7 +548,7 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "do",
-     "point at the rows, top to bottom"
+     "point at the messages, top to bottom"
     ]
    ],
    [
@@ -584,7 +584,7 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "do",
-     "point at the grey box, top left"
+     "point at the first control, top left, with the dashed amber line"
     ]
    ],
    [
@@ -614,7 +614,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the orange and red boxes"
+     "point at the two controls marked Financial crime"
     ],
     [
      "say",
@@ -624,7 +624,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the bottom bar"
+     "point at the line at the bottom"
     ],
     [
      "say",
@@ -635,9 +635,9 @@ window.KEYNOTE_NOTES = {
  },
  "10": {
   "section": "S10",
-  "words": 30,
+  "words": 45,
   "from": "4:53",
-  "to": "5:07",
+  "to": "5:14",
   "paras": [
    [
     [
@@ -648,11 +648,17 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Every payment meets thirteen named rules."
+     "Every payment meets fourteen named rules."
     ],
     [
      "do",
      "point at the list on the right"
+    ]
+   ],
+   [
+    [
+     "say",
+     "The newest one checks that the payee's name matches the bank's record of the account."
     ]
    ],
    [
@@ -672,8 +678,8 @@ window.KEYNOTE_NOTES = {
  "11": {
   "section": "S11",
   "words": 93,
-  "from": "5:07",
-  "to": "5:52",
+  "from": "5:14",
+  "to": "5:59",
   "paras": [
    [
     [
@@ -710,7 +716,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the first tile"
+     "point at the big number"
     ],
     [
      "say",
@@ -726,7 +732,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the second tile"
+     "point at 15/15"
     ],
     [
      "say",
@@ -736,7 +742,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the third tile"
+     "point at 24/30"
     ],
     [
      "say",
@@ -746,7 +752,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at the green bar"
+     "point at the three green lines"
     ],
     [
      "say",
@@ -760,7 +766,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "point at Caveats"
+     "point at the fine print at the bottom"
     ],
     [
      "say",
@@ -778,8 +784,8 @@ window.KEYNOTE_NOTES = {
  "12": {
   "section": "S12",
   "words": 152,
-  "from": "5:52",
-  "to": "7:05",
+  "from": "5:59",
+  "to": "7:12",
   "paras": [
    [
     [
@@ -878,8 +884,8 @@ window.KEYNOTE_NOTES = {
  "13": {
   "section": "S13",
   "words": 50,
-  "from": "7:05",
-  "to": "7:29",
+  "from": "7:12",
+  "to": "7:36",
   "paras": [
    [
     [
@@ -910,8 +916,8 @@ window.KEYNOTE_NOTES = {
  "14": {
   "section": "S14",
   "words": 31,
-  "from": "7:29",
-  "to": "7:44",
+  "from": "7:36",
+  "to": "7:51",
   "paras": [
    [
     [
@@ -926,13 +932,13 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "do",
-     "point at each column in turn"
+     "point at each row in turn"
     ]
    ],
    [
     [
      "say",
-     "Task completion: twenty of twenty scripted missions pass."
+     "Task completion: twenty-one of twenty-one scripted missions pass."
     ]
    ],
    [
@@ -952,8 +958,8 @@ window.KEYNOTE_NOTES = {
  "15": {
   "section": "S15",
   "words": 83,
-  "from": "7:44",
-  "to": "8:24",
+  "from": "7:51",
+  "to": "8:31",
   "paras": [
    [
     [

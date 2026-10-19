@@ -4,12 +4,14 @@
 
 Output (deliverables/submission/):
     InternationalAI-TopicC-Centrale-Deck.pptx   17 slides, 16:9
-    InternationalAI-TopicC-Centrale-Deck.pdf    same, exported with LibreOffice
+    InternationalAI-TopicC-Centrale-Deck.pdf    same order; the 15 keynote slides are VECTOR pages printed by Playwright
+                                                (text stays sharp and selectable), between the official cover and
+                                                THANKS pages kept in render/official_cover.pdf and render/official_thanks.pdf
 
 Structure, in this order:
     1       the cover of the official template (docs/official_templates/presentation-template.pptx), with the project
             and team names filled in; the year "2025" painted out of the template artwork
-    2..16   the 15 keynote slides, each one a full-bleed 1920x1080 image of the FINAL build state of the slide,
+    2..16   the 15 keynote slides, each one a full-bleed 1920x1080 image of the FINAL build state of the slide (slide 1: its hook, see PRINT_BUILD),
             rendered by Playwright from deliverables/pitch/keynote/index.html (so the deck can never drift from the
             keynote), with the speaker notes of notes.js (generated from speaker_script.md by build_keynote.py)
     17      the THANKS slide of the template (year painted out)
@@ -24,7 +26,6 @@ import io
 import json
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -41,11 +42,13 @@ RENDER = HERE / "render"
 SUBMIT = ROOT / "deliverables/submission"
 TEMPLATE = ROOT / "docs/official_templates/presentation-template.pptx"
 NAME = "InternationalAI-TopicC-Centrale-Deck"
-SOFFICE = Path("C:/Program Files/LibreOffice/program/soffice.exe")
 PROJECT = "BorderlessGuard"
 TEAM_LINE = "Team Centrale \u00b7 International AI Track \u00b7 Topic C \u00b7 2026"
 FONT = "Segoe UI"        # the template's HarmonyOS font is not installed on most machines
 N_SLIDES = 15
+# Build state printed for a slide when it is not the last one. Slide 1 ends on a title card that repeats the official
+# cover, so the printed deck shows its hook instead: Lina, the forged invoice and EUR 450 against EUR 2,000.
+PRINT_BUILD = {1: 2}
 
 
 # ============================================================================ 1. render the keynote
@@ -60,13 +63,14 @@ def render_slides() -> list[Path]:
         page = br.new_context(viewport={"width": 1920, "height": 1080}, device_scale_factor=1).new_page()
         page.goto((KN / "index.html").as_uri())
         page.wait_for_selector("body.ready")
+        page.evaluate("document.fonts.ready.then(() => 1)")
         page.add_style_tag(content="#progress,#counter,#navbtns,#goto{display:none!important} body{cursor:none}")
         n = page.evaluate("document.querySelectorAll('.slide').length")
         assert n == N_SLIDES, f"the keynote has {n} slides, expected {N_SLIDES}"
         for i in range(n):
-            nb = page.evaluate(f"+document.querySelectorAll('.slide')[{i}].dataset.builds || 0")
+            nb = PRINT_BUILD.get(i + 1) or page.evaluate(f"+document.querySelectorAll('.slide')[{i}].dataset.builds || 0")
             page.evaluate(f"location.hash = '#{i + 1}.{nb}'")
-            page.wait_for_timeout(900)
+            page.wait_for_timeout(1400)
             f = RENDER / f"slide_{i + 1:02d}.png"
             page.screenshot(path=str(f))
             out.append(f)
@@ -218,12 +222,38 @@ def build_pptx(images: list[Path], notes: dict, ttl: list[str]) -> Path:
     return out
 
 
-def export_pdf(pptx: Path) -> Path:
-    assert SOFFICE.is_file(), "LibreOffice not found"
-    subprocess.run([str(SOFFICE), "--headless", "--convert-to", "pdf", "--outdir", str(SUBMIT), str(pptx)],
-                   check=True, capture_output=True, timeout=300)
+def export_pdf() -> Path:
+    """Official cover, the 15 slides as vector pages (final build state), official THANKS page; all 960x540 pt."""
+    import pymupdf
+    from playwright.sync_api import sync_playwright
+
+    pages = []
+    with sync_playwright() as p:
+        br = p.chromium.launch()
+        page = br.new_context(viewport={"width": 1920, "height": 1080}).new_page()
+        page.goto((KN / "index.html").as_uri())
+        page.wait_for_selector("body.ready")
+        page.evaluate("document.fonts.ready.then(() => 1)")
+        page.emulate_media(media="screen")
+        page.add_style_tag(content="#progress,#counter,#navbtns,#goto,#notes,#help,#blank{display:none!important}"
+                                   "*{transition:none!important} @page{size:1920px 1080px;margin:0}")
+        for i in range(N_SLIDES):
+            nb = PRINT_BUILD.get(i + 1) or page.evaluate(f"+document.querySelectorAll('.slide')[{i}].dataset.builds || 0")
+            page.evaluate(f"location.hash = '#{i + 1}.{nb}'")
+            page.wait_for_timeout(400)
+            pages.append(page.pdf(width="1920px", height="1080px", print_background=True, page_ranges="1"))
+        br.close()
+    out = pymupdf.open()
+    cover, thanks = (pymupdf.open(RENDER / f"official_{k}.pdf") for k in ("cover", "thanks"))
+    out.insert_pdf(cover)
+    w, h = out[0].rect.width, out[0].rect.height
+    for raw in pages:
+        src = pymupdf.open("pdf", raw)
+        out.new_page(width=w, height=h).show_pdf_page(pymupdf.Rect(0, 0, w, h), src, 0)
+    out.insert_pdf(thanks)
+    out.set_metadata({"title": f"{PROJECT} · Team Centrale", "author": "Team Centrale", "subject": TEAM_LINE})
     pdf = SUBMIT / f"{NAME}.pdf"
-    assert pdf.is_file()
+    out.save(pdf, garbage=4, deflate=True)
     return pdf
 
 
@@ -238,7 +268,7 @@ def main() -> None:
     pptx = build_pptx(images, notes, ttl)
     print(f"wrote {pptx.relative_to(ROOT)} ({pptx.stat().st_size // 1024} KB)")
     if "--no-pdf" not in sys.argv:
-        pdf = export_pdf(pptx)
+        pdf = export_pdf()
         import pymupdf
         n = len(pymupdf.open(pdf))
         assert n == N_SLIDES + 2, f"PDF has {n} pages"

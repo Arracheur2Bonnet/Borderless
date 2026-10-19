@@ -153,13 +153,15 @@ assert "claude" not in HTML.lower(), "a slide still mentions Claude"
 # --- development numbers
 TC = read("deliverables/task_completion.md")
 m = re.search(r"Tasks: \*\*(\d+)\*\*, completed: \*\*(\d+)\*\*", TC)
-claim(f"{m[2]} of {m[1]}", m[1] == m[2] == "20", "scripted missions")
+claim(f"{m[2]} of {m[1]}", m[1] == m[2] == "21", "scripted missions")
 AUD = read("docs/review/security_audit.md")
 AUD_N = len(re.findall(r"^\| AUDIT-\d+ \| \*?\*?(?:High|Medium|Low)", AUD, re.M))
-claim("12 findings", AUD_N == 12, "audit findings")
-claim("12 audit findings", AUD_N == 12, "audit findings")
+AUD2_N = len(re.findall(r"^\| AUDIT2-\d+ \| \*?\*?(?:High|Medium|Low)", AUD, re.M))
+assert "All 11 round-2 findings are fixed" in AUD
+claim(f"{AUD_N + AUD2_N} findings, all fixed or mitigated", (AUD_N, AUD2_N) == (12, 11), "audit rounds 1 and 2")
+claim(f"{AUD_N + AUD2_N} audit findings fixed or mitigated", (AUD_N, AUD2_N) == (12, 11), "audit rounds 1 and 2")
 
-# --- the 13 rules and thresholds, from a live run of the golden path
+# --- the 14 rules and thresholds, from a live run of the golden path
 from bg.app import build_default  # noqa: E402
 from bg.contracts import params as P  # noqa: E402
 from bg.contracts.models import UntrustedDocument  # noqa: E402
@@ -169,9 +171,10 @@ sid = o.new_session(P.DEMO_USER_ID)
 t = o.handle_message(sid, P.DEMO_GOAL, [UntrustedDocument(**d) for d in P.SEED_DOCUMENTS])
 pay = next(v for v in t.actions if v.action.action_type == "payment" and v.action.beneficiary_id == "b_univ")
 RULES = [(x.rule_id, x.severity.value) for x in pay.decision.rules]
-assert len(RULES) == 13 and sum(s == "R4" for _, s in RULES) == 10 and sum(s == "R3" for _, s in RULES) == 3, RULES
-claim("13 named rules", True, "")
-claim("10 deny", True, ""); claim("3 ask for a code", True, "")
+assert len(RULES) == 14 and sum(s == "R4" for _, s in RULES) == 10 and sum(s == "R3" for _, s in RULES) == 4, RULES
+claim("14 named rules", True, "")
+claim("The 14 rules on Lina's tuition payment", True, "")
+claim("10 deny", True, ""); claim("4 ask for a code", True, "")
 for rid, sev in RULES:
     claim(f'<span class="rid {sev.lower()}">{rid}</span>', True, "rule id from live run")
 assert int(P.R2_MAX_PAYMENT_EUR) == 1500 and int(P.R2_MAX_FX_EUR) == 2500 and int(P.MAX_SINGLE_PAYMENT_EUR) == 4000
@@ -191,7 +194,7 @@ claim(re.sub(r"\s+", " ", hidden).strip(), True, "hidden comment text, verbatim"
 claim("20 hours ago", True, "demo step 4 text")
 SRCS = read("deliverables/pitch/sources.md")
 assert "Business Email Compromise  $2,770,151,146" in SRCS and "Prompt injection is listed as **LLM01**" in SRCS
-claim("USD 2.77 bn", True, "sources.md S1")
+claim('<span class="u pre">USD</span>2.77<span class="u">bn</span>', True, "sources.md S1")
 claim("#1", True, "")
 
 # --- live test run

@@ -305,7 +305,7 @@ window.FILM_DATA = {
    "id": "10",
    "slug": "controls",
    "kind": "film",
-   "title": "Why it holds: eight controls and 13 named rules",
+   "title": "Why it holds: eight controls and 14 named rules",
    "part": "Safety mechanisms",
    "start": 176.78,
    "vstart": 177.18,
@@ -340,7 +340,7 @@ window.FILM_DATA = {
     {
      "t": 195.73,
      "end": 200.04,
-     "text": "Every payment meets 13 named rules, and R4 has no override."
+     "text": "Every payment meets 14 named rules, and R4 has no override."
     }
    ],
    "button": "",
@@ -726,7 +726,7 @@ window.FILM_DATA = {
   {
    "t": 195.73,
    "end": 200.0,
-   "text": "Every payment meets 13 named\nrules, and R4 has no override."
+   "text": "Every payment meets 14 named\nrules, and R4 has no override."
   },
   {
    "t": 201.12,

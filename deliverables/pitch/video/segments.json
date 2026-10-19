@@ -160,17 +160,17 @@
       "slug": "controls",
       "kind": "film",
       "part": "Safety mechanisms",
-      "title": "Why it holds: eight controls and 13 named rules",
+      "title": "Why it holds: eight controls and 14 named rules",
       "lead": 0.4,
       "tail": 0.4,
-      "screen": "film.html scene 4. 'Only one of eight controls reads the text.' Eight tiles appear in turn (the first one dashed: it only warns), then the ladder R0, R2, R3, R4 with '13 named rules' and 'R4: denied, no override'.",
+      "screen": "film.html scene 4. 'Only one of eight controls reads the text.' Eight tiles appear in turn (the first one dashed: it only warns), then the ladder R0, R2, R3, R4 with '14 named rules' and 'R4: denied, no override'.",
       "sentences": [
         "Why does it hold?",
         "Eight controls, and only the first reads the text, and it only warns.",
         "Account numbers come only from saved payees.",
         "Approval is locked to a hash of the exact payment.",
         "Two checks target financial crime: split payments, and sanctions.",
-        "Every payment meets 13 named rules, and R4 has no override."
+        "Every payment meets 14 named rules, and R4 has no override."
       ]
     },
     {

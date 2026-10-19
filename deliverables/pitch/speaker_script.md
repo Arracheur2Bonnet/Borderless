@@ -1,6 +1,6 @@
 # BorderlessGuard: speaker script for the 10-minute defence
 
-Target: **about 8:54 on stage** (8:24 of speech at a calm 125 words per minute, plus about 30 seconds of clicking),
+Target: **about 9:01 on stage** (8:31 of speech at a calm 125 words per minute, plus about 30 seconds of clicking),
 which leaves more than a minute of margin inside the 10 minutes.
 
 Lines that start with `>` are said word for word. Text in [brackets] is a stage direction: do it, do not say it.
@@ -51,16 +51,16 @@ extra time the live demo needs.
 | 7 | LIVE step 6: seven known attacks, replayed live | 56 | 0:26 | 0:08 | 4:27 |
 | 8 | Slide: a correction is a new action, never an edit | 37 | 0:17 | 0:03 (switch) | 4:48 |
 | 9 | Only one of eight controls reads the text | 72 | 0:34 |  | 5:23 |
-| 10 | 13 named rules on every payment; R4 has no override | 30 | 0:14 |  | 5:37 |
-| 11 | HERO: blind test, rules parser, 69/70 attacks blocked, 0 wrong payments | 93 | 0:44 |  | 6:22 |
-| 12 | Safety does not depend on the model (rules vs Qwen 7B) | 152 | 1:12 |  | 7:35 |
-| 13 | What it does not do yet | 50 | 0:24 |  | 7:59 |
-| 14 | Each judging criterion, with evidence you can rerun | 31 | 0:14 |  | 8:14 |
-| 15 | What we would build next with WeBank | 83 | 0:39 |  | **8:54** |
+| 10 | 14 named rules on every payment; R4 has no override | 45 | 0:22 |  | 5:45 |
+| 11 | HERO: blind test, rules parser, 69/70 attacks blocked, 0 wrong payments | 93 | 0:44 |  | 6:30 |
+| 12 | Safety does not depend on the model (rules vs Qwen 7B) | 152 | 1:12 |  | 7:43 |
+| 13 | What it does not do yet | 50 | 0:24 |  | 8:07 |
+| 14 | Each judging criterion, with evidence you can rerun | 31 | 0:14 |  | 8:22 |
+| 15 | What we would build next with WeBank | 83 | 0:39 |  | **9:01** |
 
-Total: 1,050 spoken words = 8:24 of speech, plus about 30 seconds of clicks and switching = **about 8:54**.
+Total: 1,065 spoken words = 8:31 of speech, plus about 30 seconds of clicks and switching = **about 9:01**.
 The word counts above are from the last count of this file; if you change words, recount (`build_keynote.py` prints the total) and copy the new counts.
-Checkpoints: leave the demo (end of S7) by **4:45**; start the hero slide (S11) by **5:40**; start S12 (the model slide) by **6:25**.
+Checkpoints: leave the demo (end of S7) by **4:45**; start the hero slide (S11) by **5:48**; start S12 (the model slide) by **6:33**.
 
 ### S1 · Title slide
 
@@ -78,11 +78,11 @@ Checkpoints: leave the demo (end of S7) by **4:45**; start the hero slide (S11) 
 ### S2 · Invoice fraud meets an AI that can pay
 [click]
 
-> [point at the first card] Fake payment requests, with changed bank details, are an old crime.
+> [point at the big number on the left] Fake payment requests, with changed bank details, are an old crime.
 > In 2024, the FBI received reports of two point eight billion dollars lost to them.
-> [point at the second card] For AI applications, the number one risk on the OWASP list is prompt injection:
+> [point at the "#1" on the right] For AI applications, the number one risk on the OWASP list is prompt injection:
 > hidden instructions in text, like in Lina's invoice.
-> [point at the third card] An AI agent that pays bills is the perfect target.
+> [click: the line at the bottom appears] An AI agent that pays bills is the perfect target.
 > If the model decides, the attacker decides. [pause]
 > So we built an agent that is safe by construction.
 
@@ -91,7 +91,7 @@ Checkpoints: leave the demo (end of S7) by **4:45**; start the hero slide (S11) 
 
 > Here is the idea in one sentence. [look at the jury, not the slide]
 > The AI reads your request. Fixed rules and your approval move the money.
-> [point at the boxes, left to right]
+> [point along the line, left to right: the dashed line in the middle is where authority starts]
 > The language model only writes a request, like "pay tuition and rent, keep six hundred".
 > It has no tools. It never sees a bank account number.
 > A checker drops any amount or name that Lina did not write.
@@ -168,7 +168,7 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 
 [This slide is never live: the dialogue is shown here, not typed, to keep the demo short and safe.]
 
-> It is also a real dialogue. [point at the rows, top to bottom]
+> It is also a real dialogue. [point at the messages, top to bottom]
 > A missing amount becomes a question. She changes her mind: "actually make it forty".
 > The old action is cancelled, never edited. A new one is checked again. "Cancel that" stops it.
 
@@ -176,19 +176,20 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 
 ### S9 · Only one of eight controls reads the text
 
-> So why does it hold? [point at the grey box, top left]
+> So why does it hold? [point at the first control, top left, with the dashed amber line]
 > Eight controls. Only the first one reads the text, and it only gives a warning.
 > [sweep your hand over the other seven]
 > Account numbers come only from the saved payees. Approval is tied to a hash, so a changed payment is refused.
 > Codes lock after three wrong tries. A replay never pays twice.
-> [point at the orange and red boxes] And two financial-crime controls: split payments, and sanctions.
-> [point at the bottom bar] We also had our code audited twice: twenty-three findings, all fixed or mitigated.
+> [point at the two controls marked Financial crime] And two financial-crime controls: split payments, and sanctions.
+> [point at the line at the bottom] We also had our code audited twice: twenty-three findings, all fixed or mitigated.
 
-### S10 · 13 named rules on every payment; R4 has no override
+### S10 · 14 named rules on every payment; R4 has no override
 
 [click]
 
-> Every payment meets thirteen named rules. [point at the list on the right]
+> Every payment meets fourteen named rules. [point at the list on the right]
+> The newest one checks that the payee's name matches the bank's record of the account.
 > Risk 2 is one tap. Risk 3 needs a code.
 > Risk 4 is a hard no, and nothing the model says can change it.
 
@@ -198,12 +199,12 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 > Now the most important slide. [pause]
 > A separate AI agent wrote one hundred five new cases. It could not read our security code.
 > The results were committed before we fixed anything. [pause]
-> [point at the first tile] Seventy attacks: sixty-nine blocked. Ninety-eight point six percent.
+> [point at the big number] Seventy attacks: sixty-nine blocked. Ninety-eight point six percent.
 > The interval is between ninety-two and ninety-nine point seven.
-> [point at the second tile] All fifteen multi-turn attacks: blocked.
-> [point at the third tile] Normal English requests: twenty-four out of thirty.
-> [point at the green bar] Zero wrong payments, zero data leaks, zero executions without confirmation. [pause]
-> [point at Caveats] Nine attacks were stopped only because the parser did not understand them.
+> [point at 15/15] All fifteen multi-turn attacks: blocked.
+> [point at 24/30] Normal English requests: twenty-four out of thirty.
+> [point at the three green lines] Zero wrong payments, zero data leaks, zero executions without confirmation. [pause]
+> [point at the fine print at the bottom] Nine attacks were stopped only because the parser did not understand them.
 > The one miss, a look-alike letter, needed Lina's code. It is fixed.
 
 ### S12 · Safety does not depend on the model
@@ -232,8 +233,8 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 ### S14 · Each judging criterion, with evidence you can rerun
 [click]
 
-> Against your criteria. [point at each column in turn]
-> Task completion: twenty of twenty scripted missions pass.
+> Against your criteria. [point at each row in turn]
+> Task completion: twenty-one of twenty-one scripted missions pass.
 > Security: sixty-nine of seventy blind attacks blocked, sixty-six with the model.
 > Interaction: clarify, correct, cancel, and questions answered by simulation.
 

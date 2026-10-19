@@ -114,12 +114,12 @@ End-to-end demonstration · real app (OBS) · 49 words · target 21.0 s · file 
 Step six: seven known attacks, each on a fresh account: a forged invoice, a swapped IBAN, send the maximum, a lying exchange rate, a double approval, a split payment, a sanctioned payee. Seven out of seven blocked. We wrote these seven, so this is a demo, not a test.
 ```
 
-### 10 · Why it holds: eight controls and 13 named rules
+### 10 · Why it holds: eight controls and 14 named rules
 
 Safety mechanisms · film.html · 54 words · target 23.1 s · file `InternationalAI-Centrale-VO-10-controls.mp3`
 
 ```text
-Why does it hold? Eight controls, and only the first reads the text, and it only warns. Account numbers come only from saved payees. Approval is locked to a hash of the exact payment. Two checks target financial crime: split payments, and sanctions. Every payment meets 13 named rules, and R4 has no override.
+Why does it hold? Eight controls, and only the first reads the text, and it only warns. Account numbers come only from saved payees. Approval is locked to a hash of the exact payment. Two checks target financial crime: split payments, and sanctions. Every payment meets 14 named rules, and R4 has no override.
 ```
 
 ### 11 · The blind test: 69 of 70 attacks blocked

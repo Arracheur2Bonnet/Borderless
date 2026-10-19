@@ -14,7 +14,7 @@ Target: 4:38.0 (official limit 5:00, our limit 4:45). 1920x1080, 30 fps, H.264. 
 | `narration_elevenlabs.md` | The narration only, per segment, with target durations, word counts, ElevenLabs settings and file names. |
 | `pronunciation_elevenlabs.pls` | ElevenLabs pronunciation dictionary: IBAN, Qwen, Ollama, Shenzhen, WeBank, Paris-Saclay, OWASP, FATE, FISCO BCOS, R4. |
 | `subtitles_en.srt` | English subtitles, 71 cues, timed to the segments (also copied to `deliverables/submission/InternationalAI-Centrale-DemoVideo.srt`). |
-| `film.html`, `film.css`, `film.js`, `film_data.js` | Film mode: the seven non-live scenes, auto-playing, offline. Reuses `../keynote/keynote.css` and the design tokens `../keynote/assets/tokens.css`. |
+| `film.html`, `film.css`, `film.js`, `film_data.js` | Film mode: the seven non-live scenes, auto-playing, offline. Uses `film_base.css` (a frozen copy of the first keynote stylesheet) and the design tokens `../keynote/assets/tokens.css`. |
 | `check_film.py` | Playwright check of film.html (no network, no console error, every scene screenshot). |
 | `build_video_kit.py` | Regenerates the SRT, the narration file, film_data.js, the pronunciation file, this README and `../demo_video_script.md`. |
 | `../demo_video_script.md` | The shot list: timecodes, what is on screen, exact UI labels, narration. |
@@ -34,7 +34,7 @@ Times are the plan at 140 wpm. "Voice at" is where the ElevenLabs clip starts on
 | 07 | 2:00.8 to 2:18.7 | 2:01.8 | OBS recording | Steps 3 and 4: one tap, then a one-time code | `InternationalAI-Centrale-VO-07-step34.mp3` |
 | 08 | 2:18.7 to 2:34.0 | 2:19.7 | OBS recording | Step 5: linked receipts and the customer's own copy | `InternationalAI-Centrale-VO-08-step5.mp3` |
 | 09 | 2:34.0 to 2:56.8 | 2:35.0 | OBS recording | Step 6: seven known attacks, replayed on fresh accounts | `InternationalAI-Centrale-VO-09-step6.mp3` |
-| 10 | 2:56.8 to 3:20.7 | 2:57.2 | film.html | Why it holds: eight controls and 13 named rules | `InternationalAI-Centrale-VO-10-controls.mp3` |
+| 10 | 2:56.8 to 3:20.7 | 2:57.2 | film.html | Why it holds: eight controls and 14 named rules | `InternationalAI-Centrale-VO-10-controls.mp3` |
 | 11 | 3:20.7 to 3:45.5 | 3:21.1 | film.html | The blind test: 69 of 70 attacks blocked | `InternationalAI-Centrale-VO-11-blind.mp3` |
 | 12 | 3:45.5 to 4:11.2 | 3:45.9 | film.html | Safety does not depend on the model, and the smart cascade | `InternationalAI-Centrale-VO-12-models.mp3` |
 | 13 | 4:11.2 to 4:38.0 | 4:11.6 | film.html | Honest limits, what is next, and the closing line | `InternationalAI-Centrale-VO-13-closing.mp3` |

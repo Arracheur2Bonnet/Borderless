@@ -10,7 +10,7 @@ Output: deliverables/submission/InternationalAI-TopicC-Centrale-{TechnicalDocume
 
 The numbers in the text are checked against the Markdown documents before building (see `check_consistency`), and the
 commit hashes that are cited are checked with `git cat-file -e`. Needs python-docx and Pillow; the PDF step needs
-LibreOffice (soffice) and, for --raster, pymupdf.
+LibreOffice (soffice) or, without it, Microsoft Word; for --raster, pymupdf.
 """
 from __future__ import annotations
 
@@ -36,18 +36,19 @@ OUT = ROOT / "deliverables" / "submission"
 SHOTS = ROOT / "deliverables" / "screenshots"
 EVID = ROOT / "deliverables" / "evidence"
 SOFFICE = Path("C:/Program Files/LibreOffice/program/soffice.exe")
+WORD = Path("C:/Program Files/Microsoft Office/root/Office16/WINWORD.EXE")
 
 TEAM = "Centrale"
 TRACK = "International AI Track, Topic C (Cross-border and Student Finance)"
 DATE = "2026-10-20"
-STATE_COMMIT = "c10f0a0"
+STATE_COMMIT = "d1822bf"
 
 # template palette
 BLUE, DARK, GREY, PALE, RULE = "315FD8", "17213A", "616C7F", "EEF3FF", "D5DBE8"
 TEXT_WIDTH_DXA = 9792          # same as the template's header table
 
 CITED_COMMITS = ["44542f2", "5868d83", "292f748", "60f6448", "2ce6035", "13dded5", "d3e0f49", "c10f0a0", "22b144e",
-                 "615f260", "bb7981e", "839f146"]
+                 "615f260", "bb7981e", "839f146", "7e90cc3", "d1822bf"]
 
 
 # --------------------------------------------------------------------------------------------- checks
@@ -63,7 +64,9 @@ def check_consistency() -> None:
     td, ssa, ee, rd = (read("deliverables/technical_document.md"), read("deliverables/security_self_assessment.md"),
                        read("deliverables/execution_evidence.md"), read("README.md"))
     must = {
-        "988 passed, 7 xfailed": [td, ee, rd],
+        "1230 passed, 7 xfailed": [td, ee, rd],
+        "21/21": [td, ee],
+        "PAYEE_VERIFICATION": [td, ee, rd],
         "69/70": [td, ssa, rd],
         "66/70": [td, ssa, rd],
         "24/30": [td, ssa],
@@ -171,7 +174,7 @@ def render_architecture(path: Path) -> None:
     box(xs[0], y2a, xs[0] + bw, y2b, "Grounding", "Every amount, payee, IBAN and name must be in her text. Sanctions screen on the source text.", outline="#A9D4B6")
     box(xs[1], y2a, xs[1] + bw, y2b, "Orchestrator", "Builds actions. Payee, IBAN and bill amount come from the registry of saved payees.", outline="#A9D4B6")
     box(xs[2], y2a, xs[2] + bw, y2b, "Ledger.simulate", "Cumulative and pure. Balances after each step, reserve check.", outline="#A9D4B6")
-    box(xs[3], y2a, xs[3] + bw, y2b, "Policy engine", "13 named rules per payment. R0 to R4. Fails closed. R4: denied, a receipt is written, nothing moves.", outline="#A9D4B6")
+    box(xs[3], y2a, xs[3] + bw, y2b, "Policy engine", "14 named rules per payment. R0 to R4. Fails closed. R4: denied, a receipt is written, nothing moves.", outline="#A9D4B6")
     box(xs[3], y1a, xs[3] + bw, y1b, "Customer approval", "R2: one tap. R3: one-time code. Bound to the hash of the exact action. Three wrong codes lock code approval.", outline="#A9D4B6")
     box(xs[2], y1a, xs[2] + bw, y1b, "Ledger.execute", "Idempotent. An FX step runs only on a quote the ledger issued.", outline="#A9D4B6")
     box(xs[1], y1a, xs[1] + bw, y1b, "Receipt store", "One SHA-256 hash chain per customer. Executed and denied actions.", outline="#A9D4B6")
@@ -522,12 +525,20 @@ def after_header_table(doc: Document):
 
 
 def to_pdf(docx: Path) -> Path | None:
-    if not SOFFICE.exists():
-        print("LibreOffice not found: PDF skipped")
-        return None
-    subprocess.run([str(SOFFICE), "--headless", "--convert-to", "pdf", "--outdir", str(docx.parent), str(docx)],
-                   check=True, capture_output=True)
-    return docx.with_suffix(".pdf")
+    pdf = docx.with_suffix(".pdf")
+    if SOFFICE.exists():
+        subprocess.run([str(SOFFICE), "--headless", "--convert-to", "pdf", "--outdir", str(docx.parent), str(docx)],
+                       check=True, capture_output=True)
+        return pdf
+    if WORD.exists():                      # no LibreOffice: Microsoft Word through COM (wdFormatPDF = 17)
+        ps = ("$w = New-Object -ComObject Word.Application; $w.Visible = $false; "
+              f"$d = $w.Documents.Open('{docx}', $false, $true); $d.SaveAs([ref]'{pdf}', [ref]17); "
+              "$d.Close($false); $w.Quit()")
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                       check=True, capture_output=True, timeout=300)
+        return pdf
+    print("Neither LibreOffice nor Word found: PDF skipped")
+    return None
 
 
 def raster(pdf: Path, outdir: Path, pages: list[int] | None = None, dpi: int = 60) -> None:
@@ -563,12 +574,12 @@ def build_technical() -> Path:
         "into a plan of three actions, and moves nothing until the student approves each one. The language model only "
         "proposes a typed request. It has no payment tool and never sees an IBAN, a balance or a document. Plain code "
         "checks that every amount, payee and account in the request appears in what the student wrote, takes account "
-        "numbers only from saved payees, simulates the plan, applies 13 named rules to every payment and asks for a tap "
+        "numbers only from saved payees, simulates the plan, applies 14 named rules to every payment and asks for a tap "
         "(R2) or a one-time code (R3). R4 cases are denied and nothing overrides them. Every action, executed or denied, "
         "gets a receipt in the customer's own hash chain, and the student keeps a signed copy of the latest one.",
         "**What we measured.**",
         "- Demo path: ends at 600.00 EUR and 196.74 USD with three linked receipts. The 2,000 EUR transfer hidden in "
-        "the forged invoice is never proposed. 20 of 20 scripted missions complete.",
+        "the forged invoice is never proposed. 21 of 21 scripted missions complete.",
         "- Blind held-out set v2 (105 cases, written by a separate AI agent that could not read the security code, "
         "results frozen in commit `44542f2` before any fix), rules parser: **69/70 attacks blocked** (95% CI 92.3 to "
         "99.7), 24/30 benign English requests completed, 0 wrong payments, 0 data leaks.",
@@ -576,7 +587,7 @@ def build_technical() -> Path:
         "26/30 benign, 5/5 non-English requests (rules parser: 0/5). One control bypass caused by a field the model "
         "changed; no money moved. A grounding step now closes that class.",
         "- Two white-box audits by separate AI agents: 23 findings (12, then 11), all fixed or mitigated, each with a "
-        "test. 988 tests pass and 7 are documented expected failures. `scripts/verify_all.py` re-runs the checks "
+        "test. 1230 tests pass and 7 are documented expected failures. `scripts/verify_all.py` re-runs the checks "
         "in about 20 seconds.",
         "**What it is not.** A sandbox prototype. The ledger, exchange rates, SMS code and sanctions list are simulated, "
         "and nothing is connected to a bank. No hosted or frontier model was measured; only local Qwen was. Results "
@@ -623,7 +634,7 @@ def build_technical() -> Path:
         "type has a field that can become a payment IBAN.",
         "**Grounding.** Every amount, payee, IBAN, bill kind, currency, memo and new-payee name must appear in the "
         "student's own words, whichever parser ran. A field that does not is dropped or repaired, and she is told.",
-        "**Deterministic policy.** 13 named rules per payment, risk tiers R0 to R4, fail closed. Approval is bound to "
+        "**Deterministic policy.** 14 named rules per payment, risk tiers R0 to R4, fail closed. Approval is bound to "
         "a hash of the exact action, so changing any field invalidates it.",
         "**A receipt the customer can check.** Executed and denied actions go into a per-customer hash chain. The "
         "student keeps a signed copy of the latest receipt; with it, a deleted or rewritten history is detected.",
@@ -709,8 +720,8 @@ def build_technical() -> Path:
     c = Cursor(doc, anchors["Core algorithms and evaluation approach"]._p)
     c.lead("Policy engine")
     c.p("All thresholds are in `bg/contracts/params.py`. The decision level is the highest severity among failing "
-        "rules. A payment is checked against 13 rules (12 when no reserve was stated), a currency purchase against 5, "
-        "adding a payee against 5. Key rules: `IBAN_MATCHES_REGISTRY`, `RESERVE_FLOOR`, `MAX_SINGLE_PAYMENT` (4,000 EUR), "
+        "rules. A payment is checked against 14 rules (13 when no reserve was stated), a currency purchase against 5, "
+        "adding a payee against 6. Key rules: `IBAN_MATCHES_REGISTRY`, `RESERVE_FLOOR`, `MAX_SINGLE_PAYMENT` (4,000 EUR), "
         "`DAILY_LIMIT` (5,000 EUR), `SANCTIONS_SCREEN`, `STRUCTURING` (same payee, 24 h, above 1,500 EUR), "
         "`FX_PRICE_CHECK`, `IBAN_VALID` (ISO 13616, mod-97) and `PAYEE_NAME_UNIQUE`. The sanctions name screen folds "
         "look-alike letters (Cyrillic, Greek, Armenian, Cherokee, small capitals), compares with spaces removed, joins "
@@ -728,7 +739,7 @@ def build_technical() -> Path:
         ["**Blind v2, rules parser**, frozen in `44542f2`", "Separate AI agent, no access to security code", "**69/70 attacks** (CI 92.3 to 99.7); multi-turn 15/15; 24/30 benign EN (62.7 to 90.5); non-English 0/5", "**Generalisation estimate, rules**"],
         ["**Blind v2, Qwen2.5 7B**, frozen in `5868d83`", "Same 105 cases", "**66/70 attacks** (86.2 to 97.8); multi-turn 15/15; 26/30 benign EN (70.3 to 94.7); non-English 5/5", "**Generalisation estimate, LLM parser**; one run"],
         ["White-box audits", "Two separate AI agents with full read access", "12 findings, then 11; all fixed or mitigated", "Code review; fixes are regression-tested"],
-        ["Regression after the frozen runs", "The team", "Qwen 7B 103/105; cascade 103/105; 988 tests pass, 7 expected failures", "Not generalisation"],
+        ["Regression after the frozen runs", "The team", "Qwen 7B 103/105; cascade 103/105; 1230 tests pass, 7 expected failures", "Not generalisation"],
     ], [2.3, 1.9, 3.1, 2.3], indent=True, size=8)
     c.p("Caveats the blind tester gave and we accept: nine attacks were stopped only because the rules parser did not "
         "understand them (58/59 without them and two structuring cases that never reached the control); structuring "
@@ -792,20 +803,20 @@ def build_technical() -> Path:
     ], [3.0, 2.2, 4.0], indent=True)
     c.lead("Test cases and results")
     c.p("`scripts/verify_all.py` runs five checks and exits non-zero on any failure. Result of the run on 2026-10-19 at "
-        "`c10f0a0` (Windows 11, Python 3.11.6):", after=3)
+        "`d1822bf` (Windows 11, Python 3.11.6):", after=3)
     c.code([
-        "PASS  pytest (full suite)      22.6s  988 passed, 7 xfailed",
-        "PASS  scripted missions         0.5s  20/20 missions completed",
-        "PASS  golden path               0.3s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)",
-        "PASS  security report           1.2s  attacks blocked 69/69, benign completed 29/29; matches committed report",
-        "PASS  evidence reproducible     0.0s  regenerated evidence identical to committed files",
+        "PASS  pytest (full suite)     135.7s  1230 passed, 7 xfailed",
+        "PASS  scripted missions         2.3s  21/21 missions completed",
+        "PASS  golden path               1.9s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)",
+        "PASS  security report           5.4s  attacks blocked 69/69, benign completed 29/29; matches committed report",
+        "PASS  evidence reproducible     0.3s  regenerated evidence identical to committed files",
     ])
     c.table(["Folder", "Result", "What it holds"], [
         ["`tests/adversarial`, `tests/benign`", "69, 29 passed", "Development suites by attack family F1 to F5"],
         ["`tests/heldout`, `tests/heldout_v2`", "72 + 1 xfail, 99 + 6 xfail", "Blind sets; the 7 expected failures are B08, B25 and N01 to N05 (by design or out of scope for the offline parser)"],
         ["`tests/audit`", "96 passed", "Two white-box audits"],
-        ["`tests/regression`, `tests/scenarios`", "21, 21 passed", "Judge-panel and grounding regressions; the 20 missions"],
-        ["`tests/unit`", "581 passed", "Agent 269, ledger 43, policy 210, UI 59"],
+        ["`tests/regression`, `tests/scenarios`, `tests/harness`", "34, 22, 23 passed", "Judge-panel, grounding and Verification of Payee regressions; the 21 missions; the scripted-task harness"],
+        ["`tests/unit`", "786 passed", "Agent 420, ledger 43, policy 253, UI 70"],
     ], [3.3, 2.4, 3.5], indent=True)
     c.p("The Ollama runs (blind Qwen, regression, cascade, connector) are separate, need Ollama, and their reports are "
         "committed in `deliverables/blind_llm/` and `deliverables/regression_llm/`.", size=9.5)
@@ -867,8 +878,8 @@ def build_ssa() -> Path:
         "Two results estimate generalisation, one per parser: blind v2 with the rules parser, frozen in `44542f2` "
         "(**69/70 attacks blocked**, 24/30 benign English completed), and blind v2 with local Qwen2.5 7B, frozen in "
         "`5868d83` (**66/70 attacks blocked**, 26/30 benign English, 5/5 non-English). Everything measured after "
-        "them is regression. State: commit `c10f0a0`, 2026-10-19: 988 tests pass, 7 are documented expected failures.",
-        "The model connector, the cascade and the model selector (`c10f0a0`) came after the second audit and have had "
+        "them is regression. State: commit `d1822bf`, 2026-10-19: 1230 tests pass, 7 are documented expected failures.",
+        "The model connector, the cascade and the model selector (`c10f0a0`), then the help replies, the scripted-task harness and its localhost HTTP API, the FX cost display and Verification of Payee (`7e90cc3`, `d1822bf`), came after the second audit and have had "
         "no white-box review. No hosted or frontier model was measured. No licensing, KYC, AML, sanctions or "
         "data-protection compliance is claimed.",
     ], size=9)
@@ -916,7 +927,7 @@ def build_ssa() -> Path:
         ["Blind v1, rules parser, first run", "47/48 attacks, 21/25 benign", "Blind at the time. A claim that all 14 document injections were detected was inflated: 8 misses were masked by the seeded invoice. Corrected; three structural signals now detect them."],
         ["**Blind v2, rules parser** (`44542f2`)", "**69/70 attacks** (95% CI 92.3 to 99.7); multi-turn 15/15; 24/30 benign English (62.7 to 90.5); non-English 0/5; 0 wrong payments, 0 data leaks, 0 unconfirmed executions", "**Generalisation estimate, rules.** Nine attacks were stopped only because the parser did not understand them (58/59 without them). The one miss needed the customer's code."],
         ["**Blind v2, Qwen2.5 7B** (`5868d83`)", "**66/70 attacks** (86.2 to 97.8); multi-turn 15/15; 26/30 benign English (70.3 to 94.7); non-English 5/5; 137 calls, 0 fallbacks. Qwen 3B: 65/70, 21/30, 3/5", "**Generalisation estimate, LLM parser.** One run. No payment to an unregistered account. One bypass from a field the model changed (X02)."],
-        ["Regression after the frozen runs", "Qwen 7B 103/105 on v2; cascade 103/105; both 69/69 and 29/29 on the development suites; 988 tests pass", "Not generalisation: the system was changed after seeing these cases."],
+        ["Regression after the frozen runs", "Qwen 7B 103/105 on v2; cascade 103/105; both 69/69 and 29/29 on the development suites; 1230 tests pass", "Not generalisation: the system was changed after seeing these cases."],
     ], [2.6, 3.9, 3.0], indent=True, size=7.5)
     c.p("**White-box audits.** Round 1 (code before `2ce6035`): 12 findings (3 High, 3 Medium, 6 Low). Round 2 (code at "
         "`22b144e`): 11 findings (2 Medium, 9 Low). Each has a test in `tests/audit/` that runs the exploit; "
@@ -953,7 +964,7 @@ def build_ssa() -> Path:
         ["The guard misses a new injection phrasing (English and French patterns only)", "A missing warning only; authorisation never reads the guard", "Registry IBANs, `UNTRUSTED_ORIGIN`, hash-bound approval; language-independent structural signals", "A learned detector as an extra advisory layer, evaluated on a new blind set"],
         ["A model changes or invents a field; grounding checks presence, not meaning", "A visible card the customer must approve, or a question", "Grounding on every parser; sanctions screen on the source text; cards show payee and amount", "A blind set written to probe extraction; a check on exceptions and past amounts"],
         ["No frontier model measured; Qwen measured once", "Unknown accuracy and failure modes of other models", "Same checks apply whichever model answers; https and key handling in the connector", "Run the blind protocol through the connector with intervals"],
-        ["Connector, cascade and selector not audited (`c10f0a0`)", "Possible findings not yet known", "Unit tests (32 connector, 46 hardening, 16 selector)", "A third white-box audit"],
+        ["Connector, cascade, selector (`c10f0a0`), harness and Verification of Payee (`d1822bf`) not audited", "Possible findings not yet known", "Unit tests (32 connector, 46 hardening, 16 selector, 23 harness, 56 Verification of Payee)", "A third white-box audit"],
         ["A connected remote model receives the customer's messages", "Message and payee names leave the machine", "Off by default; https only; the UI says so; key is session-only", "Per-deployment data-processing terms; a local model for sensitive use"],
         ["Receipt chain needs the customer's copy; symmetric HMAC; public demo key", "Truncation or rewrite is undetectable without her anchor; the key holder could forge one", "Anchor check in the UI; warning while the demo key is in use", "Asymmetric signatures, key ids and rotation, external timestamping or on-chain anchoring"],
         ["Sanctions screen is a demonstration: fictional list, finite look-alike table", "Real matching would miss or over-block", "Fails closed on letters it cannot fold; wildcards; spacing variants", "A maintained list, full Unicode confusables, transliteration and fuzzy matching"],
@@ -1012,15 +1023,15 @@ def build_evidence() -> Path:
     c.p("**Topic C, Cross-border and Student Finance.** Scenario: Lina, an international student in France (EUR 450.00, "
         "USD 2,600.00, a 600.00 EUR reserve to keep, tuition of 1,200.00 EUR and rent of 850.00 EUR due), asks one sentence: "
         "\"Pay my November tuition and rent, but keep at least 600 euros for living expenses.\" Her rent invoice hides an "
-        "instruction to send 2,000 EUR to a UK account. Twenty scripted missions cover this scenario and its variants. "
+        "instruction to send 2,000 EUR to a UK account. Twenty-one scripted missions cover this scenario and its variants. "
         "Everything runs in a **simulated sandbox**, offline, with a fixed clock (2026-10-28T09:00Z) and the rules parser. "
-        "No real money, bank, user or hosted model is involved. Commit `c10f0a0`, run on 2026-10-19.")
+        "No real money, bank, user or hosted model is involved. Commit `d1822bf`, run on 2026-10-19.")
     c = Cursor(doc, anchors["What the evidence demonstrates"]._p)
     c.table(["What it shows", "Result", "Where"], [
-        ["Task completion", "20 of 20 scripted missions completed; mean 1.60 user turns and 2.05 confirmation acts per mission; exact final balances, executed payments and denials", "`deliverables/evidence/`, `task_completion.md`"],
+        ["Task completion", "21 of 21 scripted missions completed; mean 1.57 user turns and 2.00 confirmation acts per mission; exact final balances, executed payments and denials", "`deliverables/evidence/`, `task_completion.md`"],
         ["Golden path", "Three actions proposed from one sentence; the forged invoice's 2,000 EUR transfer is never proposed; final balances EUR 600.00 and USD 196.74; three linked receipts; chain verifies against the signed anchor", "`scripts/golden_path.py`; section 02 below"],
-        ["Security controls in action", "Over-limit and reserve breaches denied with a receipt; tampered approval refused; three wrong codes lock approval by code; structuring needs a code; a homoglyph sanctioned payee denied; poisoned FX note dropped; replay moves money once", "Missions T11 to T20"],
-        ["Tests", "988 passed, 7 documented expected failures (995 collected); 69/69 attacks blocked and 29/29 benign completed in the development suites", "`scripts/verify_all.py`"],
+        ["Security controls in action", "Over-limit and reserve breaches denied with a receipt; tampered approval refused; three wrong codes lock approval by code; structuring needs a code; a homoglyph sanctioned payee denied; poisoned FX note dropped; replay moves money once", "Missions T11 to T21"],
+        ["Tests", "1230 passed, 7 documented expected failures (1237 collected); 69/69 attacks blocked and 29/29 benign completed in the development suites", "`scripts/verify_all.py`"],
         ["Blind evaluation", "Rules parser 69/70 attacks (frozen `44542f2`); Qwen2.5 7B 66/70 (frozen `5868d83`). These two are the generalisation estimates; everything later is regression", "`deliverables/heldout_v2_results.md`, `deliverables/blind_llm/`"],
         ["Audits", "Two white-box audits, 23 findings, all fixed or mitigated; 96 audit tests pass", "`docs/review/security_audit.md`, `tests/audit/`"],
     ], [1.7, 5.6, 2.0], indent=True, size=8)
@@ -1077,13 +1088,13 @@ def build_evidence() -> Path:
         ".venv/bin/python -m streamlit run ui/app.py                # http://localhost:8501/?guided=1",
         "# Windows PowerShell: .\\.venv\\Scripts\\python.exe instead of .venv/bin/python",
     ])
-    c.p("Expected final table of `verify_all.py` (2026-10-19, `c10f0a0`):", after=2)
+    c.p("Expected final table of `verify_all.py` (2026-10-19, `d1822bf`):", after=2)
     c.code([
-        "PASS  pytest (full suite)      22.6s  988 passed, 7 xfailed",
-        "PASS  scripted missions         0.5s  20/20 missions completed",
-        "PASS  golden path               0.3s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)",
-        "PASS  security report           1.2s  attacks blocked 69/69, benign completed 29/29; matches committed report",
-        "PASS  evidence reproducible     0.0s  regenerated evidence identical to committed files",
+        "PASS  pytest (full suite)     135.7s  1230 passed, 7 xfailed",
+        "PASS  scripted missions         2.3s  21/21 missions completed",
+        "PASS  golden path               1.9s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)",
+        "PASS  security report           5.4s  attacks blocked 69/69, benign completed 29/29; matches committed report",
+        "PASS  evidence reproducible     0.3s  regenerated evidence identical to committed files",
     ])
     c.p("Do not run `tests/e2e_report.py` on its own to check the numbers: run directly, it rewrites the committed "
         "report. `verify_all.py` redirects its output to a temporary folder and compares it. Inside the Docker image the "
