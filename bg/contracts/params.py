@@ -34,7 +34,7 @@ DEMO_RECEIPT_KEY = "borderlessguard-demo-key-not-a-secret"
 
 # --------------------------------------------------------------------------- simulated market
 FX_RATES = {("USD", "EUR"): Decimal("0.92"), ("EUR", "USD"): Decimal("1.085")}
-FX_FEE_RATE = Decimal("0.005")              # 0.5% of the sell amount
+FX_FEE_RATE = Decimal("0.005")              # 0.5% of the net amount converted, charged on top of it
 FX_QUOTE_TTL = timedelta(minutes=5)
 
 DEMO_OTP = "246810"                          # simulated SMS code shown in the UI

@@ -17,10 +17,29 @@ Self-contained HTML keynote, 15 slides, presented offline. No CDN, no web fonts,
 
 The stage is a fixed 1920x1080 canvas scaled to any window. `prefers-reduced-motion` turns animations off.
 Slides 4 to 8 show the guided-demo screenshots: they are the fallback if the live demo fails.
-Slide 12 (rules parser vs local Qwen) has no script section yet: its notes are marked PROPOSED in the notes overlay.
 
 **Rebuild** (crops screenshots from `deliverables/screenshots/dark`, regenerates `notes.js`, and fails if a number on a
 slide no longer matches its source or a live pytest run):
 
     ./.venv/Scripts/python deliverables/pitch/build_keynote.py
     ./.venv/Scripts/python scripts/check_keynote.py <out_dir>     # Playwright: every slide, 1920x1080 and 1366x768
+
+## The official deck (PPTX and PDF) and the demo video
+
+The PowerPoint file required by the organisers is **generated from this keynote**, so the two can never drift apart:
+
+    ./.venv/Scripts/python deliverables/pitch/build_deck.py          # renders the 15 slides, packs the PPTX, exports the PDF
+
+Output (in `deliverables/submission/`): `InternationalAI-TopicC-Centrale-Deck.pptx` and `.pdf`: the cover of the official
+template (project and team names filled in, the year "2025" painted out of the artwork), the 15 keynote slides as full-bleed
+1920x1080 images (final build state of each slide) with the speaker notes of `notes.js`, then the template's THANKS slide.
+The slide images are also kept in `deliverables/pitch/render/slide_NN.png`.
+
+The old 14-slide python-pptx deck `deliverables/pitch/BorderlessGuard_deck.pptx` was **removed**: it mapped the 15 script
+sections onto 14 slides and so differed from the talk. `build_deck.py` now builds the submitted deck instead.
+
+Order of work after any change to a slide or to `speaker_script.md`:
+`build_keynote.py` (notes, source checks, live pytest) then `build_deck.py` then `scripts/check_keynote.py <out_dir>`.
+
+The non-live scenes of the demo video are in `deliverables/pitch/video/film.html` (same stylesheet and design tokens);
+see `deliverables/pitch/video/README.md`.

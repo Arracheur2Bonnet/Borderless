@@ -16,4 +16,6 @@ FinTechathon*.txt
 verify-report/
 out/
 !deliverables/pitch/keynote/*.html
-submission/
+/submission/
+!deliverables/**/*.pdf
+!deliverables/pitch/video/*.html

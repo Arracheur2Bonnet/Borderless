@@ -100,8 +100,9 @@
       <h3>The model proposes</h3>
       <ul>
         <li><strong>Writes a request, nothing more.</strong> No tools. It never sees an account number.</li>
-        <li>Rules, local Qwen or Claude: <strong>swappable</strong>.</li>
-        <li><strong>Grounding check:</strong> every field it proposed must appear in what you wrote.</li>
+        <li>Rules, a local Qwen model or any connected model: <strong>swappable</strong>.</li>
+        <li><strong>Smart cascade:</strong> rules first, Qwen only when needed.</li>
+        <li><strong>Grounding check:</strong> every field must appear in what you wrote.</li>
       </ul>
     </div>
     <div class="card zone edge-accent b" data-b="2">
@@ -119,11 +120,11 @@
       <ul>
         <li>One tap or a one-time code, <strong>in proportion to the risk</strong>.</li>
         <li>Locked to <strong>a hash of the exact payment</strong>.</li>
-        <li>Every action gets a <strong>signed receipt</strong>.</li>
+        <li>Every action gets a <strong>linked receipt</strong>. Lina keeps a signed copy of the latest.</li>
       </ul>
     </div>
   </div>
-  <p class="h2 b" data-b="4" style="font-size:52px;margin-top:40px">A fooled model can only <span class="accent">propose</span>.</p>
+  <p class="h2 b" data-b="4" style="font-size:52px;margin-top:30px">A fooled model can only <span class="accent">propose</span>.</p>
 </section>
 
 <!-- ============================================================ 4 DEMO 1 -->
@@ -317,7 +318,7 @@
   </div>
   <div class="caveats b" data-b="5">
     <div class="cav"><b>Caveat</b>9 attacks were stopped only because the parser did not understand them.</div>
-    <div class="cav"><b>Caveat</b>The Claude parser is not tested yet. The local Qwen parser: next slide.</div>
+    <div class="cav"><b>Caveat</b>This is the offline parser only. A local Qwen model, tested blind: next slide.</div>
     <div class="cav"><b>The one miss</b>A look-alike letter in a sanctioned name. It needed Lina's own code. No money moved. Fixed.</div>
   </div>
 </section>
@@ -356,6 +357,7 @@
   <div class="fine b" data-b="3" style="margin-top:18px">
     <p><strong>Qwen's 4 misses:</strong> 3 plans with a payment she did not ask for (saved payees only), and 1 sanctioned payee added after Lina's own code, because the model shortened the name. The fix: every field the model proposes must appear in what she wrote (<span class="mono">d3e0f49</span>). Re-run: 103/105, a regression, not blind.</p>
     <p style="margin-top:4px">Rules parser on today's code: 70/70 attacks, 29/30 English. Its fixes came from the first blind misses, so that run is not blind.</p>
+    <p style="margin-top:4px"><strong>Smart cascade</strong> (rules first, Qwen only when needed), held-out v2 re-run: <strong>87% of messages answered by rules</strong>, median 0.0 s. Regression, not blind.</p>
   </div>
 </section>
 
@@ -369,7 +371,7 @@
     <ul>
       <li class="b" data-b="1"><svg class="ico"><use href="#i-warn"/></svg><span><strong>A sandbox.</strong> The ledger, the exchange rates and the SMS code are simulated.</span></li>
       <li class="b" data-b="1"><svg class="ico"><use href="#i-warn"/></svg><span><strong>The offline parser is English only</strong> and misses unusual phrasing: 24 of 30 blind.</span></li>
-      <li class="b" data-b="1"><svg class="ico"><use href="#i-warn"/></svg><span><strong>One local model measured blind.</strong> The Claude parser is not tested yet.</span></li>
+      <li class="b" data-b="1"><svg class="ico"><use href="#i-warn"/></svg><span><strong>One model family measured blind</strong> (Qwen 7B and 3B). A connected frontier model is not tested yet.</span></li>
       <li class="b" data-b="1"><svg class="ico"><use href="#i-warn"/></svg><span><strong>The content guard is rule-based,</strong> and it only warns.</span></li>
       <li class="b" data-b="1"><svg class="ico"><use href="#i-warn"/></svg><span>One student, USD and EUR, a public demo signing key.</span></li>
     </ul>
@@ -391,7 +393,7 @@
     <div class="card col b" data-b="2"><span class="pct">30%</span><h3>Security and compliance</h3><div class="big">69 of 70</div><p>blind attacks blocked. 0 wrong payments. 12 audit findings fixed or mitigated.</p></div>
     <div class="card col b" data-b="3"><span class="pct">30%</span><h3>Innovation and interaction</h3><div class="big">Clarify, correct, cancel</div><p>Questions answered by simulation. Receipts Lina can check herself.</p></div>
   </div>
-  <div class="evidence">Rerun offline, no API key: <span class="mono">python -m pytest tests -q</span> &rarr; <strong><span data-fact="tests">829</span> passed</strong>, <span data-fact="xfail">7</span> documented expected failures. Evidence: <span class="mono">heldout_v2_results.md · task_completion.md · security_audit.md · blind_llm/</span></div>
+  <div class="evidence">Rerun offline, no API key: <span class="mono">python -m pytest tests -q</span> &rarr; <strong><span data-fact="tests">988</span> passed</strong>, <span data-fact="xfail">7</span> documented expected failures. Evidence: <span class="mono">heldout_v2_results.md · task_completion.md · security_audit.md · blind_llm/</span></div>
 </section>
 
 <!-- ============================================================ 15 NEXT -->
@@ -406,7 +408,7 @@
   <div class="next">
     <div class="nrow b" data-b="1"><div class="k">FATE</div><div class="d">Federated learning across banks: scam signals are shared, customer data is not. A risk score and fine-tuning of the local model. It could only <strong>ask for a code</strong>. It would never approve a payment.</div></div>
     <div class="nrow b" data-b="2"><div class="k">FISCO BCOS</div><div class="d">Anchor each receipt chain on a consortium chain, so Lina does not need to keep her own copy.</div></div>
-    <div class="nrow b" data-b="3"><div class="k">Blind test, again</div><div class="d">The same blind protocol on the Claude parser. The local Qwen parser is measured; Claude is not.</div></div>
+    <div class="nrow b" data-b="3"><div class="k">Blind test, again</div><div class="d">A fresh blind test of the Smart cascade and of a connected frontier model. Today the cascade is only re-run (a regression), and no frontier model is measured.</div></div>
   </div>
   <p class="closing b" data-b="4">You do not make a money agent safe by asking the model to be good. <span>You take away its authority.</span></p>
 </section>

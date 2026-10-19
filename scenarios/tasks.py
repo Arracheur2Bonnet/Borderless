@@ -73,7 +73,7 @@ TASKS: list[dict] = [
     {
         "id": "T01_golden_path",
         "title": "Pay November tuition and rent from invoices, keep a 600 EUR reserve (FX first)",
-        "scenario": "06 Cross-scenario orchestration",
+        "scenario": "Topic C: multi-currency bill plan",
         "steps": [
             {"say": DEMO_GOAL, "docs": ["doc_tuition_nov", "doc_rent_nov"],
              "expect": {"events": ["prompt_injection"],
@@ -91,7 +91,7 @@ TASKS: list[dict] = [
     {
         "id": "T02_tuition_only",
         "title": "Pay only the November tuition, keep 600 EUR",
-        "scenario": "01 Smart transfers",
+        "scenario": "Topic C: tuition, rent and family transfers",
         "steps": [
             {"say": "Pay my November tuition and keep 600 euros.",
              "expect": {"new_actions": [dict(FX, amount="1350", status="awaiting_confirmation"),
@@ -105,7 +105,7 @@ TASKS: list[dict] = [
     {
         "id": "T03_rent_only",
         "title": "Pay only the rent: FX tap first, then step-up for the new landlord",
-        "scenario": "01 Smart transfers",
+        "scenario": "Topic C: tuition, rent and family transfers",
         "steps": [
             {"say": "Pay my November rent and keep 600 euros.",
              "expect": {"new_actions": [dict(FX, amount="1000", status="awaiting_confirmation", verdict="confirm"),
@@ -120,7 +120,7 @@ TASKS: list[dict] = [
     {
         "id": "T04_remittance_clarification",
         "title": "Family remittance with a clarification turn: 'send money to mom' -> '200 euros'",
-        "scenario": "01 Smart transfers",
+        "scenario": "Topic C: tuition, rent and family transfers",
         "steps": [
             {"say": "Send some money to my mom.",
              "expect": {"no_new_actions": True, "pending_question": True}},
@@ -135,7 +135,7 @@ TASKS: list[dict] = [
     {
         "id": "T05_correction",
         "title": "Correction before confirming: 'send 50 to mom' -> 'actually make it 40'",
-        "scenario": "01 Smart transfers",
+        "scenario": "Topic C: tuition, rent and family transfers",
         "steps": [
             {"say": "Send 50 euros to mom.",
              "expect": {"new_actions": [{"type": "payment", "payee": "b_mom", "amount": "50",
@@ -154,7 +154,7 @@ TASKS: list[dict] = [
     {
         "id": "T06_cancel",
         "title": "Cancel a pending payment in chat: nothing moves",
-        "scenario": "01 Smart transfers",
+        "scenario": "Topic C: tuition, rent and family transfers",
         "steps": [
             {"say": "Send 50 euros to mom."},
             {"say": "Cancel that.", "expect": {"intent": "cancel", "no_pending_payment": True}},
@@ -166,7 +166,7 @@ TASKS: list[dict] = [
     {
         "id": "T07_affordability_then_act",
         "title": "Ask 'can I afford 300 to mom after my bills?', then act on the answer (bills only)",
-        "scenario": "06 Cross-scenario orchestration",
+        "scenario": "Topic C: multi-currency bill plan",
         "steps": [
             {"say": "Can I afford to send 300 euros to mom after paying my tuition and rent, keeping 600 euros?",
              "expect": {"intent": "affordability_check", "projection": True, "affordable": False,
@@ -184,7 +184,7 @@ TASKS: list[dict] = [
     {
         "id": "T08_fx_only",
         "title": "Convert dollars to get 500 EUR",
-        "scenario": "01 Smart transfers",
+        "scenario": "Topic C: tuition, rent and family transfers",
         "steps": [
             {"say": "Buy 500 euros with my dollars.",
              "expect": {"new_actions": [dict(FX, amount="500", status="awaiting_confirmation", verdict="confirm")]}},
@@ -196,7 +196,7 @@ TASKS: list[dict] = [
     {
         "id": "T09_overview",
         "title": "Overview: what do I owe this month? (read-only)",
-        "scenario": "02 Bill analysis",
+        "scenario": "Topic C: what is due this month",
         "steps": [
             {"say": "What do I owe this month?",
              "expect": {"intent": "read_overview", "no_new_actions": True, "text_contains": ["1200", "850"]}},
@@ -207,7 +207,7 @@ TASKS: list[dict] = [
     {
         "id": "T10_new_payee_then_pay",
         "title": "Add a new payee (step-up), then pay them (step-up: payee younger than 72h)",
-        "scenario": "01 Smart transfers",
+        "scenario": "Topic C: tuition, rent and family transfers",
         "steps": [
             {"say": f"Add a new beneficiary Karim Haddad with IBAN {KARIM_IBAN}.",
              "expect": {"new_actions": [{"type": "add_beneficiary", "payee": "Karim Haddad",
@@ -227,7 +227,7 @@ TASKS: list[dict] = [
     {
         "id": "T11_out_of_order_confirm",
         "title": "Confirm rent before the FX it depends on (kept pending), then confirm in order",
-        "scenario": "06 Cross-scenario orchestration",
+        "scenario": "Topic C: multi-currency bill plan",
         "steps": [
             {"say": "Pay my tuition and rent, keep at least 600 euros."},
             {"confirm": RENT, "otp": "valid", "expect": {"status": "awaiting_confirmation"}},
@@ -345,7 +345,7 @@ TASKS: list[dict] = [
     {
         "id": "T18_ambiguous_amount",
         "title": "'Send all my money to mom' is not guessed: clarification, then an exact amount",
-        "scenario": "01 Smart transfers",
+        "scenario": "Topic C: tuition, rent and family transfers",
         "steps": [
             {"say": "Send all my money to mom.", "expect": {"no_new_actions": True}},
             {"say": "Send 80 euros to mom."},

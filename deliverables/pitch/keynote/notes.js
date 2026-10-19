@@ -518,7 +518,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "LIVE: **Alt+Tab** back to PowerPoint, press **B** to un-blank, type **8** and press **Enter**. Turn back to the jury."
+     "LIVE: **Alt+Tab** back to the keynote (the browser window), press **B** to un-blank, type **8** and press **Enter**. Turn back to the jury."
     ]
    ],
    [
@@ -573,9 +573,9 @@ window.KEYNOTE_NOTES = {
  },
  "9": {
   "section": "S9",
-  "words": 71,
+  "words": 72,
   "from": "4:18",
-  "to": "4:52",
+  "to": "4:53",
   "paras": [
    [
     [
@@ -628,7 +628,7 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "say",
-     "We also audited our own code: twelve findings, all fixed or mitigated."
+     "We also had our code audited twice: twenty-three findings, all fixed or mitigated."
     ]
    ]
   ]
@@ -636,7 +636,7 @@ window.KEYNOTE_NOTES = {
  "10": {
   "section": "S10",
   "words": 30,
-  "from": "4:52",
+  "from": "4:53",
   "to": "5:07",
   "paras": [
    [
@@ -673,7 +673,7 @@ window.KEYNOTE_NOTES = {
   "section": "S11",
   "words": 93,
   "from": "5:07",
-  "to": "5:51",
+  "to": "5:52",
   "paras": [
    [
     [
@@ -777,9 +777,9 @@ window.KEYNOTE_NOTES = {
  },
  "12": {
   "section": "S12",
-  "words": 146,
-  "from": "5:51",
-  "to": "7:01",
+  "words": 152,
+  "from": "5:52",
+  "to": "7:05",
   "paras": [
    [
     [
@@ -820,7 +820,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "It reads French and German: five of five. The offline parser: none."
+     "It reads French, German, Spanish, Portuguese and a mix of languages: five of five. The offline parser: none."
     ]
    ],
    [
@@ -878,8 +878,8 @@ window.KEYNOTE_NOTES = {
  "13": {
   "section": "S13",
   "words": 50,
-  "from": "7:01",
-  "to": "7:25",
+  "from": "7:05",
+  "to": "7:29",
   "paras": [
    [
     [
@@ -910,8 +910,8 @@ window.KEYNOTE_NOTES = {
  "14": {
   "section": "S14",
   "words": 31,
-  "from": "7:25",
-  "to": "7:40",
+  "from": "7:29",
+  "to": "7:44",
   "paras": [
    [
     [
@@ -951,9 +951,9 @@ window.KEYNOTE_NOTES = {
  },
  "15": {
   "section": "S15",
-  "words": 77,
-  "from": "7:40",
-  "to": "8:17",
+  "words": 83,
+  "from": "7:44",
+  "to": "8:24",
   "paras": [
    [
     [
@@ -986,7 +986,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Three: run the same blind test on the Claude parser."
+     "Three: run the same blind test on a frontier model, through the connector we already built."
     ]
    ],
    [

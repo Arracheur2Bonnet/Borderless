@@ -202,3 +202,23 @@ I also reviewed these areas and found nothing to report:
 - Threat 13, "does not store the raw message": AUDIT2-10.
 - Threat 17, "only through `esc_md` or `esc_html`": AUDIT2-2 and AUDIT2-3.
 - Threat 5, "case/spacing/hyphen variants": AUDIT2-1.
+
+### Fix status of round 2 (2026-10-19)
+
+All 11 round-2 findings are fixed in `c10f0a0`. The xfail marker of each was removed and its test passes unchanged; `./.venv/Scripts/python -m pytest tests/audit -q` gives 96 passed (49 from round 1, 47 from round 2). The full suite gives 988 passed, 7 xfailed. The sentences of the self-assessment listed above were rewritten to match.
+
+| ID | Status | How |
+|---|---|---|
+| AUDIT2-1 | Fixed | The name is also compared with every space removed, runs of single letters are joined, and `1` is tried as `i` as well as `l` (`bg/policy/engine.py`). |
+| AUDIT2-2 | Fixed | A model's `Unsupported.reason` is never shown (a fixed sentence per category; the text goes to the audit log). A model's `Clarify.question` must pass a filter (200 characters, no link, address, six-digit run or "done/sent/receipt" claim), else a fixed question is shown. `esc_md` breaks autolinks (`https\:`, `www\.`, `\@`). |
+| AUDIT2-3 | Fixed | The payee name in the chip label goes through `esc_md`. |
+| AUDIT2-4 | Fixed | Synonyms that are English words or first names were removed from `_PAYEE_SYNONYMS`; the rest are matched with their accents. |
+| AUDIT2-5 | Fixed | Reserve, payment and correction currencies are grounded; with no currency named, the default replaces the model's choice. |
+| AUDIT2-6 | Fixed | The memo must be a span of the user's message, otherwise it is dropped; the card shows "Reference sent to the payee". |
+| AUDIT2-7 | Fixed | `Correct` and `Cancel` are in the question guard's set of acting intents. |
+| AUDIT2-8 | Fixed | An exact duplicate `Pay` is dropped unless the text states the amount as many times. |
+| AUDIT2-9 | Fixed | Loopback traffic uses an opener without proxies and without redirects; the local parser refuses a non-loopback host. |
+| AUDIT2-10 | Fixed | Telemetry records the SHA-256 prefix, the length and the error class of a schema failure, not the text or the model output. |
+| AUDIT2-11 | Fixed | `MAX_MESSAGE_CHARS = 2000` is checked before any scan or parse (the chat input has the same limit); the amount regex is non-backtracking. |
+
+Not covered by this audit: `bg/agent/connectors.py`, `bg/agent/model_parser.py`, the cascade and the Language model selector, all added in `c10f0a0`.

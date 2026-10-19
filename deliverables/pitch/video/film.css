@@ -1,0 +1,95 @@
+/* Film mode. Loads the keynote stylesheet (type scale, cards, chips, tiles, comparison table) and the shared design
+   tokens, and only adds what a self-playing film needs: slower, softer reveals, stacked stages, slates for the OBS
+   segments, captions, a start card and a control bar that shows only on hover or keyboard focus. */
+
+/* ------------------------------------------------------------------ softer motion than the live keynote */
+.b {
+  transition: opacity 800ms var(--ease-standard), transform 900ms var(--ease-emphasized);
+  transform: translateY(22px);
+}
+.b.on { transform: none; }
+.slide { transition: opacity 600ms var(--ease-standard), transform 600ms var(--ease-standard), visibility 0s linear 600ms; }
+.scene .count { font-variant-numeric: tabular-nums; }
+.stage-title { font-size: var(--k-title); }
+
+body { cursor: default; }
+body.idle { cursor: none; }
+
+/* ------------------------------------------------------------------ scene details */
+.hook .team { position: absolute; left: 0; bottom: 96px; display: flex; gap: 28px; align-items: baseline; font-size: 40px; }
+.hook .team span { font-size: var(--k-small); color: var(--label-3); }
+.stack { display: grid; }
+.stack > * { grid-area: 1 / 1; }
+.stagebox { position: absolute; left: var(--k-pad-x); right: var(--k-pad-x); top: 84px; bottom: 92px; display: flex; flex-direction: column; }
+.endbox { justify-content: center; }
+.wordmark { margin-top: 70px; display: flex; flex-direction: column; gap: 8px; }
+.wordmark strong { font-size: 56px; letter-spacing: var(--tracking-tight); }
+.wordmark span { font-size: var(--k-small); color: var(--label-3); }
+.caveats.one { grid-template-columns: 1fr; }
+.ladder-bar { margin-top: 24px; padding: 24px 36px; display: flex; justify-content: space-between; align-items: center; gap: 36px; }
+.ladder-bar p { font-size: 34px; white-space: nowrap; }
+.ladder-bar .levels { display: flex; gap: 16px; flex-wrap: nowrap; }
+.ladder-bar .chip { font-size: 25px; }
+.cmp.two .rl { font-size: 29px; }
+.cmp.two > div { padding-top: 20px; padding-bottom: 20px; }
+.cmp.two .keyrow { margin-top: 18px; }
+.cmp.two .colh { padding-top: 0; padding-bottom: 10px; }
+.cascade { margin-top: 56px; display: grid; grid-template-columns: 1.2fr 0.6fr 0.6fr; gap: 36px; align-items: center; padding: 28px 40px 26px; position: relative; }
+.cascade .ct { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.cascade .lead { font-size: 30px; color: var(--label-2); }
+.cascade .fig { font-size: 104px; line-height: 1; font-weight: var(--fw-bold); letter-spacing: -0.03em; }
+.cascade .cap { font-size: var(--k-small); color: var(--label-2); margin-top: 6px; }
+.next { gap: 22px; }
+
+/* ------------------------------------------------------------------ slates for the OBS segments */
+.slate { justify-content: center; gap: 28px; }
+.slate .title { font-size: 72px; max-width: 1500px; }
+.slate .lead { font-size: 40px; color: var(--label); max-width: 1560px; }
+.slate .meta { font-size: var(--k-small); color: var(--label-3); font-variant-numeric: tabular-nums; }
+.slate .act { font-size: 30px; line-height: 1.35; color: var(--label-2); max-width: 1500px; border-left: 3px solid var(--sep-strong); padding-left: 28px; }
+.slate .rec { display: inline-flex; align-items: center; gap: 12px; }
+.slate .rec i { width: 18px; height: 18px; border-radius: 50%; background: var(--danger); display: block; }
+body.noslates .slate > * { visibility: hidden; }
+
+/* ------------------------------------------------------------------ captions (key C), start card, control bar */
+#captions {
+  position: fixed; left: 50%; bottom: 7vh; transform: translateX(-50%); z-index: 30; max-width: 78vw; text-align: center;
+  font-size: clamp(16px, 2.3vw, 44px); line-height: 1.3; font-weight: var(--fw-semibold); color: #fff; white-space: pre-line;
+  background: rgba(0, 0, 0, 0.62); padding: 0.25em 0.7em; border-radius: 12px; opacity: 0; transition: opacity 200ms;
+  pointer-events: none;
+}
+body.cc #captions.has { opacity: 1; }
+
+#start { position: fixed; inset: 0; z-index: 50; background: #000 radial-gradient(1400px 700px at 50% -12%, rgba(77, 163, 255, 0.14), transparent 62%);
+  display: flex; align-items: center; justify-content: center; text-align: center; transition: opacity 500ms; }
+#start h1 { margin: 0 0 12px; font-size: clamp(36px, 7vw, 120px); letter-spacing: -0.03em; }
+#start p { margin: 0 0 40px; font-size: clamp(16px, 2vw, 34px); color: var(--label-2); }
+#start button { font: inherit; font-size: clamp(16px, 1.8vw, 30px); font-weight: var(--fw-semibold); color: #fff; background: var(--accent-fill);
+  border: 0; border-radius: var(--r-pill); padding: 0.7em 1.6em; cursor: pointer; }
+#start button:hover { background: var(--accent-hover); }
+#start small { display: block; margin-top: 36px; color: var(--label-3); font-size: clamp(12px, 1.1vw, 18px); }
+body.playing #start, body.started #start { opacity: 0; pointer-events: none; visibility: hidden; }
+
+#barzone { position: fixed; left: 0; right: 0; bottom: 0; height: 120px; z-index: 40; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 14px; }
+#bar {
+  display: flex; align-items: center; gap: 10px; width: min(1100px, 92vw); padding: 10px 16px; border-radius: var(--r-pill);
+  background: var(--bg-material); backdrop-filter: var(--blur-material); -webkit-backdrop-filter: var(--blur-material);
+  box-shadow: var(--shadow-md); opacity: 0; transform: translateY(8px); transition: opacity 220ms, transform 220ms;
+}
+#barzone:hover #bar, #barzone:focus-within #bar { opacity: 1; transform: none; }
+body.nobar #barzone { display: none; }
+#bar button { font: inherit; font-size: 17px; color: var(--label); background: transparent; border: 1px solid var(--sep); border-radius: var(--r-pill);
+  min-width: 40px; height: 34px; padding: 0 12px; cursor: pointer; }
+#bar button:hover { background: var(--bg-grouped); }
+#bar button[aria-pressed="true"] { background: var(--accent-fill); border-color: transparent; color: #fff; }
+#bar button:focus-visible, #bseek:focus-visible, #startbtn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+#btime { font-size: 15px; color: var(--label-2); font-variant-numeric: tabular-nums; min-width: 92px; text-align: center; }
+#bseek { flex: 1; accent-color: var(--accent-fill); min-width: 120px; }
+#bscene { font-size: 14px; color: var(--label-3); max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+#progress { display: none; }
+#filmprog { position: fixed; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); z-index: 45; }
+
+@media (prefers-reduced-motion: reduce) {
+  .b, .slide, #start, #bar { transition: none !important; transform: none !important; }
+}

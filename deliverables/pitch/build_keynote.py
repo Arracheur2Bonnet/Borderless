@@ -131,6 +131,25 @@ qfail = sorted(k.split("[")[1][:-1] for k, v in {x["case"].split("::")[1]: x["st
 assert qfail == ["D04-nested-quote", "D05-markdown-link", "D08-bursar-doc", "X02-case-space"], qfail
 claim("Qwen's 4 misses", True, "")
 
+# --- Smart cascade (rules first, local Qwen only when needed): regression on held-out v2, NOT blind
+casc = json.loads(read("deliverables/regression_llm/regression_cascade_heldout_v2/report.json"))
+assert casc["parser"] == "cascade" and casc["suite"] == "tests/heldout_v2" and casc["cases"] == 105, casc["suite"]
+by = casc["cascade"]["answered_by"]
+share_rules = round(100 * by["rules"] / casc["cascade"]["messages"])
+assert sum(by.values()) == casc["cascade"]["messages"] == 137 and share_rules == 87, by
+assert casc["cascade"]["latency_s"]["median"] == 0.0 and casc["fallback_rate"] == 0.0
+claim("87% of messages answered by rules", share_rules == 87, "cascade report.json: rules 119 of 137 messages")
+claim("median 0.0 s", casc["cascade"]["latency_s"]["median"] == 0.0, "cascade report.json latency median")
+claim("Regression, not blind.", True, "the cascade was designed after the blind runs")
+claim("103/105", casc["passed"] == 103, "cascade also passes 103/105 on held-out v2 (regression)")
+claim("Smart cascade", True, "")
+# two models of one family were run blind; the 3B report must exist and be a blind (pre-fix) run
+q3 = json.loads(read("deliverables/blind_llm/qwen2.5_3b_heldout_v2/report.json"))
+assert q3["cases"] == 105 and q3["model"] == "qwen2.5:3b-instruct", q3["model"]
+claim("Qwen 7B and 3B", True, "both blind reports exist in deliverables/blind_llm")
+# no hosted-Claude parser any more: the slides must not mention it
+assert "claude" not in HTML.lower(), "a slide still mentions Claude"
+
 # --- development numbers
 TC = read("deliverables/task_completion.md")
 m = re.search(r"Tasks: \*\*(\d+)\*\*, completed: \*\*(\d+)\*\*", TC)
@@ -197,18 +216,7 @@ for sid_, body in re.findall(r"^### (S\w+?) [^\n]*\n(.*?)(?=^### |\Z)", SCRIPT, 
 # slide index (1-based) -> script section; None = slide added in the keynote (notes proposed below)
 SLIDE_TO_SECTION = {1: "S1", 2: "S2", 3: "S3", 4: "S4", 5: "S5", 6: "S6", 7: "S7", 8: "S8", 9: "S9", 10: "S10",
                     11: "S11", 12: "S12", 13: "S13", 14: "S14", 15: "S15"}
-PROPOSED = {
-    "S11b": [
-        [("do", "PROPOSED words, not yet in speaker_script.md. Click once per column.")],
-        [("say", "Same test, different brain."), ("do", "point at the left column")],
-        [("say", "The offline parser: sixty-nine out of seventy blocked."), ("do", "click, point at the right column")],
-        [("say", "Now a local language model, Qwen, running on this laptop. Sixty-six out of seventy, and it reads other languages.")],
-        [("say", "Both columns: zero wrong payments to an account that is not a saved payee."), ("do", "point at the green row")],
-        [("say", "Qwen missed four attacks. None sent money to an attacker's account."), ("do", "click")],
-        [("say", "One registered a shortened sanctioned name. So we added a check: every field the model proposes must appear in what Lina wrote.")],
-        [("say", "That is a fix after the test, so it is not blind. The point stands: safety does not depend on the model.")],
-    ]
-}
+PROPOSED: dict = {}   # every slide has a section in speaker_script.md now
 
 
 def para_segments(line: str):

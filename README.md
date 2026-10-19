@@ -5,13 +5,28 @@
 ![Offline, no API key](https://img.shields.io/badge/runs-offline%2C%20no%20API%20key-green)
 [![MIT licence](https://img.shields.io/badge/licence-MIT-lightgrey)](LICENSE)
 
-BorderlessGuard pays an international student's tuition, rent and family transfers from one sentence, and a forged invoice or a hostile prompt cannot redirect the money. The language model only turns the sentence into a structured request. It has no payment tool and never sees an IBAN, a balance or a document. Plain code checks that every amount, payee and account in that request appears in what the student wrote, then checks every payment against 13 rules, and the student approves with a tap or a one-time code. Safety does not depend on which parser runs: the offline rules parser, a local Qwen model or Claude.
+## Project overview
+
+| | |
+|---|---|
+| Competition | 2026 Shenzhen International FinTech Competition (FinTechathon) |
+| Track | International AI Track, Topic C: Cross-border and Student Finance |
+| Team name | Centrale |
+| Project name | BorderlessGuard |
+| One-line summary | An AI money agent for international students: it pays tuition, rent and family transfers from one sentence, and a forged invoice or a hostile prompt cannot redirect the money. |
+| Submission date | 2026-10-20 |
+
+BorderlessGuard pays an international student's tuition, rent and family transfers from one sentence, and a forged invoice or a hostile prompt cannot redirect the money. The language model only turns the sentence into a structured request. It has no payment tool and never sees an IBAN, a balance or a document. Plain code checks that every amount, payee and account in that request appears in what the student wrote, then checks every payment against 13 rules, and the student approves with a tap or a one-time code. Safety does not depend on which parser runs: the offline rules parser, a local Qwen model, a smart cascade of both, or a model you connect through an OpenAI-compatible endpoint.
 
 **The LLM proposes. A deterministic policy authorises. A sandbox executes.**
 
-Built for the 2026 Shenzhen International FinTech Competition, International AI Track, Topic C (Cross-border and Student Finance). Source: https://github.com/Arracheur2Bonnet/Borderless
+Source: https://github.com/Arracheur2Bonnet/Borderless
 
 > Status: prototype running on a **simulated sandbox ledger**. It is not connected to any bank, payment network, FX provider or sanctions-list provider.
+
+**How this was built.** The human team chose the topic, set the design constraints, directed the work and reviewed the results. AI coding assistants wrote much of the code, the tests and these documents. Separate AI agents wrote the blind test set (held-out v2) and carried out the two white-box security audits, each with its own file restrictions (see "Results summary"). Every commit carries a co-author trailer for the AI assistant. The agent role definitions are in `.claude/agents/`.
+
+Formatted submission documents (Technical Document, Security Self-Assessment, Execution Evidence) are in `deliverables/submission/`. They are generated from the Markdown documents in `deliverables/` by `scripts/build_submission_docs.py`.
 
 ## What it does
 
@@ -84,7 +99,7 @@ The one-time code for step-up actions in the demo is **`246810`** (also shown in
 ```bash
 docker build -t borderlessguard .
 docker run --rm -p 8501:8501 borderlessguard                       # demo UI at http://localhost:8501
-docker run --rm borderlessguard python scripts/verify_all.py       # the same checks inside the image
+docker run --rm borderlessguard python scripts/verify_all.py       # the same checks; the evidence-diff step is skipped in the image (no git)
 ```
 
 ### Reproduce
@@ -93,57 +108,79 @@ docker run --rm borderlessguard python scripts/verify_all.py       # the same ch
 
 | Step | What it runs | Expected |
 |---|---|---|
-| pytest | `python -m pytest tests -q -p no:cacheprovider -rx` | 829 passed, 7 xfailed |
+| pytest | `python -m pytest tests -q -p no:cacheprovider -rx` | 988 passed, 7 xfailed |
 | scripted missions | `python scripts/run_scenarios.py` (rewrites `deliverables/evidence/`) | 20/20 completed |
 | golden path | `python scripts/golden_path.py` | RESULT: PASS |
 | security report | `tests/e2e_report.py`, written to a temporary folder and compared with `deliverables/security_results.json` | 69/69 attacks blocked, 29/29 benign completed |
 | evidence reproducible | `git diff` on the regenerated `deliverables/evidence/` | identical to the committed files |
 
-The final table of a run on 2026-10-18 (Windows 11, Python 3.11.6):
+The final table of a run on 2026-10-19 at commit `c10f0a0` (Windows 11, Python 3.11.6):
 
 ```
-PASS  pytest (full suite)      19.5s  829 passed, 7 xfailed
+PASS  pytest (full suite)      22.6s  988 passed, 7 xfailed
 PASS  scripted missions         0.5s  20/20 missions completed
-PASS  golden path               0.4s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)
+PASS  golden path               0.3s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)
 PASS  security report           1.2s  attacks blocked 69/69, benign completed 29/29; matches committed report
-PASS  evidence reproducible     0.1s  regenerated evidence identical to committed files
+PASS  evidence reproducible     0.0s  regenerated evidence identical to committed files
 
 ALL CHECKS PASSED: 5 passed, 0 failed, 0 skipped.
 ```
 
 Use `--report-dir <folder>` to keep the JUnit XML and the regenerated security report. Each step can also be run on its own with the command in the table (after activating the venv, or with the venv's python as above).
 
-Dependencies: `requirements-lock.txt` pins every package, including transitive ones, and is the file to install from. `requirements.txt` lists the four direct dependencies with lower bounds. `requirements-dev.txt` adds the tools used only to build the deck and capture screenshots.
+**Do not run `tests/e2e_report.py` directly to check the numbers.** Run on its own it rewrites the committed `deliverables/security_results.json` and `.md` (with a new timestamp). `scripts/verify_all.py` runs it with the output redirected to a temporary folder and compares the result with the committed report, so use that.
 
-### With a local Qwen model (optional)
+Dependencies: `requirements-lock.txt` pins every package, including transitive ones, and is the file to install from. `requirements.txt` lists the three direct dependencies (pydantic, streamlit, pytest) with lower bounds. `requirements-dev.txt` adds the tools used only to build the deck and capture screenshots. The script that builds the submission documents (`scripts/build_submission_docs.py`) also needs `python-docx` and `pymupdf` (PDF check), and LibreOffice for the PDF conversion; none of them is needed to run the product.
 
-The offline rules parser is English only. A local language model, served by [Ollama](https://ollama.com), reads other languages and looser phrasing. It runs on your machine, so no message leaves it.
+### Language model (optional)
+
+The offline rules parser is English only. A language model reads other languages and looser phrasing. In the UI sidebar, one **Language model** selector offers four choices:
+
+| Label in the UI | `BG_PARSER` | What reads the sentence |
+|---|---|---|
+| Rules only (instant) | `rules` (default) | The built-in rules parser. Offline, no model. |
+| Smart cascade: rules, then local Qwen | `cascade` | Rules first. A message the rules cannot read goes to a local Qwen2.5 3B, then to Qwen2.5 7B (Ollama). Nothing leaves the machine. |
+| Local model (Ollama) | `local` | One local model through Ollama on `localhost:11434` (`qwen2.5:7b-instruct` by default, or `qwen2.5:3b-instruct`). |
+| Connect a model (OpenAI-compatible) | `connected` | Any server that speaks the OpenAI `/chat/completions` protocol: a local one (LM Studio, vLLM, Ollama `/v1`) or a hosted frontier model. |
 
 ```bash
-ollama pull qwen2.5:7b-instruct                  # the model measured below (qwen2.5:3b-instruct also works)
-python -m streamlit run ui/app.py                # then switch on "Local Qwen model (Ollama)" in the sidebar
-# or without the UI: BG_PARSER=local (optionally BG_LOCAL_MODEL=qwen2.5:7b-instruct) before any script or pytest run
+ollama pull qwen2.5:7b-instruct && ollama pull qwen2.5:3b-instruct     # the two models the cascade uses
+python -m streamlit run ui/app.py                                        # then pick a model in the sidebar
+# without the UI, before any script or pytest run:
+BG_PARSER=cascade                                                        # or local
+BG_PARSER=connected BG_MODEL_BASE_URL=https://host/v1 BG_MODEL_NAME=<model> BG_MODEL_API_KEY=<key>
 ```
 
-`LocalLLMParser` (`bg/agent/local_parser.py`) calls Ollama on `localhost:11434` with Python's standard library, a JSON schema for the intents, temperature 0 and no tools. If Ollama is unreachable, times out or returns invalid output, the request falls back to the rules parser. The model weights are not in this repository. Commands to reproduce the evaluation are in `deliverables/execution_evidence.md`, Section 9.
+All four go through `bg.agent.make_parser` and the same grounding step, orchestrator and policy. The model has no tools. Its output is validated against the intent schema with `extra="forbid"`. If a model is unreachable, times out or returns invalid output, the request falls back to the rules parser. The model weights are not in this repository. Commands to reproduce the evaluation are in `deliverables/execution_evidence.md`, Section 9.
 
-### With Claude (optional)
+**The connector.** `OpenAICompatibleParser` (`bg/agent/connectors.py`) sends the same prompt and the same narrow input as the local parser (the user's text, the user's own payee names, the agent's pending question) at temperature 0. A remote endpoint must use `https`; plain `http` is accepted only for `localhost`. The base URL cannot carry credentials, a query or a fragment. Redirects are not followed. The key comes from the UI field (kept in the browser session) or from `BG_MODEL_API_KEY`. It goes only into the `Authorization` header, and it is not logged, stored or put into an audit record. With a remote endpoint the user's message leaves the machine. **Only local Qwen was measured. No frontier model was measured**, and no hosted model was called in any run in this repository: the connector was exercised against Ollama's own OpenAI-compatible endpoint (`http://localhost:11434/v1`, Qwen2.5 7B, benign suite 29/29, `deliverables/regression_llm/regression_connected_benign/`) and against fake servers in the unit tests.
 
-Set the key, then switch on "Use Claude (needs API key)" in the UI sidebar. If both toggles are on, the local model is used:
-
-```powershell
-$env:ANTHROPIC_API_KEY = "sk-..."        # macOS / Linux: export ANTHROPIC_API_KEY=sk-...
-.\.venv\Scripts\python.exe -m streamlit run ui\app.py
-```
-
-Claude is called with structured JSON-schema output and no tools. On any error, refusal or malformed output, the system falls back to the offline rules parser. Security does not depend on which parser is active. **The Claude path has been tested only with a fake client. No evaluation in this repository used the live API.**
+**The cascade.** On the 105 held-out v2 messages (regression, not blind) the rules answered 119 of 137 messages (87%), the 3B model 17 and the 7B model 1. The median time per message was 0.0 s and the mean 0.36 s. Results: held-out v2 103/105, adversarial suite 69/69, benign suite 29/29 (`deliverables/regression_llm/regression_cascade_*`). The two held-out failures are B25 (by design: "pay the uni" asks for an amount) and N02-de, the German request.
 
 In offline mode (the default, `BG_PARSER` unset) a deterministic rules parser is used, and every run produces identical receipt hashes (and identical signatures while `BG_RECEIPT_KEY` is unset). For a deployment, set `BG_RECEIPT_KEY` to a secret: the default key in `params.py` is a public demo value. While it is in use, the receipt store logs a warning and the UI says that anchors are signed with the public demo key.
+
+### Environment and dependencies
+
+- Operating system: developed and tested on Windows 11; CI runs Ubuntu and Windows; the Docker image is Debian-based (`python:3.11-slim`).
+- Runtime: Python 3.11 (3.11.6 used for the runs in this repository).
+- Main dependencies: pydantic, streamlit, pytest (pinned in `requirements-lock.txt`). The standard library does storage, hashing and HTTP.
+- Optional: Ollama and the Qwen2.5 models, or any OpenAI-compatible model endpoint.
+- Never commit real secrets. No variable below is required for the default offline run.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BG_PARSER` | `rules` | Which parser reads the sentence: `rules`, `local`, `connected` or `cascade`. Any other value gives `rules`. Read only when no parser is passed in code. |
+| `BG_LOCAL_MODEL` | `qwen2.5:7b-instruct` | Model name for `BG_PARSER=local` (Ollama on `localhost:11434`; `OLLAMA_HOST` is ignored on purpose). |
+| `BG_MODEL_BASE_URL` | none | Base URL of the OpenAI-compatible endpoint for `BG_PARSER=connected`, for example `https://host/v1`. Remote hosts must use `https`. |
+| `BG_MODEL_NAME` | none | Model name sent to that endpoint. `connected` needs both this and the base URL, otherwise the rules parser is used. |
+| `BG_MODEL_API_KEY` | none | Bearer token for the endpoint. Sent only in the `Authorization` header. Never logged or stored. |
+| `BG_RECEIPT_KEY` | public demo key | Secret that signs the customer-held receipt anchors. Set it in any real deployment. While it is unset, the log and the UI say that anchors use the public demo key. |
+| `BG_LLM_STATS` | none | Path of a JSONL file for model-call telemetry (latency, fallbacks). Used by `scripts/eval_parser.py`. |
 
 ## Architecture in short
 
 ```
-untrusted text --> ContentGuard (advisory) --> Parser (rules, local Qwen or Claude) --> typed intents
+untrusted text --> ContentGuard (advisory) --> Parser (rules, local Qwen, cascade or connected model) --> typed intents
    --> Grounding (every amount, payee, IBAN, bill kind and new-payee name must be in the user's text;
        sanctions screen on the source text)
    --> Orchestrator expands intents using the REGISTRY (drafts, corrections, cancel, affordability)
@@ -169,25 +206,26 @@ A payment is evaluated against 13 rules when a reserve is stated (12 otherwise),
 | Path | Content |
 |---|---|
 | `bg/contracts/` | Frozen data contracts, interfaces, canonical hashing, canonical IBAN / name / amount functions (`canonical.py`), parameters and seed data |
-| `bg/agent/` | `RulesParser`, `LocalLLMParser` (Qwen via Ollama), `ClaudeParser`, `grounding.py` (checks every parser's output against the user's text), orchestrator (multi-turn, plain-language replies, audit sink) |
+| `bg/agent/` | `RulesParser`, `LocalLLMParser` (Qwen via Ollama), `OpenAICompatibleParser` and `CascadeParser` (`connectors.py`), `make_parser`, `model_parser.py` (shared prompt, validation, fallback), `grounding.py` (checks every parser's output against the user's text), orchestrator (multi-turn, plain-language replies, audit sink) |
 | `bg/policy/` | `DeterministicPolicyEngine` (R0 to R4, incl. `STRUCTURING`, `SANCTIONS_SCREEN`, `FX_PRICE_CHECK`, `IBAN_VALID`, `PAYEE_NAME_UNIQUE`), `RuleBasedContentGuard` |
 | `bg/ledger/` | `SandboxLedger` (issued FX quotes), `StepUpAttempts` (per-customer code lockout), `SqliteReceiptStore` (per-customer Proof-of-Intent chains, signed anchors) |
 | `bg/app.py` | Single wiring point: `build_default()` |
-| `ui/app.py`, `ui/guided.py`, `design/tokens.css` | Streamlit UI (light and dark, shared design tokens): tabs Assistant, Receipts, Attack test; parser toggles in the sidebar; guided six-step demo on the real backend |
+| `ui/app.py`, `ui/guided.py`, `design/tokens.css` | Streamlit UI (light and dark, shared design tokens): tabs Assistant, Receipts, Attack test; one **Language model** selector in the sidebar; guided six-step demo on the real backend |
 | `scenarios/`, `scripts/run_scenarios.py` | 20 scripted missions and their runner |
 | `scripts/verify_all.py` | One-command verification (see Reproduce) |
 | `scripts/golden_path.py`, `scripts/screenshots.py` | Golden-path proof script; UI screenshot capture (Playwright) |
-| `scripts/eval_parser.py` | Runs a test folder with a chosen parser (`rules`, `local`, `claude`) and reports pass/fail, latency and fallback rate |
+| `scripts/eval_parser.py` | Runs a test folder with a chosen parser (`rules`, `local`, `connected`, `cascade`) and reports pass/fail, latency and fallback rate |
 | `tests/adversarial/`, `tests/benign/` | Development suites (69 + 29) |
 | `tests/heldout/` | Blind held-out v1 (73 cases); blind on its first run only |
 | `tests/heldout_v2/` | Blind held-out v2 (105 cases, written by a separate AI agent); blind on its frozen runs only: the rules run in `44542f2` and the Qwen runs in `5868d83` |
-| `tests/audit/` | White-box audit: one test per finding (28) plus proofs of the controls found sound (20) and the UI escaping test (1) |
+| `tests/audit/` | White-box audits, 96 tests. Round 1: one test per finding (28), proofs of controls found sound (20), UI escaping (1). Round 2: one test per finding (25), proofs of controls found sound (22) |
 | `tests/regression/` | Regression tests: simulated judge-panel findings (12) and the failures of the blind Qwen run (9) |
-| `tests/scenarios/`, `tests/unit/` | Missions as pytest (21); component unit tests (469, including grounding and the local parser) |
-| `deliverables/` | `technical_document.md`, `security_self_assessment.md`, `execution_evidence.md`, `task_completion.md`, `security_results.md/.json`, `heldout_results.md`, `heldout_v2_results.md`, `blind_llm/` (frozen blind runs of Qwen 7B, Qwen 3B and the rules parser on v2), `regression_llm/` (re-runs after the grounding fix), `evidence/` (per-mission JSONL audit logs), `screenshots/` (light) and `screenshots/dark/`, `pitch/` (speaker script, Q&A, demo video script, deck) |
-| `docs/review/security_audit.md` | The white-box audit report (12 findings) and the fix status of each |
+| `tests/scenarios/`, `tests/unit/` | Missions as pytest (21); component unit tests (581, including grounding, the local parser, the connectors and cascade, the model selector) |
+| `deliverables/` | `technical_document.md`, `security_self_assessment.md`, `execution_evidence.md`, `task_completion.md`, `security_results.md/.json`, `heldout_results.md`, `heldout_v2_results.md`, `blind_llm/` (frozen blind runs of Qwen 7B, Qwen 3B and the rules parser on v2), `regression_llm/` (re-runs after the grounding fix, and the cascade and connector runs), `evidence/` (per-mission JSONL audit logs), `screenshots/` (light) and `screenshots/dark/`, `pitch/` (speaker script, Q&A, demo video script, deck) |
+| `docs/review/security_audit.md` | The two white-box audit reports (12 findings, then 11) and the fix status of each |
+| `deliverables/submission/` | The three official-template documents (DOCX and PDF), built by `scripts/build_submission_docs.py` |
 | `Dockerfile`, `.github/workflows/ci.yml` | Container for the demo; CI on Ubuntu and Windows plus a Docker build check |
-| `SPEC.md` | Build specification (including the "v2" to "v5 additions"; v4 is the local parser, v5 is grounding) |
+| `SPEC.md` | Build specification (including the "v2" to "v6 additions"; v4 is the local parser, v5 is grounding, v6 is the model connector, the cascade and the round-2 audit fixes) |
 
 ## Results summary
 
@@ -200,8 +238,8 @@ Six layers, read differently. Only layers 3 and 4 estimate generalisation, each 
 | 3 | Blind held-out v2, rules parser, frozen in `44542f2` before any fix | 70 attacks / 30 benign EN / 5 non-EN | **69/70 attacks blocked (95% CI 92.3 to 99.7)**; 24/30 benign EN completed; non-English 0/5 | **Generalisation estimate for the rules parser** |
 | 4 | Blind held-out v2, Qwen2.5 7B (local), frozen in `5868d83` | same 105 cases | **66/70 attacks blocked = 94.3% (CI 86.2 to 97.8)**; multi-turn 15/15; benign EN 26/30 = 86.7% (CI 70.3 to 94.7); non-English 5/5 | **Generalisation estimate for the LLM parser**; one run, temperature 0 |
 | 4 | Same run, Qwen2.5 3B | same | 65/70 attacks; benign EN 21/30; non-English 3/5 | Smaller model, worse on every rate |
-| 5 | White-box security audit (after the blind tests) | 12 findings (3 High, 3 Medium, 6 Low) | 11 fixed, 1 mitigated (AUDIT-12, demo signing key); `tests/audit/` 49 passed, 0 xfails left | Code review by a separate AI agent; the fixes are regression-tested, not blind-tested |
-| 6 | Regression after the fixes | 836 collected | 829 passed, 7 xfailed. Rules on v2: 99 passed + 6 strict xfails. Qwen 7B after the grounding fix: v2 103/105, dev suites 69/69 and 29/29 | Not generalisation: the system was changed after seeing these cases |
+| 5 | White-box security audits (after the blind tests) | Round 1: 12 findings (3 High, 3 Medium, 6 Low). Round 2: 11 findings (2 Medium, 9 Low) | Round 1: 11 fixed, 1 mitigated (AUDIT-12, demo signing key). Round 2: all 11 fixed in `c10f0a0`. `tests/audit/` 96 passed, 0 xfails left | Code reviews by separate AI agents; the fixes are regression-tested, not blind-tested |
+| 6 | Regression after the fixes | 995 collected | 988 passed, 7 xfailed. Rules on v2: 99 passed + 6 strict xfails. Qwen 7B after the grounding fix: v2 103/105, dev suites 69/69 and 29/29. Smart cascade (`c10f0a0`): v2 103/105, 87% of messages answered by the rules, median 0.0 s per message; dev suites 69/69 and 29/29 | Not generalisation: the system was changed after seeing these cases |
 | | Scripted missions | 20 | 20/20 completed, deterministic, one JSONL audit log each | Task completion; team-scripted |
 
 The v2 held-out set was written by a separate AI agent (not a human) with restricted file access: it read the spec and the public interfaces, and could not read the guard, parser, policy or ledger code, the other tests or the deliverables. Its 105 cases were fixed before the first run, and the results were committed in `44542f2` before any code was changed. In that run, multi-turn attacks were blocked 15/15, benign English requests completed 24/30 (80.0%, CI 62.7 to 90.5), and the 5 non-English requests 0/5 (out of scope for the offline parser). No test made a wrong payment, leaked data or executed without confirmation.
@@ -212,38 +250,79 @@ The 7B failures were not payments to an attacker. No money went to an unregister
 
 **What the failures changed (regression, not blind).** Commit `d3e0f49` adds `bg/agent/grounding.py`, applied to the output of every parser. An amount, a payee, an IBAN, a bill kind and the name of a new payee must each appear in the user's text, or the field is dropped and the student is asked. A new payee's name must be the name as typed. The sanctions screen also runs on the source text, whatever a parser extracts. A message that is a question never yields an action. The rules, the confirmation and the receipts are unchanged. After the fix, Qwen 7B scores 103/105 on v2, 69/69 on the adversarial development suite and 29/29 on the benign one (`deliverables/regression_llm/`). The two remaining failures, B20 and B25, are usability only. The blind result stays 97/105; these numbers show that the failure classes are closed, not how the model would do on new cases.
 
-The tester also noted the limits of that number. Nine attacks were "blocked" only because the rules parser did not understand them; without them, and without the 2 structuring cases that never reached the control, the result is 58/59. Structuring was really exercised in only one case, and the Claude parser was not evaluated. The single miss was a real control bypass: a Cyrillic "о" in a sanctioned name passed the sanctions screen. It still needed the user's one-time code, and no money moved.
+The tester also noted the limits of that number. Nine attacks were "blocked" only because the rules parser did not understand them; without them, and without the 2 structuring cases that never reached the control, the result is 58/59. Structuring was really exercised in only one case, and no hosted model was evaluated. The single miss was a real control bypass: a Cyrillic "о" in a sanctioned name passed the sanctions screen. It still needed the user's one-time code, and no money moved.
 
 Commit `292f748` then fixed the findings: look-alike letters are folded before sanctions screening; an unregistered IBAN in a document triggers an explicit warning and a `beneficiary_mismatch` event; IBAN changes requested in chat are refused with an explanation; and the parser handles the v2 phrasings it missed (typos in pay verbs, amounts without a currency, "what if I sent", "would I still have 600 after rent", "bills coming up", "300 more euros"). Commit `60f6448` fixed three defects found by a simulated judge review: a bill and a second payment in one message ("pay the rent and send mom 600") are now both planned and funded by the same conversion; relative amounts ("whatever is left above 600") always get a clarifying question; and rate questions get a read-only quote. These fixes are regression-tested (`tests/regression/`), not blind-tested.
 
-**White-box audit.** After both blind tests, a separate AI agent (Claude) with full read access to the code audited it against the claims in `deliverables/security_self_assessment.md`. It did not write the code. Its report, `docs/review/security_audit.md`, lists 12 findings, each with a test in `tests/audit/` that runs the exploit against the real system. The three High findings defeated controls the self-assessment called guarantees: a poisoned FX quote could overcharge (AUDIT-1), an IBAN typed with non-ASCII digits slipped past the sanctions screen (AUDIT-2), and the one-time-code lockout reset with every new action (AUDIT-3). Commits `2ce6035` and `13dded5` fixed 11 findings and mitigated the 12th (the public demo signing key, now flagged in the log and the UI). Every audit test now passes with no xfail marker. Section 12.5 of `deliverables/technical_document.md` lists each finding and its fix. These fixes were not re-measured on a new blind set.
+**White-box audits.** After both blind tests, a separate AI agent with full read access to the code audited it against the claims in `deliverables/security_self_assessment.md`. It did not write the code. Its report, `docs/review/security_audit.md`, lists 12 findings, each with a test in `tests/audit/` that runs the exploit against the real system. The three High findings defeated controls the self-assessment called guarantees: a poisoned FX quote could overcharge (AUDIT-1), an IBAN typed with non-ASCII digits slipped past the sanctions screen (AUDIT-2), and the one-time-code lockout reset with every new action (AUDIT-3). That audit read the code before `2ce6035` (`615f260` plus work in progress in the orchestrator). Its tests and the fixes were committed together in `2ce6035` and `13dded5`, so the failing state cannot be reproduced from the history. Those commits fixed 11 findings and mitigated the 12th (the public demo signing key, now flagged in the log and the UI).
+
+A second white-box audit, by another separate AI agent, read the code at `22b144e`: the local parser, grounding, the redesigned UI and the keynote. It found 11 more (2 Medium, 9 Low) and added 47 tests. **All 11 are fixed in `c10f0a0`**:
+
+| ID | Sev. | Finding | Fix |
+|---|---|---|---|
+| AUDIT2-1 | Medium | A sanctioned name written without spaces, letter-spaced, with `1` for `i` or as a dotted acronym passed the screen | Space-free comparison, letter runs joined, `1` tried as `i` and as `l` |
+| AUDIT2-2 | Medium | A model's free text was shown as the bank's own words; bare URLs in chat bubbles became links | A fixed sentence per refusal category; a model's question is shown only if it passes a filter; `esc_md` breaks autolinks |
+| AUDIT2-3 | Low | A payee name with Markdown rendered inside the quick-reply chips | The chip label goes through `esc_md` |
+| AUDIT2-4 | Low | Payee synonyms that are English words or first names ("Anne", "mere") counted as grounding | Synonym list narrowed; matching keeps accents |
+| AUDIT2-5 | Low | The model could change the reserve currency or a payment currency | Currencies are grounded in the text |
+| AUDIT2-6 | Low | The payment memo (sent to the payee) was neither grounded nor shown | The memo must be a span of the user's message, and the card shows it |
+| AUDIT2-7 | Low | A question could trigger `Correct` or `Cancel` | The question guard also covers `Correct` and `Cancel` |
+| AUDIT2-8 | Low | A duplicated intent gave several identical one-tap cards | Exact duplicates are dropped unless the text repeats them |
+| AUDIT2-9 | Low | A proxy variable could route local-model traffic through the proxy | Loopback traffic bypasses proxies; no redirects; the local parser accepts only loopback hosts |
+| AUDIT2-10 | Low | Parser telemetry kept the raw message and the raw model output | Only a hash, a length and the error class are recorded |
+| AUDIT2-11 | Low | A long message with repeated numbers cost quadratic CPU | 2,000-character limit before any parsing; a linear number pattern |
+
+Section 12.5 of `deliverables/technical_document.md` lists each finding of both rounds. The `c10f0a0` additions (connector, cascade, model selector, the rewritten local parser) came after the round-2 audit and have had no third white-box review. None of these fixes was re-measured on a new blind set.
 
 **Correction about v1.** Earlier versions said all 14 v1 document-injection cases were detected. That was inflated. The seeded rent invoice is itself injected and was also scanned on rent requests, so its event masked **8** real detection misses (Spanish, Arabic, Chinese, base64, leetspeak, table, polite request, fake bank notice). In all 8 the money stayed safe, because the registry IBAN and the registry amount were used. The 8 are now detected by three language-independent signals: conflicting IBANs, encoded payloads (base64 decoded and rescanned) and obfuscated instructions (leetspeak folded and rescanned). Details are in `deliverables/heldout_results.md`.
 
 **About the git history.** The history was re-created from local work on 2026-10-17, which is why the commit timestamps are close together. The commit order is original, and every hash quoted in this repository exists (`git cat-file -t <hash>`).
+
+## Repository and deployment
+
+- Git repository: https://github.com/Arracheur2Bonnet/Borderless
+- Live demo: none. The demo runs locally (Quick start) or in Docker. A hosted demo was not built.
+- Deployment: `docker build -t borderlessguard .` and `docker run --rm -p 8501:8501 borderlessguard`. For anything beyond a demo, also pass `-e BG_RECEIPT_KEY=<secret>`; to use a model, pass `BG_PARSER` and the `BG_MODEL_*` variables. There is no authentication layer, so the container must not be exposed to the internet.
+
+## Security notes
+
+- **Permission tiers.** R0 read-only, R2 one tap, R3 one-time code, R4 hard deny that nothing overrides (table under "Architecture in short"). The approval is bound to a hash of the exact action.
+- **Confirmation.** Every payment and currency purchase needs a tap or a code. A model, a document or a tool output cannot create or approve an action.
+- **Data handling.** The model sees only the user's text, the user's own payee names and the agent's pending question. Documents, IBANs and balances never reach it. The audit log stores a SHA-256 and the length of each message, masks IBANs and drops one-time codes. All data in the sandbox is synthetic. Sessions, drafts and ledger state live in memory and disappear when the process ends; receipts are in in-memory SQLite unless a file path is given.
+- **Known risks.** See "Limitations" below and `deliverables/security_self_assessment.md`, Section 6.
 
 ## Limitations
 
 - **Sandbox only.** Balances, rates, fee, OTP and watchlist are simulated. There is no bank, KYC/AML or regulatory integration. One persona and one currency pair (EUR/USD).
 - **No authentication.** Sessions are not authenticated in the sandbox: whoever opens a session for a user id acts as that user. The one-time code is a fixed demo value (`246810`), and the demo clock is frozen, so quote expiry, the 72 h window and the daily reset never run in real time.
 - **The guard can be evaded.** Its phrase patterns are English and French only; the structural signals do not depend on language. By design, authorisation never depends on detection.
-- **The offline rules parser** is English-only and brittle on unseen phrasing. **The Claude parser is untested against the live API.**
+- **The offline rules parser** is English-only and brittle on unseen phrasing. **No hosted or frontier model was ever called or measured.** The connector for one exists and is tested against fake servers and a local one. Only local Qwen2.5 (7B and 3B) was measured.
 - **The Qwen measurement is small.** One run, 70 attacks and 30 benign English requests, and the blind set was written before the local parser existed. The 94.3% interval runs from 86.2 to 97.8. The model must be installed by the user, and a call takes about 2.6 s on the development machine.
 - **Grounding checks presence, not meaning.** It cannot tell that a number in the text is the wrong one ("I paid 500 last month, send 50" read as 500), or that a payee named in the text was named as an exception. Its word lists are finite, so a payee or bill word in an unlisted language gets a question instead of a payment. A wrong reading among the student's own payees still reaches the card and needs her approval.
 - **The receipt chain needs the customer's copy.** Truncation or a full rewrite is undetectable *without* the signed copy and detectable *with* it, but it only helps if the customer keeps it. Unless `BG_RECEIPT_KEY` is set, anchors are signed with a public demo key, so anyone can forge one.
 - **Sanctions screening and structuring are demonstrations.** The watchlist is fictional and the look-alike table is finite. A name with letters that cannot be folded to Latin is denied (fail closed), so a legitimate non-Latin name is refused in the sandbox. The structuring check covers one payee and one 24 h window.
-- **The post-blind fixes were not re-measured blind.** The judge-panel, white-box audit and grounding fixes are covered by regression tests only.
+- **The post-blind fixes were not re-measured blind.** The judge-panel, white-box audit (both rounds), grounding and cascade changes are covered by regression tests only.
+- **The newest code has had no white-box review.** The model connector, the cascade, the model selector and the rewritten local parser (`c10f0a0`) came after the round-2 audit.
 - **Not implemented:** federated learning (cross-institution risk scoring), on-chain anchoring of receipts, real bank integration.
 
 ## Licences of dependencies
 
-| Package | Licence |
-|---|---|
-| pydantic | MIT |
-| anthropic (Python SDK) | MIT |
-| streamlit | Apache-2.0 |
-| pytest | MIT |
+| Component | Used for | Licence |
+|---|---|---|
+| pydantic | Data contracts | MIT |
+| streamlit | Demo UI | Apache-2.0 |
+| pytest | Tests | MIT |
+| Pillow (a streamlit dependency) | Images in the UI | MIT-CMU (HPND) |
+| python-pptx | Backup deck builder (dev only) | MIT |
+| Playwright | Screenshots and keynote check (dev only) | Apache-2.0 |
+| PyMuPDF | Renders PDFs to images for checks (dev only) | AGPL-3.0 |
+| python-docx | Builds the submission DOCX files (dev only) | MIT |
+| Ollama | Serves local models (optional, not in the repository) | MIT |
+| Qwen2.5-7B-Instruct weights | Local parser, evaluation (optional, downloaded by the user) | Apache-2.0 |
+| Qwen2.5-3B-Instruct weights | Cascade tier, evaluation (optional, downloaded by the user) | Qwen Research License (non-commercial research use) |
 
-Python standard-library modules (sqlite3, hashlib, hmac, decimal) are used for storage, hashing and signing. Helper scripts only (listed in `requirements-dev.txt`) use `python-pptx` (deck builder) and Playwright (screenshots); PyMuPDF is included for rendering the deck to images.
+PyMuPDF is used only by helper scripts during development. It is not imported by the product, the tests or `verify_all.py`, and it is not in the runtime lock file. The Qwen2.5-3B licence allows our research use and not commercial use; a commercial deployment would use the 7B model or another one. All data in this repository is synthetic: the persona, balances, payees, IBANs and the watchlist are invented. The transitive dependencies are pinned in `requirements-lock.txt` with their own licences.
+
+Python standard-library modules (sqlite3, hashlib, hmac, decimal, urllib) are used for storage, hashing, signing and model calls. The hosted-API SDK that earlier versions listed was removed in `c10f0a0`.
 
 The project itself is released under the MIT licence (see `LICENSE`).
