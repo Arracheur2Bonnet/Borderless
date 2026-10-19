@@ -30,6 +30,7 @@ from bg.contracts.models import (
 
 from bg.ledger.stepup import StepUpAttempts
 
+from . import help as _help
 from .grounding import GroundingContext, Repair, ground_intents, is_question, own_sanctions_hit, sanctions_hits
 from .rules_parser import RulesParser, is_affordability_question, payment_draft_hint
 
@@ -121,6 +122,27 @@ def _q(x: Decimal) -> Decimal:
 def _m(x: Decimal) -> str:
     """The one money display format: thousands separators, two decimals."""
     return money(x)
+
+
+def fx_cost(q: FxQuote) -> tuple[Decimal, Decimal]:
+    """(total cost of the conversion in the sold currency, that cost as a percentage of the amount sold before the
+    fee). Derived only from the quote; the rate is the bank's single reference rate, so the fee is the whole cost
+    and no comparison with any other provider is made (P2-02)."""
+    net = q.sell_amount - q.fee
+    pct = (q.fee / net * 100) if net > 0 else Decimal("0")
+    return _q(q.fee), _q(pct)
+
+
+def fx_cost_plain(q: FxQuote) -> str:
+    """'11.96 USD, 0.50%' (for use inside a parenthesis)."""
+    cost, pct = fx_cost(q)
+    return f"{_m(cost)} {q.sell_currency}, {pct:.2f}%"
+
+
+def fx_cost_text(q: FxQuote) -> str:
+    """'11.96 USD (0.50%)'."""
+    cost, pct = fx_cost(q)
+    return f"{_m(cost)} {q.sell_currency} ({pct:.2f}%)"
 
 
 def _norm_iban(s: str) -> str:
@@ -347,6 +369,12 @@ class _Orchestrator:
                 t.events.append(ev)
                 t.explained.add(ev.event_id)
         parsed = self._sanctions_on_sources(s, parsed, text or "", list(documents or []), t)
+        scoped = _help.apply(text or "", list(parsed.intents))   # P1-01: our words for help and unsupported topics
+        if scoped is not None:
+            topic, new_intents = scoped
+            parsed = parsed.model_copy(update={"intents": new_intents})
+            t.plain_clarify.update(id(i) for i in new_intents)
+            self._audit("clarify", s, help_topic=topic)
         # AUDIT-9: the raw message is not logged (it can hold a code or bank details); a hash and length
         # identify it, and the parsed, masked intents carry what the step did.
         self._audit("parse", s, parser=parsed.parser,
@@ -626,10 +654,11 @@ class _Orchestrator:
             elif intent.category in ("jailbreak", "limit_change"):
                 if not any(e.kind == "jailbreak_attempt" for e in t.events):
                     t.events.append(self._event(s, "jailbreak_attempt", "user_message", shown))
+            more = _help.out_of_scope_suffix() if intent.category == "out_of_scope" else ""
             if not t.trusted_text:
                 if intent.reason:       # kept for the audit log only
                     self._audit("clarify", s, unsupported_category=intent.category, model_reason=intent.reason[:200])
-                t.info.append(fixed)
+                t.info.append(fixed + more)
             elif intent.reason.startswith("BANK DETAILS: "):
                 reason = intent.reason.removeprefix("BANK DETAILS: ")
                 ev = self._event(s, "beneficiary_mismatch", "user_message",
@@ -638,7 +667,7 @@ class _Orchestrator:
                 t.explained.add(ev.event_id)
                 t.info.append(reason)
             else:
-                t.info.append(intent.reason)
+                t.info.append(intent.reason + more)
         elif isinstance(intent, PayObligations):
             self._expand_obligations(s, idx, intent, out, t, scans)
         elif isinstance(intent, FxConvert):
@@ -1288,6 +1317,7 @@ class _Orchestrator:
             qt, sim = fx.quote, sims[0]
             lines.append(f"Convert {_m(qt.sell_amount)} USD into {_m(qt.buy_amount)} EUR (fee {_m(qt.fee)} USD)"
                          + ("" if sim.feasible else f": not possible ({', '.join(sim.errors)})"))
+            lines.append(f"Total FX cost: {fx_cost_text(qt)}")
             off = 1
         for i, (a, label) in enumerate(pays):
             sim = sims[off + i]
@@ -1302,8 +1332,8 @@ class _Orchestrator:
                     balances_now=now_b, balances_after=after_b, fx_buy_eur=fx.quote.buy_amount if fx else None)
 
         bills = " and ".join(dict.fromkeys(kinds_found)) or "your bills"
-        fx_note = (f" (after converting {_m(fx.quote.sell_amount)} USD into {_m(fx.quote.buy_amount)} EUR)"
-                   if fx is not None else "")
+        fx_note = (f" (after converting {_m(fx.quote.sell_amount)} USD into {_m(fx.quote.buy_amount)} EUR; "
+                   f"total FX cost {fx_cost_plain(fx.quote)})" if fx is not None else "")
         usd_note = f" You would still have {_m(usd_after)} USD." if usd_after is not None and fx is not None else ""
         if not feasible:
             what = (f"{bills} plus {extra_label}" if n_bills and has_extra else (bills if n_bills else extra_label))
@@ -1436,8 +1466,10 @@ class _Orchestrator:
             if a.memo and a.obligation_id is None:      # AUDIT2-6: the reference sent to the payee is shown
                 lines.append(f"Reference sent to the payee: {a.memo}")
         elif isinstance(a, FxAction):
-            lines += [f"Rate {a.quote.rate} {a.quote.buy_currency} per {a.quote.sell_currency}, "
-                      f"fee {_m(a.quote.fee)} {a.quote.sell_currency} (quote {a.quote.quote_id})"]
+            lines += [f"Rate {a.quote.rate} {a.quote.buy_currency} per {a.quote.sell_currency} "
+                      f"(quote {a.quote.quote_id})",
+                      f"Cost of this exchange: {fx_cost_text(a.quote)}, included in the "
+                      f"{_m(a.quote.sell_amount)} {a.quote.sell_currency} you pay"]
         elif isinstance(a, AddBeneficiaryAction):
             lines += [f"IBAN ends {a.iban[-4:]}", "Payments to this payee need your one-time code for 72 hours"]
         if sim is not None:
@@ -1566,11 +1598,10 @@ class _Orchestrator:
         a, cr = rec.action, rec.creq
         if isinstance(a, FxAction):
             q = a.quote
-            fee_pct = f"{(params.FX_FEE_RATE * 100).normalize():f}%"
             what = (f"{'First, buy' if first and more else 'Buy'} {_m(q.buy_amount)} {q.buy_currency} for "
-                    f"{_m(q.sell_amount)} {q.sell_currency} at {q.rate} {q.buy_currency} per {q.sell_currency}, plus a "
-                    f"fee of {_m(q.fee)} {q.sell_currency} ({fee_pct})"
-                    + (", so the euro payments can go through." if more and funds_payments else "."))
+                    f"{_m(q.sell_amount)} {q.sell_currency} at {q.rate} {q.buy_currency} per {q.sell_currency}"
+                    + (", so the euro payments can go through." if more and funds_payments else ".")
+                    + f" Cost of this exchange: {fx_cost_text(q)}, included in that price.")
         elif isinstance(a, PaymentAction):
             b = self._ben(self._user_of(rec), a.beneficiary_id)
             name = b.display_name if b else a.beneficiary_id

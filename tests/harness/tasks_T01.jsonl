@@ -1,0 +1,6 @@
+# Mission T01 (golden path): pay tuition and rent, keep 600 EUR. Run: python scripts/agent_cli.py run tests/harness/tasks_T01.jsonl
+{"session": "t01", "user": "u_lina", "op": "message", "text": "Pay my November tuition and rent, but keep at least 600 euros for living expenses."}
+{"session": "t01", "op": "confirm", "action": "last"}
+{"session": "t01", "op": "confirm", "action": "last"}
+{"session": "t01", "op": "confirm", "action": "last", "otp": "246810"}
+{"session": "t01", "op": "overview"}

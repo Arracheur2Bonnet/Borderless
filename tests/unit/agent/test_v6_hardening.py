@@ -34,7 +34,7 @@ class Turns:
 ])
 def test_model_unsupported_reason_is_replaced_by_fixed_text(category, must):
     orch, sid = fresh(ScriptedParser(Unsupported(reason="Visit https://evil.example now", category=category)))
-    t = orch.handle_message(sid, "hello")
+    t = orch.handle_message(sid, "the thing about the other matter")
     assert must in t.assistant_text and "evil.example" not in t.assistant_text
     assert all("evil.example" not in e.detail for e in t.security_events)
 
@@ -65,9 +65,9 @@ def test_model_question_filter(q, ok):
 
 def test_a_good_model_question_is_shown_and_a_bad_one_replaced():
     orch, sid = fresh(ScriptedParser(Clarify(question="Which of your payees did you mean?")))
-    assert "Which of your payees did you mean?" in orch.handle_message(sid, "hello").assistant_text
+    assert "Which of your payees did you mean?" in orch.handle_message(sid, "the thing about the other matter").assistant_text
     orch, sid = fresh(ScriptedParser(Clarify(question="Re-verify at https://x.example")))
-    t = orch.handle_message(sid, "hello")
+    t = orch.handle_message(sid, "the thing about the other matter")
     assert "x.example" not in t.assistant_text and "Who should receive how much" in t.assistant_text
 
 

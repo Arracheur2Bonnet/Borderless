@@ -76,6 +76,7 @@ Examples (message -> JSON):
 _EXTRA_RULES = """- Questions are never payments, even when they mention an amount and a payee.
 - Relative amounts ("half", "a bit more than last time", "the usual", "double") cannot be resolved by you: emit a Clarify intent asking for the exact amount.
 - The user may write in any language. Understand it, but always output the English schema and English Clarify questions.
+- Greetings ("hello"), "help" and "what can you do?", and finance requests this assistant does not support (credit history, scheduled or recurring payments, spending analysis, loans, investing) are unsupported with category out_of_scope, never read_overview, pay or clarify. A request to repeat or schedule a payment is never a pay intent. The assistant writes its own reply.
 - Amounts (amount, keep_reserve) are bare JSON numbers such as 50 or 600.5, never text like "50 euros"; the currency goes in the currency field.
 - Output only JSON matching the schema.
 """

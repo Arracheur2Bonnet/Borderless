@@ -217,3 +217,29 @@ Backward compatible, except that the Claude parser no longer exists.
   `MAX_MESSAGE_CHARS = 2000`. The rules parser's number pattern is non-backtracking.
 - **Scripts.** `scripts/eval_parser.py --parser {rules,local,connected,cascade}` (`--base-url`, `--model` for connected).
   `verify_all.py`, `run_scenarios.py` and `screenshots.py` ignore `BG_PARSER` and `BG_MODEL_*` so evidence is always the rules parser's.
+
+## v7 additions (2026-10-19, final improvements wave A)
+Backward compatible: no contract changed. New modules and behaviour only.
+
+- **Help and scoped fallback (P1-01), `bg/agent/help.py`.** Greetings, "help" / "what can you do?", thanks, and in-domain requests that are not
+  supported (credit history or score, scheduled or recurring payments, spending analysis by category, loans, investing) get a fixed,
+  rule-written reply: what BorderlessGuard can do (with three example sentences), what it does not do for that request (no fake feature) and a
+  concrete next step. `help.apply(text, intents)` runs inside `RulesParser` and again in the orchestrator on the user's own words for EVERY
+  parser, after grounding: it replaces a parser's answer only when that answer cannot move money (Clarify, ReadOverview, an empty
+  AffordabilityCheck, Unsupported `out_of_scope`). A recurring or scheduled payment request ("every month", "tomorrow", "standing order") also
+  replaces Pay / PayObligations / FxConvert: it must never become a one-off payment. Jailbreak, limit_change and data_access refusals are never
+  replaced. The reply is shown as a plain Clarify (no action, no security event, no draft). A model's free text is still never relayed
+  (AUDIT2-2). A generic `Unsupported(out_of_scope)` now ends with what the assistant can do and three examples. The generic "Sorry, I didn't get
+  that" is kept only for truly unknown input and now also says: Type "help" to see everything I can do. The model prompt tells models to emit
+  `out_of_scope` for these requests (the reply is ours either way).
+- **FX cost transparency (P2-02).** Every FX proposal shows the cost of the exchange, derived only from the sandbox quote (fee in the sold currency,
+  and as a percentage of the amount sold before the fee; the sandbox has one reference rate, so the fee is the whole cost and no comparison with
+  any other provider is made): reply line "Cost of this exchange: 11.96 USD (0.50%), included in that price.", confirmation card line
+  "Cost of this exchange: 11.96 USD (0.50%), included in the 2,403.26 USD you pay", affordability projection line "Total FX cost: 11.96 USD
+  (0.50%)" and, in the affordability answer, "(after converting ... ; total FX cost 11.96 USD, 0.50%)". Helpers `fx_cost` / `fx_cost_text` in
+  `bg/agent/orchestrator.py`. The card's "Rate ..." line no longer carries the fee (it moved to the cost line); the action title keeps "(fee ...)".
+- **Scripted-task harness (P1-05).** `bg/harness.py` (`Harness`: sessions, message / confirm / reject / overview, JSON-safe records),
+  `scripts/agent_cli.py` (`run <tasks.jsonl>`, `chat`; `--parser rules|local|cascade|connected`, default rules and independent of `BG_PARSER`),
+  `bg/http_api.py` + `scripts/agent_api.py` (standard-library `http.server`, 127.0.0.1 only unless `--allow-remote`, body cap 64 KiB,
+  `application/json` only, Host-header check, optional `BG_API_TOKEN` bearer token, no access log, no OTP / full IBAN / trace in responses).
+  The harness only carries text, a confirmation and an optional OTP in and structured facts out: the principle is unchanged. See docs/HARNESS.md.

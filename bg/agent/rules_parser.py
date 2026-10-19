@@ -12,6 +12,8 @@ from bg.contracts.models import (
     ParsedRequest, PayObligations, ProvideDetail, ReadOverview, Unsupported,
 )
 
+from . import help as _help
+
 # Upper-case IBANs as printed, or all-lower-case ones typed in chat. In the lower-case form every group must
 # contain a digit, so a following word ("... 5555 55 instead") is never swallowed into the IBAN.
 _IBAN_RE = re.compile(r"\b([A-Z]{2}[0-9]{2}(?:[ .\-]?[A-Z0-9]{2,4}){3,8}"
@@ -161,8 +163,7 @@ def payment_draft_hint(text: str, names: list[str]) -> tuple[str | None, Decimal
 
 # The two answers that mean "I could not read this at all". A cascade moves on to the next tier on either.
 EMPTY_QUESTION = "What would you like to do?"
-NOT_UNDERSTOOD_QUESTION = ("Sorry, I didn't get that. Try: \"what's my balance?\", \"pay my rent\", "
-                           "\"send 50 euros to mom\" or \"convert 200 dollars\".")
+NOT_UNDERSTOOD_QUESTION = _help.NOT_UNDERSTOOD
 GENERIC_CLARIFY_QUESTIONS = frozenset({EMPTY_QUESTION, NOT_UNDERSTOOD_QUESTION})
 
 
@@ -180,6 +181,9 @@ class RulesParser:
         # NFKC first: fullwidth digits and letters become ASCII; anything else non-ASCII is never a number
         norm = unicodedata.normalize("NFKC", text or "")
         intents = self._parse(norm, beneficiary_names, pending_question)
+        scoped = _help.apply(norm, intents)     # greetings, help, and the topics that are not supported yet
+        if scoped is not None:
+            intents = scoped[1]
         return ParsedRequest(intents=intents, parser="rules", raw_text=text or "")
 
     # ------------------------------------------------------------------
