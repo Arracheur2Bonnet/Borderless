@@ -36,7 +36,7 @@ jobs:
       - name: Install locked dependencies
         run: python -m pip install -r requirements-lock.txt
 
-      - name: Verify (pytest, 20 missions, golden path, security report, evidence reproducibility)
+      - name: Verify (pytest, 21 missions, golden path, security report, evidence reproducibility)
         run: python scripts/verify_all.py --report-dir verify-report
 
       - name: Upload evidence and test reports

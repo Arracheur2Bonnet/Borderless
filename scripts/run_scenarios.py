@@ -1,4 +1,4 @@
-"""Task-completion evidence: runs the 20 scripted missions end to end in the sandbox.
+"""Task-completion evidence: runs the 21 scripted missions end to end in the sandbox.
 
     ./.venv/Scripts/python scripts/run_scenarios.py          (Windows, Git Bash)
     python scripts/run_scenarios.py                          (elsewhere)

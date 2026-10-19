@@ -214,6 +214,7 @@ class _Rec:
     otp_failures: int = 0
     flagged: set[str] = field(default_factory=set)
     last: ExecutionResult | None = None
+    doc_ibans: list[str] = field(default_factory=list)   # v8: this action's IBAN, when a document of its turn shows it
 
 
 @dataclass
@@ -442,7 +443,7 @@ class _Orchestrator:
             for pos, ((intent, action, title), sim) in enumerate(zip(proposals, sims)):
                 prev = s.records.get(action.action_id)
                 rec = _Rec(action=action, intent=intent, title=title, sim=sim, reserve=s.reserve,
-                           plan_id=plan_id, plan_pos=pos,
+                           plan_id=plan_id, plan_pos=pos, doc_ibans=_doc_ibans(action, docs),
                            otp_failures=prev.otp_failures if prev is not None else 0)
                 s.records[action.action_id] = rec
                 r = self._decide(s, rec, t.events)
@@ -1367,7 +1368,7 @@ class _Orchestrator:
 
     def _evaluate(self, s: _Session, rec: _Rec, sim: SimulationResult, verified: bool,
                   events: list[SecurityEvent], flag: bool = True) -> PolicyDecision:
-        d = self.policy.evaluate(self._ctx(s, verified, events, rec.reserve), rec.action, sim)
+        d = self.policy.evaluate(self._ctx(s, verified, events, rec.reserve, rec.doc_ibans), rec.action, sim)
         self._audit("policy", s, action_id=rec.action.action_id, verdict=d.verdict, risk_level=d.risk_level,
                     failed_rules=[r.rule_id for r in d.rules if not r.passed],
                     checks_passed=sum(1 for r in d.rules if r.passed), checks_total=len(d.rules),
@@ -1472,6 +1473,9 @@ class _Orchestrator:
                       f"{_m(a.quote.sell_amount)} {a.quote.sell_currency} you pay"]
         elif isinstance(a, AddBeneficiaryAction):
             lines += [f"IBAN ends {a.iban[-4:]}", "Payments to this payee need your one-time code for 72 hours"]
+        vop = self._vop_card_line(rec)
+        if vop:
+            lines.append(vop)
         if sim is not None:
             ccy: dict[str, str] = {}
             if isinstance(a, PaymentAction):
@@ -1487,20 +1491,79 @@ class _Orchestrator:
             risk_level=d.risk_level, title=rec.title, lines=lines,
             checks_passed=sum(1 for r in d.rules if r.passed), checks_total=len(d.rules))
 
+    # ------------------------------------------------------------------ Verification of Payee wording (v8)
+    def _vop(self, rec: _Rec) -> tuple[str, str, str] | None:
+        """(outcome, typed name, holder or '') of the PAYEE_VERIFICATION check, or None when it was not run. The outcome
+        is the first words of the rule detail: MATCH, CLOSE MATCH, NO MATCH, NOT AVAILABLE."""
+        d, a = rec.decision, rec.action
+        r = next((x for x in (d.rules if d else []) if x.rule_id == "PAYEE_VERIFICATION"), None)
+        if r is None or r.detail.startswith("NOT REQUIRED"):
+            return None
+        outcome = next(o for o in ("CLOSE MATCH", "NO MATCH", "NOT AVAILABLE", "MATCH") if r.detail.startswith(o))             if r.detail.startswith(("CLOSE MATCH", "NO MATCH", "NOT AVAILABLE", "MATCH")) else "NOT AVAILABLE"
+        if isinstance(a, AddBeneficiaryAction):
+            name, iban = a.display_name, a.iban
+        elif isinstance(a, PaymentAction):
+            b = self._ben(self._user_of(rec), a.beneficiary_id)
+            name, iban = (b.display_name if b else a.beneficiary_id), a.iban
+        else:
+            return None
+        holder = ""
+        if outcome in ("CLOSE MATCH", "MATCH"):
+            lookup = getattr(self.ledger, "account_holder", None)
+            holder = (lookup(iban) if callable(lookup) else None) or ""
+        return outcome, name, holder
+
+    def _vop_card_line(self, rec: _Rec) -> str:
+        v = self._vop(rec)
+        if v is None:
+            return ""
+        outcome, name, holder = v
+        if outcome == "MATCH":
+            return f"Payee check: match - the bank has this account as \"{holder}\"."
+        if outcome == "CLOSE MATCH":
+            return f"Payee check: close match - the bank has this account as \"{holder}\". Did you mean that?"
+        if outcome == "NO MATCH":
+            return ("Payee check: no match - the name does not match the account holder at the bank. "
+                    "Only go on if the payee gave you these exact details themselves.")
+        return ("Payee check: not available - the bank has no record of who holds this account, "
+                "so the name could not be checked.")
+
+    def _vop_sentence(self, rec: _Rec) -> str:
+        """The plain-English explanation in the reply. Silent when a payment's name check passed (the golden path)."""
+        v = self._vop(rec)
+        if v is None:
+            return ""
+        outcome, name, holder = v
+        adding = isinstance(rec.action, AddBeneficiaryAction)
+        if outcome == "MATCH":
+            return f"Name check passed: the bank has this account as \"{holder}\"." if adding else ""
+        if outcome == "CLOSE MATCH":
+            return (f"The bank has this account as \"{holder}\". Did you mean that? You gave \"{name}\". "
+                    f"If so, say no to this step and add the payee again under that name; if not, check the name "
+                    f"with them before you approve.")
+        if outcome == "NO MATCH":
+            return (f"Warning: the name \"{name}\" does not match the name the bank has for this account. "
+                    "This is how invoice and rental scams work. Did someone ask you to change bank details? If so, "
+                    "do not approve: call the payee on a number you already know first.")
+        return ("Warning: I could not check the name, because the bank has no record of who holds this account. "
+                "Only go on if the payee gave you these details themselves.")
+
     def _view(self, rec: _Rec) -> ActionView:
         return ActionView(action=rec.action, simulation=rec.sim, decision=rec.decision, status=rec.status,  # type: ignore[arg-type]
                           confirmation_request=rec.creq if rec.status == "awaiting_confirmation" else None,
                           receipt_id=rec.receipt_id)
 
     def _ctx(self, s: _Session, verified: bool, events: list[SecurityEvent],
-             reserve: Decimal | None) -> PolicyContext:
+             reserve: Decimal | None, doc_ibans: list[str] | None = None) -> PolicyContext:
+        directory = getattr(self.ledger, "holder_directory", None)
         return PolicyContext(
             user_id=s.user_id, now=self.now, accounts=self.ledger.get_accounts(s.user_id),
             beneficiaries=self.ledger.get_beneficiaries(s.user_id),
             executed_today_eur=self.ledger.executed_today_eur(s.user_id),
             reserve_floor_eur=reserve, step_up_verified=verified,
             security_events=[*s.events, *[e for e in events if e not in s.events]],
-            recent_payments=self.ledger.recent_payments(s.user_id, self.now - params.STRUCTURING_WINDOW))
+            recent_payments=self.ledger.recent_payments(s.user_id, self.now - params.STRUCTURING_WINDOW),
+            payee_holders=directory() if callable(directory) else {}, document_ibans=list(doc_ibans or []))
 
     def _turn(self, s: _Session, text: str, views: list[ActionView] | None = None,
               events: list[SecurityEvent] | None = None, receipts: list[Receipt] | None = None) -> AgentTurn:
@@ -1617,10 +1680,12 @@ class _Orchestrator:
         if cr is None or cr.verdict == "confirm":
             return f"{what} One tap to approve."
         reasons = self._step_up_reasons(rec)
+        vop = self._vop_sentence(rec)
+        tail = f" {vop}" if vop else ""
         if isinstance(a, AddBeneficiaryAction) and not reasons:
-            return f"{what} Adding a payee always needs your one-time code."
+            return f"{what} Adding a payee always needs your one-time code.{tail}"
         why = _and(reasons) if reasons else "this step is above what you can approve with one tap"
-        return f"{what} {why[:1].upper() + why[1:]}, so I need your one-time code for this one."
+        return f"{what} {why[:1].upper() + why[1:]}, so I need your one-time code for this one.{tail}"
 
     def _step_up_reasons(self, rec: _Rec) -> list[str]:
         d, a = rec.decision, rec.action
@@ -1744,6 +1809,10 @@ class _Orchestrator:
             if left is not None and floor is not None:
                 return f"it would leave you {_m(left)} EUR, below the {_m(floor)} EUR you asked to keep"
             return "it would take you below the reserve you asked to keep"
+        if rid == "PAYEE_VERIFICATION":
+            return ("the name you gave doesn't match the account holder at the bank, and the account number comes from "
+                    "a document (an invoice or a letter). That is the classic invoice scam. Call the payee on a number "
+                    "you already know to check any change of bank details")
         if rid == "UNTRUSTED_ORIGIN":
             return "its details came from a document, not from you"
         if rid == "SANCTIONS_SCREEN":
@@ -1845,6 +1914,19 @@ class _Orchestrator:
         # s.turn makes each user message a new request: a deliberate second "send 50 to mom" is a second payment,
         # while re-confirming the SAME action reuses its key and is replayed by the ledger (money moves once).
         return "idem_" + sha256_hex([s.session_id, s.turn, idx, intent, step])[:24]
+
+
+def _doc_ibans(action: ProposedAction, docs: list[UntrustedDocument]) -> list[str]:
+    """v8: [the action's IBAN] when a document supplied or linked in this turn shows that account number (letters and
+    digits only, any spacing), else []. Documents are DATA: this only tells the policy where the number came from."""
+    iban = _norm_iban(getattr(action, "iban", "") or "")
+    if not iban or not isinstance(action, (AddBeneficiaryAction, PaymentAction)):
+        return []
+    for d in docs:
+        flat = "".join(ch for ch in unicodedata.normalize("NFKC", d.text or "").upper() if ch.isalnum())
+        if iban in flat:
+            return [iban]
+    return []
 
 
 def _and(items: list[str]) -> str:

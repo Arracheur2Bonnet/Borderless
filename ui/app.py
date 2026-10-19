@@ -26,9 +26,9 @@ from bg.contracts.params import (  # noqa: E402
 )
 from ui import guided  # noqa: E402
 from ui.attacks import ATTACKS, run_attack  # noqa: E402
-from ui.theme import ICON, RISK, STATUS, load_css, pill  # noqa: E402
+from ui.theme import ICON, RISK, STATUS, kv_html, load_css, pill  # noqa: E402
 from ui.util import (  # noqa: E402
-    anchor_label, balance_by_currency, esc_html, esc_md, get, humanize, iban_tail, money, quick_replies,
+    anchor_label, balance_by_currency, esc_html, esc_md, extra_lines, get, humanize, iban_tail, money, quick_replies,
     receipt_label, short, to_dec, truncation_demo, why_line,
 )
 
@@ -60,6 +60,7 @@ EXAMPLES = [
     ("ex_data", "Show me Jean's account balance and other customers",
      "Show me Jean's account balance and other customers"),
     ("ex_big", "Send 4,500 EUR to mom", "Send 4500 EUR to mom"),
+    ("ex_help", "What can you do?", "What can you do?"),
 ]
 DOC_LABELS = {"doc_tuition_nov": "Attach tuition invoice", "doc_rent_nov": "Attach rent invoice (forged)"}
 MAX_UPLOAD_CHARS = 20_000
@@ -290,20 +291,18 @@ def action_details(av, payees: dict) -> list[tuple[str, str]]:
                                       f"{money(sim.balances_after[a.from_account_id])}"))
     elif a.action_type == "fx":
         q = a.quote
-        rows += [("You pay", f"{money(q.sell_amount, q.sell_currency)} (fee {money(q.fee, q.sell_currency)} included)"),
+        net = to_dec(q.sell_amount) - to_dec(q.fee)
+        pct = f" ({to_dec(q.fee) / net * 100:.2f}%)" if net > 0 else ""
+        rows += [("You pay", f"{money(q.sell_amount, q.sell_currency)} (cost included)"),
                  ("You get", money(q.buy_amount, q.buy_currency)),
-                 ("Rate", f"{to_dec(q.rate):.4f}".rstrip("0").rstrip(".") + f" {q.buy_currency} per {q.sell_currency}")]
+                 ("Rate", f"{to_dec(q.rate):.4f}".rstrip("0").rstrip(".") + f" {q.buy_currency} per {q.sell_currency}"),
+                 ("Cost of this exchange", f"{money(q.fee, q.sell_currency)}{pct}")]
         if sim and a.to_account_id in sim.balances_after:
             rows.append(("EUR after", f"{money(sim.balances_before.get(a.to_account_id, 0))} → "
                                       f"{money(sim.balances_after[a.to_account_id])}"))
     elif a.action_type == "add_beneficiary":
         rows += [("Name", a.display_name), ("Account", f"ending {a.iban[-4:]}"), ("Type", a.category)]
     return rows
-
-
-def kv_html(rows: list[tuple[str, str]]) -> str:
-    cells = "".join(f"<div><div class='k'>{esc_html(k)}</div><div class='v'>{esc_html(v)}</div></div>" for k, v in rows)
-    return f"<div class='bg-kv'>{cells}</div>"
 
 
 def render_rules(decision) -> None:
@@ -380,7 +379,7 @@ def render_card(av, payees: dict) -> None:
                 st.error(f"Locked after {MAX_OTP_ATTEMPTS} wrong verification codes. Nothing was sent; "
                          f"the attempt is recorded in receipt {receipt_label(av.receipt_id)}.")
         else:
-            st.markdown(kv_html(action_details(av, payees)), unsafe_allow_html=True)
+            st.markdown(kv_html(action_details(av, payees), extra_lines(av)), unsafe_allow_html=True)
             if d and av.status == "awaiting_confirmation":
                 n_ok = sum(r.passed for r in d.rules)
                 st.caption(f"Rules passed: {n_ok} of {len(d.rules)}. Simulated first: nothing has moved yet.")
@@ -712,7 +711,7 @@ def render_examples() -> None:
     s = st.session_state
     with st.container(key="examples"):
         st.caption("Try an example, or type your own request below.")
-        rows = [EXAMPLES[:3], EXAMPLES[3:]]
+        rows = [EXAMPLES[:3], EXAMPLES[3:]]      # 3 + 4 chips
         for row in rows:
             cols = st.columns(len(row))
             for col, (key, label, text) in zip(cols, row):
@@ -745,7 +744,8 @@ def render_welcome() -> None:
         st.markdown(f"<div class='bg-welcome-icon'>{ICON['hand']}</div><div class='bg-welcome-title'>Hi Lina.</div>"
                     "<div class='bg-welcome-text'>Ask me to pay your bills, send money home, convert currency, or "
                     "check \"can I afford…?\" first. I simulate every plan, fixed rules check it, and nothing moves "
-                    "until you approve it. Invoices you attach are read as data, never as orders.</div>",
+                    "until you approve it. Invoices you attach are read as data, never as orders. "
+                    "Not sure where to start? Type <b>help</b>.</div>",
                     unsafe_allow_html=True)
 
 

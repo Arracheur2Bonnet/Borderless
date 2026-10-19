@@ -13,7 +13,8 @@ from decimal import Decimal
 
 from bg.contracts import params
 from bg.contracts.canonical import (
-    iban_problem, iban_screening_form, name_skeleton, normalize_iban, q2, unscreenable_letters,
+    VOP_CLOSE, VOP_MATCH, iban_problem, iban_screening_form, name_skeleton, normalize_iban, payee_name_match, q2,
+    unscreenable_letters,
 )
 from bg.contracts.models import (
     Account, AddBeneficiaryAction, Beneficiary, FxAction, PaymentAction, PolicyContext,
@@ -171,6 +172,40 @@ def _sanctions_rule(name: str | None, iban: str | None, what: str, iban_invalid_
     return _R("SANCTIONS_SCREEN", True, RiskLevel.R4,
               f"{name} (IBAN ending {nib[-4:]}) screened against {len(params.SANCTIONS_WATCHLIST_NAMES)} "
               f"watchlist names and {len(params.SANCTIONS_WATCHLIST_IBANS)} IBANs: no match")
+
+
+def _vop_rule(ctx: PolicyContext, typed_name: str, iban: str) -> RuleResult:
+    """PAYEE_VERIFICATION (v8). Modelled on the EU Verification of Payee and the UK Confirmation of Payee: the name the
+    customer gave is compared with the holder the bank has on record for the IBAN. The detail always starts with the
+    outcome so that the agent can phrase it: "MATCH", "CLOSE MATCH", "NO MATCH" or "NOT AVAILABLE".
+
+    MATCH passes. CLOSE MATCH, NO MATCH and NOT AVAILABLE fail at R3 (step-up). NO MATCH becomes R4 (deny) when the
+    IBAN also appears in a document supplied for this request: the invoice IBAN-swap scam. The holder's name is only
+    ever quoted for a close match (as banks do); a no-match detail never reveals who holds the account.
+    """
+    nib = _norm_iban(iban)
+    tail = nib[-4:]
+    holder = ctx.payee_holders.get(nib)
+    if holder is None:
+        return _R("PAYEE_VERIFICATION", False, RiskLevel.R3,
+                  f"NOT AVAILABLE: the bank has no account-holder record for the account ending {tail}, so the name "
+                  f"{typed_name!r} could not be checked")
+    outcome = payee_name_match(typed_name, holder)
+    if outcome == VOP_MATCH:
+        return _R("PAYEE_VERIFICATION", True, RiskLevel.R3,
+                  f"MATCH: the name {typed_name!r} matches the account holder on record for the account ending {tail}")
+    if outcome == VOP_CLOSE:
+        return _R("PAYEE_VERIFICATION", False, RiskLevel.R3,
+                  f"CLOSE MATCH: you gave {typed_name!r}; the bank has the account ending {tail} as {holder!r}")
+    in_doc = nib in {_norm_iban(x) for x in ctx.document_ibans}
+    if in_doc:
+        return _R("PAYEE_VERIFICATION", False, RiskLevel.R4,
+                  f"NO MATCH: the name {typed_name!r} does not match the account holder on record for the account "
+                  f"ending {tail}, and that account number comes from a document (invoice or letter) supplied for this "
+                  f"request: invoice-IBAN-swap pattern")
+    return _R("PAYEE_VERIFICATION", False, RiskLevel.R3,
+              f"NO MATCH: the name {typed_name!r} does not match the account holder on record for the account "
+              f"ending {tail}")
 
 
 def _to_eur(amount: Decimal, currency: str) -> Decimal:
@@ -369,12 +404,27 @@ class DeterministicPolicyEngine:
                           f"payee added {_hours(age)} ago, "
                           f"{'at least' if ok else 'less than'} the {_hours(params.NEW_BENEFICIARY_WINDOW)} "
                           f"new-payee window"))
+        out.append(self._vop_payment_rule(ctx, ben))
         ok = eur <= params.R2_MAX_PAYMENT_EUR
         out.append(_R("AMOUNT_TIER", ok, RiskLevel.R3,
                       f"payment of {_m(eur)} EUR eq. {'is within' if ok else 'exceeds'} the "
                       f"{_m(params.R2_MAX_PAYMENT_EUR)} one-tap limit"))
         out.append(self._structuring_rule(ctx, a, ben, eur))
         return out
+
+    @staticmethod
+    def _vop_payment_rule(ctx: PolicyContext, ben: Beneficiary | None) -> RuleResult:
+        """PAYEE_VERIFICATION for a payment: re-run while the payee is younger than VOP_CHECK_WINDOW, on the name the
+        customer gave when saving the payee and the IBAN on file. An older payee passes (it was checked when added and
+        has been paid before). Never less friction than before: a failing check only adds R3 or R4."""
+        if ben is None:
+            return _R("PAYEE_VERIFICATION", False, RiskLevel.R3, "NOT AVAILABLE: payee unknown, name not checked")
+        age = ctx.now - ben.added_at
+        if age >= params.VOP_CHECK_WINDOW:
+            return _R("PAYEE_VERIFICATION", True, RiskLevel.R3,
+                      f"NOT REQUIRED: {ben.display_name} has been a payee for {_hours(age)}, "
+                      f"at least {_hours(params.VOP_CHECK_WINDOW)}; the name was checked when it was added")
+        return _vop_rule(ctx, ben.display_name, ben.iban)
 
     @staticmethod
     def _structuring_rule(ctx: PolicyContext, a: PaymentAction, ben: Beneficiary | None,
@@ -471,6 +521,7 @@ class DeterministicPolicyEngine:
                f"{a.display_name!r} looks the same as your existing payee {clash.display_name} "
                f"(name, alias or id); a second payee under that name would be ambiguous"),
             _sanctions_rule(a.display_name, a.iban, "new payee", iban_invalid_denied=True),
+            _vop_rule(ctx, a.display_name, a.iban),
             _R("NEW_PAYEE_ACTION", False, RiskLevel.R3,
                f"adding a new payee ({a.display_name}, IBAN ending {_norm_iban(a.iban)[-4:]}) "
                f"always requires step-up"),

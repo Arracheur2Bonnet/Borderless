@@ -284,6 +284,11 @@ class PolicyContext(Frozen):
     step_up_verified: bool
     security_events: list[SecurityEvent] = []
     recent_payments: list[RecentPayment] = []   # executed payments inside STRUCTURING_WINDOW
+    # v8 (Verification of Payee): the bank's account-holder directory (normalised IBAN -> registered holder name; an
+    # IBAN that is absent is "not available"), and the IBANs of THIS turn's action that also appear in a document
+    # (invoice, letter) the customer supplied or that was linked to the request. Both default to empty.
+    payee_holders: dict[str, str] = {}
+    document_ibans: list[str] = []
 
 
 class PolicyDecision(Frozen):

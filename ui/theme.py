@@ -40,6 +40,7 @@ ICON = {
     "play": _svg('<path d="M7 4.5v15l12-7.5-12-7.5z"/>', fill=True),
     "flask": _svg('<path d="M9 3h6M10 3v6l-5.5 9.5A1.5 1.5 0 005.8 21h12.4a1.5 1.5 0 001.3-2.5L14 9V3"/>'),
     "receipt": _svg('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6"/>'),
+    "info": _svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.01"/>'),
     "hand": _svg('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/>'),
 }
 
@@ -59,3 +60,9 @@ TONE_OF_RISK = {"R0": "neutral", "R1": "info", "R2": "ok", "R3": "warn", "R4": "
 
 def pill(icon: str, text: str, tone: str = "neutral", extra: str = "") -> str:
     return f"<span class='bg-pill {tone} {extra}'>{ICON.get(icon, '')}{esc_html(text)}</span>"
+
+
+def kv_html(rows: list[tuple[str, str]], notes: list[str] | None = None) -> str:
+    cells = "".join(f"<div><div class='k'>{esc_html(k)}</div><div class='v'>{esc_html(v)}</div></div>" for k, v in rows)
+    cells += "".join(f"<div class='note'>{ICON['info']}<span>{esc_html(n)}</span></div>" for n in notes or [])
+    return f"<div class='bg-kv'>{cells}</div>"

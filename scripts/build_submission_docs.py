@@ -80,8 +80,8 @@ def check_consistency() -> None:
             if needle not in d:
                 raise SystemExit(f"fact '{needle}' is missing from one of the Markdown documents")
     summary = json.loads((EVID / "summary.json").read_text(encoding="utf-8"))
-    if summary["tasks"] != 20 or summary["completed"] != 20:
-        raise SystemExit("evidence/summary.json is not 20/20")
+    if summary["tasks"] != summary["completed"] or summary["tasks"] < 20:
+        raise SystemExit("evidence/summary.json: not every scripted mission completed")
 
 
 # --------------------------------------------------------------------------------------------- architecture diagram

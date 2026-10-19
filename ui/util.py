@@ -251,3 +251,21 @@ def quick_replies(entry: dict[str, Any], *, pending_question: str | None, pendin
     elif pending_count == 1:
         chips.append(("Cancel that", "cancel that"))
     return chips
+
+
+# Lines of ConfirmationRequest.lines that the key facts above already show (or that a warning/expander shows):
+# anything else the agent adds (a reference, a Verification of Payee result, ...) is listed as a note.
+_COVERED_LINE = re.compile(r"^(To the account ending|Rate |Cost of this exchange|IBAN ends|Payments to this payee need)"
+                           r"|balance after:")
+
+
+def extra_lines(av: Any) -> list[str]:
+    """Plain-text notes to list under the key facts: the agent's own lines that no key fact already shows."""
+    cr = get(av, "confirmation_request")
+    if cr is None:
+        return []
+    dec = get(av, "decision")
+    expl = (get(dec, "explanation") if dec else "") or ""
+    return [humanize(x) for x in get(cr, "lines", []) if x and x != expl and not _COVERED_LINE.search(x)]
+
+

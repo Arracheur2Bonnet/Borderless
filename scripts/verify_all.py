@@ -6,7 +6,7 @@
 Runs, in order, with the current interpreter:
 
   1. pytest           the full suite (tests/), JUnit XML written to the report dir
-  2. scenarios        scripts/run_scenarios.py, the 20 scripted missions (rewrites deliverables/evidence/)
+  2. scenarios        scripts/run_scenarios.py, the 21 scripted missions (rewrites deliverables/evidence/)
   3. golden path      scripts/golden_path.py, the demo flow end to end
   4. security report  tests/e2e_report.py, redirected to the report dir so the tracked
                       deliverables/security_results.{md,json} are NOT overwritten; its results

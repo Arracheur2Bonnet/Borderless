@@ -244,6 +244,10 @@ hr { border-color: var(--sep) !important; margin: var(--s-4) 0 !important; }
   font-weight: var(--fw-semibold); line-height: var(--lh-caption); }
 .bg-kv .v { font-weight: var(--fw-semibold); font-size: var(--fs-subhead); line-height: var(--lh-subhead); margin-top: 2px;
   font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.bg-kv .note { grid-column: 1 / -1; display: flex; gap: var(--s-2); align-items: flex-start; padding: var(--s-3) 0;
+  border-top: 1px solid var(--sep); color: var(--label-2); font-size: var(--fs-subhead); line-height: var(--lh-subhead);
+  overflow-wrap: anywhere; }
+.bg-kv .note svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--accent); }
 .bg-anchor { padding: var(--s-1) var(--s-3); border-radius: var(--r-sm); background: var(--bg-grouped); display: inline-block;
   font-size: var(--fs-subhead); color: var(--label); }
 

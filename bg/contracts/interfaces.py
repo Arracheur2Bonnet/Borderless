@@ -57,6 +57,15 @@ class Ledger(Protocol):
         """Executed outgoing payments (not FX) at or after `since`, oldest first. Tenant-scoped."""
         ...
 
+    def account_holder(self, iban: str) -> str | None:
+        """v8 (Verification of Payee): registered holder name of the account, or None when the bank has no record
+        (outcome "not available"). Bank-wide directory, not customer data."""
+        ...
+
+    def holder_directory(self) -> dict[str, str]:
+        """v8: copy of the whole directory, normalised IBAN -> holder name (passed to the policy context)."""
+        ...
+
 
 class ReceiptStore(Protocol):
     """Append-only Proof-of-Intent hash chain. Owner: ledger workstream (bg/ledger)."""

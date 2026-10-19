@@ -258,3 +258,59 @@ def test_lockout_disables_every_code_approval(at):
 
 def test_signing_key_is_disclosed(at):
     assert any("demo signing key" in w.value for w in at.warning)
+
+
+# ----------------------------------------------------------------------------- wave B: help, FX cost, extra lines
+def test_help_chip_and_hint(at):
+    assert _btn(at, "ex_help").label == "What can you do?"
+    assert any("Type <b>help</b>" in m.value for m in at.markdown)
+    _btn(at, "ex_help").click().run()
+    text = _text(at)
+    assert "Here is what I can do." in text
+    assert "You approve every step; nothing moves on its own." in text
+    assert "Send 100 euros to mom" in text
+
+
+@pytest.mark.parametrize("ask,needle", [
+    ("hello", "Hi, I'm BorderlessGuard"),
+    ("set up a monthly payment of 500 euros to mom", "I can't schedule or repeat payments yet."),
+    ("how is my credit score", "I can't see, check or build a credit history"),
+    ("what did I spend last month", "I don't keep a spending history"),
+    ("can I get a loan", "I can't apply for, compare or manage loans"),
+    ("should I buy bitcoin", "I can't invest, trade or give investment"),
+])
+def test_help_and_scoped_replies(at, ask, needle):
+    _say(at, ask)
+    assert needle in _text(at)
+    assert not _keys(at, "approve_")         # a help reply never proposes money movement
+
+
+def test_unknown_reply_points_to_help(at):
+    _say(at, "blorp zonk")
+    assert 'Type "help" to see everything I can do.' in _text(at)
+
+
+def test_fx_card_shows_the_exchange_cost_once(at):
+    _say(at, "Convert 200 dollars")
+    facts = " ".join(m.value for m in at.markdown if "class='bg-kv'" in m.value)     # the key-facts box
+    assert facts.count("Cost of this exchange") == 1
+    assert "0.50%" in facts and "(cost included)" in facts
+    assert "fee" not in facts.lower()                  # the cost is stated once, not again as a fee
+
+
+def test_extra_confirmation_lines_become_notes():
+    from types import SimpleNamespace as NS
+    from ui.util import extra_lines
+    cr = NS(lines=["To the account ending 0143 (saved for this payee)", "Rate 0.92 EUR per USD (quote q_1)",
+                   "Cost of this exchange: 11.96 USD (0.50%), included in the 2,403.26 USD you pay",
+                   "EUR balance after: 450.00 -> 2,650.00", "Reference sent to the payee: Nov rent",
+                   "The bank has this account as 'Jean Dupont'", "R2: confirm"])
+    av = NS(confirmation_request=cr, decision=NS(explanation="R2: confirm"))
+    assert extra_lines(av) == ["Reference sent to the payee: Nov rent", "The bank has this account as 'Jean Dupont'"]
+    assert extra_lines(NS(confirmation_request=None, decision=None)) == []
+
+
+def test_extra_line_is_escaped_in_the_card():
+    from ui.theme import kv_html
+    out = kv_html([("To", "Jean")], ["The bank has this account as '<img src=x onerror=alert(1)>'"])
+    assert "<img" not in out and "&lt;img" in out

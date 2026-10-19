@@ -247,7 +247,7 @@ def test_empty_name_fails_closed():
 def test_add_beneficiary_rule_order():
     d = ev(ctx(), add_ben("Bob"))
     assert [r.rule_id for r in d.rules] == ["SIM_FEASIBLE", "IBAN_VALID", "PAYEE_NAME_UNIQUE", "SANCTIONS_SCREEN",
-                                            "NEW_PAYEE_ACTION"]
+                                            "PAYEE_VERIFICATION", "NEW_PAYEE_ACTION"]
 
 
 def test_payment_to_registered_sanctioned_name_denied():

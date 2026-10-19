@@ -175,3 +175,81 @@ def name_skeleton(name: str, unknown: str = "") -> str:
         else:
             out.append(" ")
     return " ".join("".join(out).split())
+
+
+# --------------------------------------------------------------------------- Verification of Payee (v8)
+# Modelled on the EU instant-payments Verification of Payee and the UK Confirmation of Payee. Deterministic, no model.
+# Thresholds live in params.py (VOP_*). Look-alike letters are NOT folded here (unlike ``name_skeleton``): a Cyrillic
+# "а" inside "Jеan" must not read as the real name, so it falls to a close match at best.
+VOP_MATCH, VOP_CLOSE, VOP_NO_MATCH = "match", "close_match", "no_match"
+
+_VOP_TITLES = frozenset({"mr", "mrs", "ms", "miss", "mx", "dr", "mme", "mlle", "monsieur", "madame", "mademoiselle"})
+_VOP_LEGAL = frozenset({"ltd", "limited", "llc", "inc", "plc", "sa", "sarl", "sas", "gmbh", "ag", "bv", "nv",
+                        "fze", "co", "corp"})
+
+
+def vop_tokens(name: str | None) -> list[str]:
+    """Comparison tokens of a name: NFKC, case-folded, accents stripped, punctuation -> space, titles and legal
+    forms dropped (kept when that would leave nothing). 'Mme Élise  O\'Neil, SARL' -> ['elise', 'o', 'neil']."""
+    s = unicodedata.normalize("NFKD", unicodedata.normalize("NFKC", name or "")).casefold()
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    words = "".join(ch if ch.isalnum() else " " for ch in s).split()
+    kept = [w for w in words if w not in _VOP_TITLES and w not in _VOP_LEGAL]
+    return kept or words
+
+
+def _edit_distance(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _covers(short: list[str], long: list[str]) -> bool:
+    """Every word of `short` is a word of `long` or the initial of one (missing middle name, 'J. Dupont'), with at
+    least one whole word in common and at least two words in `short`."""
+    if len(short) < 2 or len(short) > len(long):
+        return False
+    free = list(long)
+    whole = 0
+    rest = []
+    for w in short:
+        if w in free:
+            free.remove(w)
+            whole += 1
+        else:
+            rest.append(w)
+    for w in rest:
+        hit = next((x for x in free if len(w) == 1 and x.startswith(w)), None)
+        if hit is None:
+            return False
+        free.remove(hit)
+    return whole >= 1
+
+
+def payee_name_match(typed: str | None, holder: str | None) -> str:
+    """Compare the name the customer typed with the account holder's registered name.
+
+    ``"match"``       the tokens are equal and in the same order (case, accents, punctuation, titles, legal forms ignored)
+    ``"close_match"`` same words in another order, a missing middle name or an initial, or a small typo:
+                      edit distance <= VOP_MAX_EDIT_DISTANCE and similarity >= VOP_MIN_SIMILARITY_PCT percent
+    ``"no_match"``    anything else (also an empty name, or one longer than VOP_MAX_NAME_CHARS)
+    """
+    from . import params
+    if not typed or not holder or len(typed) > params.VOP_MAX_NAME_CHARS or len(holder) > params.VOP_MAX_NAME_CHARS:
+        return VOP_NO_MATCH
+    a, b = vop_tokens(typed), vop_tokens(holder)
+    if not a or not b:
+        return VOP_NO_MATCH
+    if a == b:
+        return VOP_MATCH
+    if sorted(a) == sorted(b) or _covers(a, b) or _covers(b, a):
+        return VOP_CLOSE
+    for x, y in ((" ".join(a), " ".join(b)), (" ".join(sorted(a)), " ".join(sorted(b)))):
+        d, n = _edit_distance(x, y), max(len(x), len(y))
+        if d <= params.VOP_MAX_EDIT_DISTANCE and d * 100 <= (100 - params.VOP_MIN_SIMILARITY_PCT) * n:
+            return VOP_CLOSE
+    return VOP_NO_MATCH

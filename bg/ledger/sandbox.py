@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from bg.contracts import params
-from bg.contracts.canonical import CENT, canonical_iban, name_skeleton, q2
+from bg.contracts.canonical import CENT, canonical_iban, name_skeleton, normalize_iban, q2
 from bg.contracts.hashing import params_hash
 from bg.contracts.models import (
     Account, AddBeneficiaryAction, Beneficiary, Confirmation, ExecutionResult, FxAction,
@@ -44,6 +44,8 @@ class SandboxLedger:
         self._quote_n = 0
         # v3 (AUDIT-3): wrong one-time codes are counted per user here, not per chat action or session.
         self.step_up = StepUpAttempts()
+        # v8 (Verification of Payee): the bank's own record of who holds each account. Fictional, seeded from params.
+        self._holders: dict[str, str] = {normalize_iban(k): v for k, v in params.ACCOUNT_HOLDERS.items()}
 
     # ------------------------------------------------------------------ reads (tenant scoped)
     def get_accounts(self, user_id: str) -> list[Account]:
@@ -82,6 +84,13 @@ class SandboxLedger:
             if sk in {name_skeleton(x) for x in (b.beneficiary_id, b.display_name, *b.aliases)}:
                 return b
         return None
+
+    # ------------------------------------------------------------------ account-holder directory (v8)
+    def account_holder(self, iban: str) -> str | None:
+        return self._holders.get(normalize_iban(iban))
+
+    def holder_directory(self) -> dict[str, str]:
+        return dict(self._holders)
 
     # ------------------------------------------------------------------ FX
     def fx_quote_raw(self, sell_currency: str, buy_currency: str, buy_amount: Decimal) -> dict[str, Any]:

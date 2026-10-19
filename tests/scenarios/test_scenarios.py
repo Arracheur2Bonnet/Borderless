@@ -16,7 +16,7 @@ def test_scripted_task(task, monkeypatch):
 
 
 def test_suite_shape():
-    assert len(TASKS) == 20
+    assert len(TASKS) == 21
     for t in TASKS:
         assert t["criteria"].get("max_user_turns"), f"{t['id']} has no turn budget"
         assert sum(1 for s in t["steps"] if "say" in s) <= t["criteria"]["max_user_turns"]

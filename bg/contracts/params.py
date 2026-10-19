@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-POLICY_VERSION = "bg-policy-2026.10.17"
+POLICY_VERSION = "bg-policy-2026.10.19"
 
 # --------------------------------------------------------------------------- risk matrix (EUR-equivalent)
 R2_MAX_PAYMENT_EUR = Decimal("1500")        # above -> R3 step-up
@@ -73,6 +73,34 @@ SEED_BENEFICIARIES = [
      "aliases": [], "iban": OTHER_IBAN, "category": "other",
      "added_at": datetime(2026, 1, 1, tzinfo=timezone.utc), "allowlisted": True},
 ]
+
+# --------------------------------------------------------------------------- Verification of Payee (VoP), sandbox
+# Modelled on the EU instant-payments Verification of Payee (in force for euro payment providers since 9 Oct 2025)
+# and the UK Confirmation of Payee. The "account-holder directory" is the sandbox bank's own record of who holds an
+# account: IBAN -> registered holder name. FICTIONAL. An IBAN that is not here is "not available" (a bank that does not
+# take part in the check). The attacker IBAN is held by a company, not by the landlord the invoice names.
+MARIE_IBAN = "FR1420041010050500013M02606"     # fictional second customer of the bank
+RESIDENCE_IBAN = "ES9121000418450200051332"    # a "housing office" account (a deposit-scam mule in the demo)
+UNLISTED_IBAN = "NL91ABNA0417164300"           # valid IBAN that is NOT in the directory (outcome: not available)
+ACCOUNT_HOLDERS = {
+    LANDLORD_IBAN: "Jean Dupont",
+    UNIV_IBAN: "Université Paris-Saclay",
+    MOM_IBAN: "Samira Haddad",
+    OTHER_IBAN: "Other Customer Payee",
+    "DE89370400440532013000": "Karim Haddad",   # public test IBAN, fictional payee (also used in the parser examples)
+    MARIE_IBAN: "Marie Lambert",
+    RESIDENCE_IBAN: "Residence Services Ltd",
+    ATTACKER_IBAN: "Quickpay Holdings Ltd",
+}
+# Name-match thresholds (documented in SPEC.md, "v8"). Names are compared after NFKC, case folding, accent stripping,
+# punctuation -> space, and dropping titles (Mr, Mme...) and legal forms (Ltd, SARL...). Equal tokens in the same
+# order = match. Close match = same words in another order, a missing middle name or initial, or a small typo:
+# edit distance <= VOP_MAX_EDIT_DISTANCE and similarity >= VOP_MIN_SIMILARITY_PCT percent. Anything else = no match.
+VOP_MAX_EDIT_DISTANCE = 2
+VOP_MIN_SIMILARITY_PCT = 85
+VOP_MAX_NAME_CHARS = 200                       # longer names are not compared (no match)
+# Payments re-run the check while the payee is younger than this (same window as BENEFICIARY_AGE).
+VOP_CHECK_WINDOW = NEW_BENEFICIARY_WINDOW
 
 SEED_OBLIGATIONS = [
     {"obligation_id": "ob_tuition_nov", "user_id": DEMO_USER_ID, "kind": "tuition", "beneficiary_id": "b_univ",

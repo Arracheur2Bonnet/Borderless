@@ -31,7 +31,8 @@ def accounts():
 
 def ctx(**kw):
     base = dict(user_id=U, now=NOW, accounts=accounts(), beneficiaries=bens(), executed_today_eur=D("0"),
-                reserve_floor_eur=params.DEMO_RESERVE_EUR, step_up_verified=False)
+                reserve_floor_eur=params.DEMO_RESERVE_EUR, step_up_verified=False,
+                payee_holders=dict(params.ACCOUNT_HOLDERS))
     base.update(kw)
     return PolicyContext(**base)
 
@@ -101,7 +102,7 @@ def test_step_up_verified_keeps_step_up_verdict():
 # ------------------------------------------------------------------ rule pass / fail
 RULES_PASS = ["SIM_FEASIBLE", "BENEFICIARY_REGISTERED", "BENEFICIARY_NOT_BLOCKED", "IBAN_MATCHES_REGISTRY",
               "TENANT_ISOLATION", "RESERVE_FLOOR", "MAX_SINGLE_PAYMENT", "DAILY_LIMIT", "UNTRUSTED_ORIGIN",
-              "SANCTIONS_SCREEN", "BENEFICIARY_AGE", "AMOUNT_TIER", "STRUCTURING"]
+              "SANCTIONS_SCREEN", "BENEFICIARY_AGE", "PAYEE_VERIFICATION", "AMOUNT_TIER", "STRUCTURING"]
 
 
 def test_all_payment_rules_present_and_pass():
@@ -340,4 +341,4 @@ def test_r4_dominates_r3():
 
 def test_explanation_is_single_sentence_for_confirm():
     d = ev(ctx(), pay())
-    assert d.explanation == "Confirmation required (R2): all 13 policy checks passed."
+    assert d.explanation == "Confirmation required (R2): all 14 policy checks passed."

@@ -243,3 +243,28 @@ Backward compatible: no contract changed. New modules and behaviour only.
   `bg/http_api.py` + `scripts/agent_api.py` (standard-library `http.server`, 127.0.0.1 only unless `--allow-remote`, body cap 64 KiB,
   `application/json` only, Host-header check, optional `BG_API_TOKEN` bearer token, no access log, no OTP / full IBAN / trace in responses).
   The harness only carries text, a confirmation and an optional OTP in and structured facts out: the principle is unchanged. See docs/HARNESS.md.
+
+## v8 additions (2026-10-19, Verification of Payee, P1-04)
+Backward compatible: new optional fields and one new rule. Modelled on the EU instant-payments Verification of Payee (mandatory for
+euro payment providers since 9 Oct 2025) and the UK Confirmation of Payee; no legal claim is made.
+
+- **Directory.** `params.ACCOUNT_HOLDERS` (fictional, IBAN -> registered holder name) is loaded by `SandboxLedger` (`account_holder(iban)`,
+  `holder_directory()`, also on the `Ledger` protocol). It holds the seeded payees' IBANs, `DE89...3000` ("Karim Haddad"), `MARIE_IBAN`
+  ("Marie Lambert"), `RESIDENCE_IBAN` ("Residence Services Ltd") and the attacker IBAN `GB33...5555` ("Quickpay Holdings Ltd").
+  `params.UNLISTED_IBAN` is a valid IBAN that is not in it. An IBAN that is absent is "not available".
+- **Matcher** `canonical.payee_name_match(typed, holder)` -> `match` | `close_match` | `no_match`, deterministic, no model. Tokens: NFKC,
+  casefold, accents stripped, punctuation -> space, titles (Mr, Mme...) and legal forms (Ltd, SARL...) dropped. Equal tokens in the same order =
+  MATCH. CLOSE MATCH = same words in another order, a missing middle name or an initial ("J. Dupont", at least two words and one whole word in
+  common), or a small typo: edit distance <= `VOP_MAX_EDIT_DISTANCE` (2) and <= 15 percent of the longer name (`VOP_MIN_SIMILARITY_PCT` 85).
+  Look-alike letters are not folded (a Cyrillic "е" is at best a close match). Names over `VOP_MAX_NAME_CHARS` (200) are not compared.
+- **Rule `PAYEE_VERIFICATION`** (R3, R4 only for the swap case). `PolicyContext` gains `payee_holders` (the directory) and `document_ibans`
+  (this action's IBAN when a document supplied or linked in the same turn shows it); both default to empty. add_beneficiary: always checked on
+  the typed name. payment: checked while the payee is younger than `VOP_CHECK_WINDOW` (72 h), on the saved name and the IBAN on file; older payee
+  passes ("NOT REQUIRED"). MATCH passes. CLOSE MATCH, NO MATCH, NOT AVAILABLE fail at R3 (step-up). NO MATCH with the IBAN in a document of the
+  same turn fails at R4 (deny, receipt written): the invoice IBAN-swap scam. A failing check never lowers friction. The detail starts with the
+  outcome; only a close match quotes the holder's name (as banks do); a no match never reveals who holds the account.
+- **Rule counts.** Payment: 14 rules (13 + PAYEE_VERIFICATION; 13 when no reserve was stated). add_beneficiary: 6 (5 + PAYEE_VERIFICATION).
+  FX: 5 (unchanged). `POLICY_VERSION` is now `bg-policy-2026.10.19`.
+- **Agent.** The reply explains the outcome in plain English; the confirmation card gets one line starting `Payee check: match|close match|no
+  match|not available - ...` (a payment's card shows it only while the check ran). Close match: `The bank has this account as "<holder>". Did you
+  mean that?`. No new security event kind.

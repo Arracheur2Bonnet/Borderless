@@ -43,7 +43,7 @@ def test_first_render(at):
     assert "The AI reads your request. Fixed rules and your approval move the money." in text
     assert text.count("Fixed rules and your approval move the money") == 1     # slogan once, in the header
     assert "SANDBOX · no real money" in text
-    for k in ("ex_golden", "ex_afford", "ex_multiturn", "ex_maximum", "ex_data", "ex_big"):
+    for k in ("ex_golden", "ex_afford", "ex_multiturn", "ex_maximum", "ex_data", "ex_big", "ex_help"):
         assert _btn(at, k)
     assert _btn(at, "ex_afford").label == "Can I afford to send 300 EUR to mom after my bills?"
 

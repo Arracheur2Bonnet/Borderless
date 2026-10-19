@@ -43,6 +43,69 @@ _OBS = {o["kind"]: o for o in SEED_OBLIGATIONS if o["user_id"] == DEMO_USER_ID}
 _Q = Decimal("0.01")
 
 
+# Help and scoped replies: the exact wording of bg/agent/help.py (copied, so the fake stays independent of bg.agent).
+_EXAMPLES = ("\"What's my balance?\"", "\"Pay my tuition and rent but keep 600 EUR\"", "\"Send 100 euros to mom\"")
+_CAN_DO = ("I can show your balances and the bills coming up, pay your tuition and rent (converting dollars to euros "
+           "when needed), send money to your saved payees, add a new payee and check what you can afford. "
+           "You approve every step; nothing moves on its own.")
+_TRY = "Try:\n" + "\n".join(f"- {e}" for e in _EXAMPLES)
+_HELP_BODY = {
+    "greeting": "Hi, I'm BorderlessGuard, your assistant for cross-border student money. " + _CAN_DO,
+    "capabilities": "Here is what I can do. " + _CAN_DO,
+    "thanks": "You're welcome. If a step above is still waiting, it needs your approval; nothing moves on its own. "
+              "Type \"help\" any time to see what I can do.",
+    "scheduled": (
+        "I can't schedule or repeat payments yet. Every payment is a one-off that you approve right now, so I did "
+        "nothing and nothing was sent. Next step: send it now, for example \"Send 100 euros to mom\", and repeat it "
+        "yourself when it is due; \"What bills are coming up?\" shows your due dates."),
+    "credit": (
+        "I can't see, check or build a credit history, and I don't have a credit score or credit products. I only "
+        "work with your balances, your bills and payments to your saved payees. Next step: for credit questions "
+        "ask your bank or card issuer; here, \"What bills are coming up?\" shows what you owe and when."),
+    "spending": (
+        "I don't keep a spending history or break spending down by category yet, so I can't tell you what you spent "
+        "last month. I can show your balances today and the bills coming up. Next step: ask \"What's my balance?\" "
+        "or \"What bills are coming up?\"."),
+    "loans": (
+        "I can't apply for, compare or manage loans or other credit. I can send a payment to a payee you have "
+        "already saved, such as a lender. Next step: if your lender is saved, say \"Send 200 euros to <payee>\"; "
+        "otherwise \"Add <name> with IBAN <iban> as a payee\" (that needs your one-time code)."),
+    "investing": (
+        "I can't invest, trade or give investment or savings advice (stocks, crypto, savings products). I only move "
+        "money you ask for between your own accounts and to your saved payees. Next step: ask \"What's my "
+        "balance?\" to see what you have to work with."),
+}
+NOT_UNDERSTOOD = ("Sorry, I didn't get that. Try: \"what's my balance?\", \"pay my rent\", "
+                  "\"send 50 euros to mom\" or \"convert 200 dollars\". Type \"help\" to see everything I can do.")
+_GREETING = re.compile(r"(?:hi|hello|hey|hiya|howdy|yo|hola|bonjour|salut|ciao|good (?:morning|afternoon|evening))"
+                       r"(?: there| again| everyone| all| borderlessguard)?")
+_CAPABILITY = re.compile(r"(?:please )*(?:help(?: me| please)?|i need help|need help|can you help(?: me)?|"
+                         r"what can you do(?: for me)?|what do you do|what can i do|what can i ask(?: you)?|"
+                         r"who are you|what is this|how does this work|how do you work|commands|options|menu|features)")
+_THANKS = re.compile(r"(?:ok |okay |great |perfect |cool )*(?:thanks|thank you|thx|ty|merci|cheers)(?: a lot| so much)?|bye")
+_TOPICS = (("scheduled", re.compile(r"\b(?:recurring|standing orders?|auto-?pay|direct debits?|scheduled (?:payments?|transfers?)|"
+                                    r"every (?:day|week|month)|monthly|weekly|set up (?:a )?(?:monthly|weekly|automatic))\b")),
+           ("credit", re.compile(r"\bcredit (?:history|score|rating|report|card)s?\b|\bbuild(?:ing)? credit\b")),
+           ("loans", re.compile(r"\b(?:loans?|borrow(?:ing)?|mortgages?|overdrafts?)\b")),
+           ("investing", re.compile(r"\b(?:invest(?:ing|ment|ments)?|stocks?|crypto|bitcoin|etfs?|savings? (?:account|plan))\b")),
+           ("spending", re.compile(r"\b(?:what did i spend|spending|expenses?|budget(?:ing)?|by categor(?:y|ies))\b")))
+
+
+def _help_reply(low: str, paying: bool = False) -> str | None:
+    """Like bg.agent.help.apply: a topic reply never replaces a real payment request (except a recurring one)."""
+    bare = " ".join(re.sub(r"[^\w' ]+", " ", low.replace("’", "'")).split())
+    topic = next((t for t, rx in (("greeting", _GREETING), ("capabilities", _CAPABILITY), ("thanks", _THANKS))
+                  if rx.fullmatch(bare)), None) or next((t for t, rx in _TOPICS if rx.search(low) and (t == "scheduled" or not paying)), None)
+    if topic is None:
+        return None
+    body = _HELP_BODY[topic]
+    if topic in ("greeting", "capabilities"):
+        return body + "\n\n" + _TRY
+    if topic == "thanks":
+        return body
+    return body + "\n\nWhat I can do: " + _CAN_DO + "\n" + _TRY
+
+
 def _dec(s: str) -> Decimal:
     return Decimal(s.replace(",", "")).quantize(_Q)
 
@@ -136,8 +199,11 @@ class FakeOrchestrator:
         fail = {} if feasible else {"SIM_FEASIBLE": f"Insufficient USD: {sell:,.2f} needed"}
         verdict = Verdict.DENY if fail else Verdict.CONFIRM
         return self._decide(act, sim, "R4" if fail else "R2", f"Convert USD to EUR: buy {buy:,.2f} EUR",
-                            [f"Sell {sell:,.2f} USD (fee {fee:,.2f} USD included)", "Rate 0.92 EUR per USD",
-                             f"EUR balance after: {eur_before + buy:,.2f}"], verdict, _rules(fail, _FX_RULES))
+                            [f"Rate {FX_RATES[('USD', 'EUR')]} EUR per USD (quote {quote.quote_id})",
+                             f"Cost of this exchange: {fee:,.2f} USD ({fee / (sell - fee) * 100:.2f}%), included in the "
+                             f"{sell:,.2f} USD you pay",
+                             f"EUR balance after: {eur_before:,.2f} -> {eur_before + buy:,.2f}"],
+                            verdict, _rules(fail, _FX_RULES))
 
     def _pay_view(self, sid: str, ben: dict, amount: Decimal, available: Decimal | None = None,
                   events: list | None = None, reserve: Decimal | None = None, label: str = "") -> ActionView:
@@ -175,9 +241,8 @@ class FakeOrchestrator:
         sim = SimulationResult(action_id=aid, feasible="SIM_FEASIBLE" not in fail,
                                balances_before={"acc_eur": available},
                                balances_after={"acc_eur": available - amount})
-        lines = [f"Recipient: {name}", f"IBAN: …{ben['iban'][-4:]} (from your registry)"]
-        lines += [f"Needs your one-time code: {r.detail}" for r in r3]
-        lines.append(f"EUR balance after: {available - amount:,.2f}")
+        lines = [f"To the account ending {ben['iban'][-4:]} (saved for this payee)",
+                 f"EUR balance after: {available:,.2f} -> {available - amount:,.2f}"]
         title = f"Pay {amount:,.2f} EUR to {name}" + (f" ({label})" if label else "")
         return self._decide(act, sim, risk, title, lines, verdict, rules)
 
@@ -263,6 +328,8 @@ class FakeOrchestrator:
             else:
                 views.append(self._pay_view(session_id, ben, amount, events=events))
                 reply = self._one_reply(views[0])
+        elif (help_text := _help_reply(low, bool(has_pay))) is not None:
+            reply = help_text
         elif re.match(r"(cancel|never mind|nevermind|stop)\b", low):
             pending = [v for v in S["views"].values() if v.status == "awaiting_confirmation"]
             targets = pending if re.search(r"\b(everything|all)\b", low) else pending[-1:]
@@ -332,8 +399,7 @@ class FakeOrchestrator:
             reply = (f"Here is your overview: {self.bal['EUR']:,.2f} EUR and {self.bal['USD']:,.2f} USD. "
                      "Tuition 1,200 EUR and rent 850 EUR are due.")
         else:
-            reply = ("Sorry, I didn't get that. Try: \"what's my balance?\", \"pay my rent\", "
-                     "\"send 50 euros to mom\" or \"convert 200 dollars\".")
+            reply = NOT_UNDERSTOOD
         if any(e.kind == "prompt_injection" for e in events):
             names = ", ".join(d.filename for d in documents or [])
             reply = (f"Watch out: your invoice ({names}) contains hidden text telling me to send money to another "
