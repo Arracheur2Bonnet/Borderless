@@ -26,6 +26,19 @@
   <a href="deliverables/execution_evidence.md">Execution evidence</a>
 </p>
 
+### Submission files
+
+All official deliverables are in [`deliverables/submission/`](deliverables/submission/). GitHub previews the PDFs in the browser. For the video, the PPTX and the DOCX files it only shows "View raw": use the **Download** links below (or the download button on the file's page).
+
+| Deliverable | View on GitHub | Download |
+|---|---|---|
+| Technical Document | [PDF](deliverables/submission/InternationalAI-TopicC-Centrale-TechnicalDocument.pdf) · [DOCX](deliverables/submission/InternationalAI-TopicC-Centrale-TechnicalDocument.docx) | [PDF](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-TechnicalDocument.pdf) · [DOCX](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-TechnicalDocument.docx) |
+| Presentation deck | [PDF](deliverables/submission/InternationalAI-TopicC-Centrale-Deck.pdf) · [PPTX](deliverables/submission/InternationalAI-TopicC-Centrale-Deck.pptx) | [PDF](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-Deck.pdf) · [PPTX](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-Deck.pptx) |
+| Demo video (4:40, English subtitles) | [MP4](deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4) · [subtitles](deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.en.srt) · [notes](deliverables/submission/DEMO_VIDEO.md) | [MP4](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4) · [SRT](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.en.srt) |
+| Security Self-assessment | [PDF](deliverables/submission/InternationalAI-TopicC-Centrale-SecuritySelfAssessment.pdf) · [DOCX](deliverables/submission/InternationalAI-TopicC-Centrale-SecuritySelfAssessment.docx) | [PDF](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-SecuritySelfAssessment.pdf) · [DOCX](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-SecuritySelfAssessment.docx) |
+| Execution Evidence | [PDF](deliverables/submission/InternationalAI-TopicC-Centrale-ExecutionEvidence.pdf) · [DOCX](deliverables/submission/InternationalAI-TopicC-Centrale-ExecutionEvidence.docx) | [PDF](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-ExecutionEvidence.pdf) · [DOCX](https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-ExecutionEvidence.docx) |
+| Source code | This repository: [Quick start](#4-installation-and-execution), [Testing](#5-testing), [Security notes](#7-security-notes) | [ZIP of `main`](https://github.com/Arracheur2Bonnet/Borderless/archive/refs/heads/main.zip) |
+
 | 69/70 | 66/70 | 14 rules | 1379 passed, 7 xfailed |
 |:---:|:---:|:---:|:---:|
 | attacks blocked in a blind test, offline rules parser | attacks blocked in the same blind test, local Qwen2.5 7B | check every payment, in tiers R0 to R4 | full test suite, offline, no API key |
