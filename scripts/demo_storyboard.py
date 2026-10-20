@@ -147,7 +147,8 @@ Taken from the two references in `references/` (a Cursor launch film and an Agen
   14 rules, her approval, ledger and receipt), the risk tiers R0 to R4 with the active one lit, the three hash-linked receipts with
   their real fingerprints and her signed copy, and the seven attacks ticking to blocked. The stage slides aside to make room.
 - **Sound.** Original UI sounds synthesised by `scripts/demo_sfx.py` (a soft whoosh at cuts, a low thud for a refusal or the hidden
-  line, a two-note chime for a verified result), mixed well under the voice. No music, no third-party audio.
+  line, a two-note chime for a verified result), and an original 32-second electronic loop at 120 BPM (`scripts/demo_music.py`)
+  repeated for the whole video, ducked under the voice (about 17 dB below it while she speaks). No third-party audio.
 
 ## Format
 

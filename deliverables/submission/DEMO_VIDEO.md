@@ -35,7 +35,9 @@ Team Centrale · International AI Track, Topic C (Cross-border and Student Finan
   push-ins with a spotlight on the element discussed, stamps on verified results (each repeats what the app shows), and
   animated panels for the decision flow, the risk tiers, the receipt chain (its real fingerprints) and the attack test.
   The opening and the close use the same product data and the frozen blind reports.
-- The few UI sounds (a soft whoosh, a low thud, a chime) are original, synthesised by `scripts/demo_sfx.py`; there is no music.
+- The background music and the few UI sounds are original, synthesised in code, so they need no licence: a 32-second
+  electronic loop at 120 BPM (`scripts/demo_music.py`) repeated for the whole video and ducked automatically under the voice
+  (about 17 dB below it while she speaks), and a soft whoosh, a low thud and a chime (`scripts/demo_sfx.py`).
 - The voice was generated with ElevenLabs (voice "Killian") from the narration text. `scripts/demo_video.py` cut it into 20
   cues on its word timings, without changing the speech, and built the edit, the subtitles and the render around it.
 - Sandbox prototype: no real money moves.
