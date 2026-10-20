@@ -52,15 +52,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "My name is"
-    ],
-    [
-     "do",
-     "your name"
-    ],
-    [
-     "say",
-     ", and this is BorderlessGuard:"
+     "We are team Centrale, and this is BorderlessGuard:"
     ]
    ],
    [
