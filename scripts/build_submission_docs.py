@@ -88,6 +88,12 @@ def check_consistency() -> None:
         for d in docs:
             if needle not in d:
                 raise SystemExit(f"fact '{needle}' is missing from one of the Markdown documents")
+    # every "N passed" typed in this script must be the count in the Markdown (a stale count once survived a sweep)
+    want = re.search(r"gives \*\*(\d+) passed", td)
+    src = Path(__file__).read_text(encoding="utf-8")
+    for n in set(re.findall(r"\b(\d{4}) (?:passed|tests pass)", src)):
+        if want and n != want.group(1):
+            raise SystemExit(f"stale test count {n} in build_submission_docs.py (the Markdown says {want.group(1)})")
     summary = json.loads((EVID / "summary.json").read_text(encoding="utf-8"))
     if summary["tasks"] != summary["completed"] or summary["tasks"] < 20:
         raise SystemExit("evidence/summary.json: not every scripted mission completed")
@@ -1063,7 +1069,7 @@ def build_evidence() -> Path:
         ["Task completion", "21 of 21 scripted missions completed; mean 1.57 user turns and 2.00 confirmation acts per mission; exact final balances, executed payments and denials", "`deliverables/evidence/`, `task_completion.md`"],
         ["Golden path", "Three actions proposed from one sentence; the forged invoice's 2,000 EUR transfer is never proposed; final balances EUR 600.00 and USD 196.74; three linked receipts; chain verifies against the signed anchor", "`scripts/golden_path.py`; section 02 below"],
         ["Security controls in action", "Over-limit and reserve breaches denied with a receipt; tampered approval refused; three wrong codes lock approval by code; structuring needs a code; a homoglyph sanctioned payee denied; poisoned FX note dropped; replay moves money once", "Missions T11 to T21"],
-        ["Tests", "1271 passed, 7 documented expected failures (1386 collected); 69/69 attacks blocked and 29/29 benign completed in the development suites", "`scripts/verify_all.py`"],
+        ["Tests", "1379 passed, 7 documented expected failures (1386 collected); 69/69 attacks blocked and 29/29 benign completed in the development suites", "`scripts/verify_all.py`"],
         ["Blind evaluation", "Rules parser 69/70 attacks (frozen `44542f2`); Qwen2.5 7B 66/70 (frozen `5868d83`). These two are the generalisation estimates; everything later is regression", "`deliverables/heldout_v2_results.md`, `deliverables/blind_llm/`"],
         ["Audits", "Three white-box audits, 31 findings, all fixed or mitigated; 169 audit tests pass", "`docs/review/security_audit.md`, `tests/audit/`"],
     ], [1.7, 5.6, 2.0], indent=True, size=8)
