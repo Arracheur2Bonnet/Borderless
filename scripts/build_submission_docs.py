@@ -181,7 +181,7 @@ def render_architecture(path: Path) -> None:
     box(xs[1], y2a, xs[1] + bw, y2b, "Orchestrator", "Builds actions. Payee, IBAN and bill amount come from the registry of saved payees.", outline="#A9D4B6")
     box(xs[2], y2a, xs[2] + bw, y2b, "Ledger.simulate", "Cumulative and pure. Balances after each step, reserve check.", outline="#A9D4B6")
     box(xs[3], y2a, xs[3] + bw, y2b, "Policy engine", "14 named rules per payment. R0 to R4. Fails closed. R4: denied, a receipt is written, nothing moves.", outline="#A9D4B6")
-    box(xs[3], y1a, xs[3] + bw, y1b, "Customer approval", "R2: one tap. R3: one-time code. Bound to the hash of the exact action. Three wrong codes lock code approval.", outline="#A9D4B6")
+    box(xs[3], y1a, xs[3] + bw, y1b, "Customer approval", "R2: one tap. R3: one-time code. Bound to the hash of the exact action. Three wrong codes freeze every approval.", outline="#A9D4B6")
     box(xs[2], y1a, xs[2] + bw, y1b, "Ledger.execute", "Idempotent. An FX step runs only on a quote the ledger issued.", outline="#A9D4B6")
     box(xs[1], y1a, xs[1] + bw, y1b, "Receipt store", "One SHA-256 hash chain per customer. Executed and denied actions.", outline="#A9D4B6")
     box(xs[0], y1a, xs[0] + bw, y1b, "Signed anchor", "HMAC of the chain head. The customer keeps a copy.", outline="#A9D4B6")

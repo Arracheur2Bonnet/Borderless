@@ -120,9 +120,12 @@ lo, hi = wilson(66, 70)
 claim(f"{lo} to {hi}", True, "Wilson 95% CI for 66/70")
 claim("26/30", True, ""); claim("5/5", True, "")
 claim("0/5", True, "rules parser non-English, heldout_v2_results.md")
-lat = q["rep"]["latency_s"]["mean"]
-claim(f"{lat:.1f} s per call", True, "mean latency, report.json")
-assert q["rep"]["fallback_rate"] == 0.0
+# latency: the frozen blind run went through `localhost` (a 2 s connection delay on the Windows laptop); the figure on the
+# slide is the re-run on the final code over 127.0.0.1 (phase 2, 2026-10-20). The blind pass rates above stay the frozen ones.
+p2 = json.loads(read("deliverables/regression_llm/phase2_local7b_heldout_v2/report.json"))
+lat = p2["latency_s"]["mean"]
+claim(f"{lat:.1f} s per call", True, "mean latency of the re-run on the final code, phase2_local7b_heldout_v2/report.json")
+assert q["rep"]["fallback_rate"] == 0.0 and p2["fallback_rate"] == 0.0
 claim("0% fallback", True, "")
 claim("70/70 attacks, 29/30 English", True, "rules re-run at 5868d83 (blind_llm/rules_heldout_v2)")
 assert subprocess.run(["git", "cat-file", "-e", "5868d83"], cwd=ROOT).returncode == 0

@@ -259,7 +259,7 @@
     <div class="ctrl reads"><span class="num">1</span><h3>Content guard</h3><p>Finds hidden instructions in documents. It only warns.</p><span class="chip"><svg class="ico"><use href="#i-warn"/></svg>Reads the text</span></div>
     <div class="ctrl b" data-b="1"><span class="num">2</span><h3>Registry-only account numbers</h3><p>No account number from a document or chat is ever paid.</p></div>
     <div class="ctrl b" data-b="1"><span class="num">3</span><h3>Approval locked to a hash</h3><p>Change the payment and the approval is refused. A replay never pays twice.</p></div>
-    <div class="ctrl b" data-b="1"><span class="num">4</span><h3>Codes lock</h3><p>3 wrong codes lock code approval for the user.</p></div>
+    <div class="ctrl b" data-b="1"><span class="num">4</span><h3>Codes lock</h3><p>3 wrong codes freeze every approval for the user.</p></div>
     <div class="ctrl b" data-b="1"><span class="num">5</span><h3>Payee name check</h3><p>Name compared with the bank's record. A mismatch needs a code. A swapped invoice account is denied.</p></div>
     <div class="ctrl b" data-b="1"><span class="num">6</span><h3>Customers separated</h3><p>Other customers' data is unreachable.</p></div>
     <div class="ctrl b" data-b="1"><span class="num">7</span><h3>Split payments</h3><p>Same payee, over 1,500 EUR in 24 h: a code is needed.</p><span class="chip warn"><svg class="ico"><use href="#i-key"/></svg>Financial crime</span></div>
@@ -349,7 +349,7 @@
 
     <div class="rl">Requests in other languages</div>
     <div class="b" data-b="1"><div class="v">0/5<small>asks again, proposes nothing</small></div></div>
-    <div class="b" data-b="2"><div class="v">5/5<small>reads them · 2.6 s per call, 0% fallback</small></div></div>
+    <div class="b" data-b="2"><div class="v">5/5<small>reads them · 0.5 s per call, 0% fallback</small></div></div>
 
     <div class="keyrow l"><div class="rl">Wrong payments to an account that is not a saved payee</div></div>
     <div class="keyrow b" data-b="1" style="border-radius:0"><div class="v">0</div></div>
@@ -443,7 +443,7 @@
       </div>
       <div class="fdown b" data-b="3"><span>&darr; R2 one tap, R3 one-time code, bound to a hash of the exact payment</span></div>
       <div class="frow frow3 b" data-b="3">
-        <div class="fb"><strong>Customer approval</strong>Three wrong codes lock code approval for the customer.</div>
+        <div class="fb"><strong>Customer approval</strong>Three wrong codes freeze every approval for the customer.</div>
         <span class="farr">&rarr;</span>
         <div class="fb"><strong>Ledger.execute</strong>Idempotent. An exchange runs only on a quote the ledger issued.</div>
         <span class="farr">&rarr;</span>

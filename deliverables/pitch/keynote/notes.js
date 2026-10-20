@@ -79,9 +79,9 @@ window.KEYNOTE_NOTES = {
  },
  "2": {
   "section": "S2",
-  "words": 75,
+  "words": 65,
   "from": "0:40",
-  "to": "1:16",
+  "to": "1:12",
   "paras": [
    [
     [
@@ -140,20 +140,14 @@ window.KEYNOTE_NOTES = {
      "do",
      "pause"
     ]
-   ],
-   [
-    [
-     "say",
-     "So we built an agent that is safe by construction."
-    ]
    ]
   ]
  },
  "3": {
   "section": "S3",
-  "words": 108,
-  "from": "1:16",
-  "to": "2:08",
+  "words": 101,
+  "from": "1:12",
+  "to": "2:00",
   "paras": [
    [
     [
@@ -163,15 +157,9 @@ window.KEYNOTE_NOTES = {
    ],
    [
     [
-     "say",
-     "Here is the idea in one sentence."
-    ],
-    [
      "do",
      "look at the jury, not the slide"
-    ]
-   ],
-   [
+    ],
     [
      "say",
      "The AI reads your request. Fixed rules and your approval move the money."
@@ -198,13 +186,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "A checker drops any amount or name that Lina did not write."
-    ]
-   ],
-   [
-    [
-     "say",
-     "Account numbers come only from her saved payees."
+     "A checker drops any amount or name that Lina did not write. Account numbers come only from her saved payees."
     ]
    ],
    [
@@ -263,16 +245,10 @@ window.KEYNOTE_NOTES = {
  },
  "4": {
   "section": "S4",
-  "words": 43,
-  "from": "2:08",
-  "to": "2:29",
+  "words": 38,
+  "from": "2:00",
+  "to": "2:18",
   "paras": [
-   [
-    [
-     "say",
-     "First, Lina asks a question."
-    ]
-   ],
    [
     [
      "do",
@@ -308,8 +284,8 @@ window.KEYNOTE_NOTES = {
  "5": {
   "section": "S5",
   "words": 77,
-  "from": "2:29",
-  "to": "3:06",
+  "from": "2:18",
+  "to": "2:55",
   "paras": [
    [
     [
@@ -388,8 +364,8 @@ window.KEYNOTE_NOTES = {
  "6": {
   "section": "S6",
   "words": 59,
-  "from": "3:06",
-  "to": "3:34",
+  "from": "2:55",
+  "to": "3:24",
   "paras": [
    [
     [
@@ -463,9 +439,9 @@ window.KEYNOTE_NOTES = {
  },
  "7": {
   "section": "S7",
-  "words": 56,
-  "from": "3:34",
-  "to": "4:01",
+  "words": 49,
+  "from": "3:24",
+  "to": "3:47",
   "paras": [
    [
     [
@@ -511,12 +487,6 @@ window.KEYNOTE_NOTES = {
    ],
    [
     [
-     "say",
-     "The blind test comes in a minute."
-    ]
-   ],
-   [
-    [
      "do",
      "LIVE: **Alt+Tab** back to the keynote (the browser window), press **B** to un-blank, type **8** and press **Enter**. Turn back to the jury."
     ]
@@ -531,9 +501,9 @@ window.KEYNOTE_NOTES = {
  },
  "8": {
   "section": "S8",
-  "words": 37,
-  "from": "4:01",
-  "to": "4:19",
+  "words": 31,
+  "from": "3:47",
+  "to": "4:02",
   "paras": [
    [
     [
@@ -543,15 +513,9 @@ window.KEYNOTE_NOTES = {
    ],
    [
     [
-     "say",
-     "It is also a real dialogue."
-    ],
-    [
      "do",
      "point at the messages, top to bottom"
-    ]
-   ],
-   [
+    ],
     [
      "say",
      "A missing amount becomes a question. She changes her mind: \"actually make it forty\"."
@@ -574,8 +538,8 @@ window.KEYNOTE_NOTES = {
  "9": {
   "section": "S9",
   "words": 73,
-  "from": "4:19",
-  "to": "4:54",
+  "from": "4:02",
+  "to": "4:37",
   "paras": [
    [
     [
@@ -636,8 +600,8 @@ window.KEYNOTE_NOTES = {
  "10": {
   "section": "S10",
   "words": 45,
-  "from": "4:54",
-  "to": "5:15",
+  "from": "4:37",
+  "to": "4:59",
   "paras": [
    [
     [
@@ -678,8 +642,8 @@ window.KEYNOTE_NOTES = {
  "11": {
   "section": "S11",
   "words": 93,
-  "from": "5:15",
-  "to": "6:00",
+  "from": "4:59",
+  "to": "5:43",
   "paras": [
    [
     [
@@ -783,9 +747,9 @@ window.KEYNOTE_NOTES = {
  },
  "12": {
   "section": "S12",
-  "words": 152,
-  "from": "6:00",
-  "to": "7:13",
+  "words": 139,
+  "from": "5:43",
+  "to": "6:50",
   "paras": [
    [
     [
@@ -820,13 +784,13 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "Sixty-six of seventy. Ninety-four percent; the interval is wider, eighty-six to ninety-eight."
+     "Sixty-six of seventy, with a wider margin of error."
     ]
    ],
    [
     [
      "say",
-     "It reads French, German, Spanish, Portuguese and a mix of languages: five of five. The offline parser: none."
+     "It reads French, German, Spanish, Portuguese and mixed languages: five of five. The offline parser: none."
     ]
    ],
    [
@@ -858,7 +822,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "A careless user would have added that payee. No money moved."
+     "No money moved."
     ]
    ],
    [
@@ -883,9 +847,9 @@ window.KEYNOTE_NOTES = {
  },
  "13": {
   "section": "S13",
-  "words": 50,
-  "from": "7:13",
-  "to": "7:37",
+  "words": 51,
+  "from": "6:50",
+  "to": "7:14",
   "paras": [
    [
     [
@@ -902,7 +866,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "The model was measured once, on a small set, at about two and a half seconds per call."
+     "The model was measured once, on a small set. A call takes about half a second on this laptop."
     ]
    ],
    [
@@ -916,8 +880,8 @@ window.KEYNOTE_NOTES = {
  "14": {
   "section": "S14",
   "words": 31,
-  "from": "7:37",
-  "to": "7:52",
+  "from": "7:14",
+  "to": "7:29",
   "paras": [
    [
     [
@@ -958,8 +922,8 @@ window.KEYNOTE_NOTES = {
  "15": {
   "section": "S15",
   "words": 83,
-  "from": "7:52",
-  "to": "8:32",
+  "from": "7:29",
+  "to": "8:09",
   "paras": [
    [
     [
@@ -1026,8 +990,8 @@ window.KEYNOTE_NOTES = {
  "16": {
   "section": "S16",
   "words": 42,
-  "from": "8:32",
-  "to": "8:52",
+  "from": "8:09",
+  "to": "8:29",
   "paras": [
    [
     [

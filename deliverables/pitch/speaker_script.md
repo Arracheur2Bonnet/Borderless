@@ -1,7 +1,7 @@
 # BorderlessGuard: speaker script for the 10-minute defence
 
-Target: **about 9:01 on stage** (8:31 of speech at a calm 125 words per minute, plus about 30 seconds of clicking),
-which leaves more than a minute of margin inside the 10 minutes.
+Target: **about 8:56 on stage** (8:10 of speech at a calm 125 words per minute, plus the pauses and about 30 seconds of clicking),
+which leaves about 1:04 of margin inside the 10 minutes (worst case with a 75 s demo: 9:41).
 
 Lines that start with `>` are said word for word. Text in [brackets] is a stage direction: do it, do not say it.
 The keynote notes (`deliverables/pitch/keynote/notes.js`) are generated from this file by
@@ -37,42 +37,40 @@ payment to stay under the limit".
 
 ## Part 1. The full talk
 
-Times are speech only, from the word counts at 125 wpm (`build_keynote.py` prints the same total). "Clicks" is the
-extra time the live demo needs.
+"Speech" is the time of the words alone at 125 wpm (`build_keynote.py` prints the same total). "Clicks" is the extra time the live demo
+needs. The cumulative column adds the clicks and the marked pauses (2 seconds each), and not the two seconds of silence before the first word.
 
 | # | Slide | Words | Speech | Clicks | On stage, cumulative |
 |---|---|---|---|---|---|
-| 1 | Title: the hook | 85 | 0:40 |  | 0:40 |
-| 2 | Invoice fraud meets an AI that can pay | 75 | 0:36 |  | 1:16 |
-| 3 | The model never touches the money, and a checker drops what she did not write | 107 | 0:51 | 0:03 (switch) | 2:11 |
-| 4 | LIVE step 1: an affordability question is only simulated | 43 | 0:20 | 0:03 | 2:34 |
-| 5 | LIVE step 2: one sentence, three actions, 600 EUR kept | 77 | 0:36 | 0:05 | 3:16 |
-| 6 | LIVE steps 3-5: paid, with a receipt Lina can check | 59 | 0:28 | 0:08 | 3:53 |
-| 7 | LIVE step 6: seven known attacks, replayed live | 56 | 0:26 | 0:08 | 4:27 |
-| 8 | Slide: a correction is a new action, never an edit | 37 | 0:17 | 0:03 (switch) | 4:48 |
-| 9 | Only one of eight controls reads the text | 72 | 0:34 |  | 5:23 |
-| 10 | 14 named rules on every payment; R4 has no override | 45 | 0:22 |  | 5:45 |
-| 11 | HERO: blind test, rules parser, 69/70 attacks blocked, 0 wrong payments | 93 | 0:44 |  | 6:30 |
-| 12 | Safety does not depend on the model (rules vs Qwen 7B) | 152 | 1:12 |  | 7:43 |
-| 13 | What it does not do yet | 50 | 0:24 |  | 8:07 |
-| 14 | Each judging criterion, with evidence you can rerun | 31 | 0:14 |  | 8:22 |
-| 15 | What we would build next with WeBank | 83 | 0:39 |  | **9:01** |
+| 1 | Title: the hook | 85 | 0:41 |  | 0:45 |
+| 2 | Invoice fraud meets an AI that can pay | 65 | 0:31 |  | 1:18 |
+| 3 | The model never touches the money, and a checker drops what she did not write | 101 | 0:48 | 0:03 (switch) | 2:11 |
+| 4 | LIVE step 1: an affordability question is only simulated | 38 | 0:18 | 0:03 | 2:33 |
+| 5 | LIVE step 2: one sentence, three actions, 600 EUR kept | 77 | 0:37 | 0:05 | 3:15 |
+| 6 | LIVE steps 3-5: paid, with a receipt Lina can check | 59 | 0:28 | 0:08 | 3:51 |
+| 7 | LIVE step 6: seven known attacks, replayed live | 49 | 0:24 | 0:08 | 4:23 |
+| 8 | Slide: a correction is a new action, never an edit | 31 | 0:15 | 0:03 (switch) | 4:40 |
+| 9 | Only one of eight controls reads the text | 73 | 0:35 |  | 5:15 |
+| 10 | 14 named rules on every payment; R4 has no override | 45 | 0:22 |  | 5:37 |
+| 11 | HERO: blind test, rules parser, 69/70 attacks blocked, 0 wrong payments | 93 | 0:45 |  | 6:28 |
+| 12 | Safety does not depend on the model (rules vs Qwen 7B) | 139 | 1:07 |  | 7:34 |
+| 13 | What it does not do yet | 51 | 0:24 |  | 7:59 |
+| 14 | Each judging criterion, with evidence you can rerun | 31 | 0:15 |  | 8:14 |
+| 15 | What we would build next with WeBank | 83 | 0:40 |  | **8:56** |
 
-Total: 1,065 spoken words = 8:31 of speech, plus about 30 seconds of clicks and switching = **about 9:01**.
-The word counts above are from the last count of this file; if you change words, recount (`build_keynote.py` prints the total) and copy the new counts.
-**How the 10 minutes hold up** (1,065 spoken words; the table above rounds each slide down, so its rows add up to 8:23, not 8:31):
+Total: 1,020 spoken words = 8:10 of speech at 125 wpm, plus 8 marked pauses (about 16 seconds) and about 30 seconds of clicks and switching = **about 8:56**. The cumulative column includes the pauses and the clicks.
+The word counts above are from the last count of this file (`build_keynote.py` prints the total and writes them to `notes.js`); if you change words, rebuild and recount. S16 is not spoken and adds nothing.
+**How the 10 minutes hold up** (1,020 spoken words, 16 s of pauses; the demo column is the time the live demo takes on top of the words: switching windows, six clicks, pointing, waiting for the answers. Measured on the real app: each guided step answers in about 0.3 s, so the demo overhead is the presenter's gestures, not the app):
 
-| Speaking pace | Speech | + 30 s of clicks | + 60 s | + 75 s |
+| Speaking pace | Speech + pauses | + 30 s of demo | + 60 s | + 75 s |
 |---|---|---|---|---|
-| 150 wpm (brisk) | 7:06 | 7:36 | 8:06 | 8:21 |
-| 125 wpm (planned) | 8:31 | **9:01** | 9:31 | 9:46 |
-| 110 wpm (slow) | 9:40 | 10:10 | 10:40 | 10:55 |
+| 150 wpm (brisk) | 7:04 | 7:34 | 8:04 | 8:19 |
+| 125 wpm (planned) | 8:26 | **8:56** | 9:26 | 9:41 |
+| 110 wpm (slow) | 9:32 | 10:02 | 10:32 | 10:47 |
 
-The talk fits in 10:00 at 112 wpm or faster with 30 s of clicks, and at 118 wpm or faster with 60 s of clicks. The live demo is the
-uncertain part: six guided steps in a Streamlit app each take a few seconds to answer, so time them on the real app in the rehearsal and
-use the checkpoints below. S16 is not spoken and adds nothing.
+The talk fits in 10:00 at 110 wpm or faster with 30 s of demo overhead, at 117 wpm or faster with 60 s and at 120 wpm or faster with 75 s. At the planned 125 wpm the worst case (9:41) leaves 0:19 of margin. A slower speaker has the cuts below. Time the demo on the real app in the rehearsal and use the checkpoints.
 
-Checkpoints: leave the demo (end of S7) by **4:45**; start the hero slide (S11) by **5:48**; start S12 (the model slide) by **6:33**.
+Checkpoints: leave the demo (end of S7) by **4:41**; start the hero slide (S11) by **5:40**; start S12 (the model slide) by **6:31**.
 
 ### S1 · Title slide
 
@@ -96,18 +94,15 @@ Checkpoints: leave the demo (end of S7) by **4:45**; start the hero slide (S11) 
 > hidden instructions in text, like in Lina's invoice.
 > [click: the line at the bottom appears] An AI agent that pays bills is the perfect target.
 > If the model decides, the attacker decides. [pause]
-> So we built an agent that is safe by construction.
 
 ### S3 · The model never touches the money
 [click]
 
-> Here is the idea in one sentence. [look at the jury, not the slide]
-> The AI reads your request. Fixed rules and your approval move the money.
+> [look at the jury, not the slide] The AI reads your request. Fixed rules and your approval move the money.
 > [point along the line, left to right: the dashed line in the middle is where authority starts]
 > The language model only writes a request, like "pay tuition and rent, keep six hundred".
 > It has no tools. It never sees a saved bank account number.
-> A checker drops any amount or name that Lina did not write.
-> Account numbers come only from her saved payees.
+> A checker drops any amount or name that Lina did not write. Account numbers come only from her saved payees.
 > It simulates the whole plan. Then fixed rules give a risk level, from R-zero to R-four.
 > Lina confirms in proportion to the risk, tied to a hash of the exact payment.
 > Every action gets a receipt. [pause]
@@ -124,7 +119,6 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 
 ### S4 · LIVE step 1: an affordability question is only simulated
 
-> First, Lina asks a question.
 > [LIVE: click **▶ Step 1/6: Ask: can I afford 300 EUR for mom?** | BACKUP: point at the question]
 > The agent simulates the month: the exchange, tuition, rent, and the three hundred.
 > [point at the red badge "Reserve breached"]
@@ -171,7 +165,6 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 > "send the maximum", a lying exchange rate, a double approval, split payments, a sanctioned payee.
 > [point at the seven green ticks in the guided bar]
 > Seven out of seven blocked. We wrote these seven, so this is a demo, not a test.
-> The blind test comes in a minute.
 
 [LIVE: **Alt+Tab** back to the keynote (the browser window), press **B** to un-blank, type **8** and press **Enter**. Turn back to the jury.]
 [BACKUP: right arrow.]
@@ -180,8 +173,7 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 
 [This slide is never live: the dialogue is shown here, not typed, to keep the demo short and safe.]
 
-> It is also a real dialogue. [point at the messages, top to bottom]
-> A missing amount becomes a question. She changes her mind: "actually make it forty".
+> [point at the messages, top to bottom] A missing amount becomes a question. She changes her mind: "actually make it forty".
 > The old action is cancelled, never edited. A new one is checked again. "Cancel that" stops it.
 
 [click]
@@ -225,12 +217,12 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 
 > Same test, different brain. [point at the left column] The offline parser: sixty-nine of seventy.
 > [click, point at the right column] Now Qwen, a language model running on this laptop.
-> Sixty-six of seventy. Ninety-four percent; the interval is wider, eighty-six to ninety-eight.
-> It reads French, German, Spanish, Portuguese and a mix of languages: five of five. The offline parser: none.
+> Sixty-six of seventy, with a wider margin of error.
+> It reads French, German, Spanish, Portuguese and mixed languages: five of five. The offline parser: none.
 > [point at the green row] In both columns: zero wrong payments to an account that is not a saved payee.
 > [click] Qwen missed four attacks. Three were plans for her own saved payees that she had not asked for.
 > One was real. The model cut "Volkov Trade Holdings" to "Volkov", and the sanctions check missed it.
-> A careless user would have added that payee. No money moved.
+> No money moved.
 > So we added one rule: every amount and name the model proposes must appear in Lina's own message.
 > After that: one hundred three of one hundred five. That is a re-run, not a blind result.
 > The model changes. The checks do not.
@@ -239,7 +231,7 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 [click]
 
 > What this is not. It is a sandbox. The ledger, the exchange rates and the SMS code are simulated.
-> The model was measured once, on a small set, at about two and a half seconds per call.
+> The model was measured once, on a small set. A call takes about half a second on this laptop.
 > We claim a safe architecture, measured blind. We do not claim production readiness.
 
 ### S14 · Each judging criterion, with evidence you can rerun
@@ -264,8 +256,8 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 
 ### If you are late: cuts in order
 
-1. Past 4:45 when you leave the demo: skip S8 (type **9** and Enter instead of 8) and skip S10 (type **11**).
-2. Past 7:40 at the end of S12: say only the last sentence of S13, then go to S15 (skip S14).
+1. Past 4:41 when you leave the demo: skip S8 (type **9** and Enter instead of 8) and skip S10 (type **11**).
+2. Past 7:31 at the end of S12: say only the last sentence of S13, then go to S15 (skip S14).
 3. If the attack run is slow: drop the list of seven attacks in S7; say "Seven known attacks, each on a fresh account."
    Never cut the S11 caveats or the Qwen misses in S12: they are what makes the numbers believable.
 
