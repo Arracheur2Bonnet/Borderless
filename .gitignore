@@ -73,3 +73,6 @@ deliverables/pitch/video/film_shots/
 # keynote check screenshots (output of scripts/check_keynote.py) and the rendered launch film (a build output, silent draft)
 /keynote_shots/
 deliverables/video/
+# demo video build inputs: the screen recording (scripts/demo_record.py) and the voice-over cues (scripts/demo_video.py sync)
+media/launch-video/public/rec/
+media/launch-video/public/vo/

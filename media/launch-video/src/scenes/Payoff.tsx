@@ -9,7 +9,7 @@ import {Mark, Wordmark} from '../ui';
 
 const LINES: [string, string][] = [['The AI ', 'reads.'], ['The rules ', 'decide.'], ['She ', 'approves.']];
 
-export const Payoff: React.FC<{f: number; dur: number}> = ({f, dur}) => {
+export const Payoff: React.FC<{f: number; dur: number; closing?: string}> = ({f, dur, closing}) => {
   const linesOut = p(f, 128, 146);
   const lock = f - 146;
   return (
@@ -39,7 +39,7 @@ export const Payoff: React.FC<{f: number; dur: number}> = ({f, dur}) => {
           </div>
           <div style={{position: 'absolute', left: 0, right: 0, top: 636, textAlign: 'center', fontSize: 18, fontWeight: 600, letterSpacing: '0.12em',
             color: C.accent, opacity: p(lock, 50, 66)}}>
-            NEXT: THE LIVE DEMO
+            {closing ?? 'NEXT: THE LIVE DEMO'}
           </div>
           <div style={{position: 'absolute', left: 0, right: 0, top: 1004, textAlign: 'center', fontSize: 15, color: C.ink3, opacity: p(lock, 50, 66)}}>
             Sandbox prototype. No real money moves.

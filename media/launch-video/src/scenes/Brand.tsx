@@ -6,7 +6,7 @@ import {Mark, Wordmark} from '../ui';
 
 // Beat 2 opens (segment 03): the mark draws itself, the name and the promise follow. No caption: the lockup is the text.
 
-export const Brand: React.FC<{f: number; dur: number}> = ({f, dur}) => {
+export const Brand: React.FC<{f: number; dur: number; team?: {from: number; name: string; track: string}}> = ({f, dur, team}) => {
   const out = 1 - p(f, dur - 12, dur);
   const word = p(f, 40, 62);
   const line = p(f, 70, 92);
@@ -25,6 +25,13 @@ export const Brand: React.FC<{f: number; dur: number}> = ({f, dur}) => {
         opacity: line, transform: `translateY(${(1 - line) * 10}px)`}}>
         An AI that can pay her bills, and cannot be talked into paying the wrong person.
       </div>
+      {team && (
+        <div style={{position: 'absolute', left: 0, right: 0, top: 700, textAlign: 'center', ...{opacity: p(f, team.from, team.from + 16),
+          transform: `translateY(${(1 - p(f, team.from, team.from + 16)) * 10}px)`}}}>
+          <div style={{fontSize: 30, fontWeight: 600, color: C.ink, letterSpacing: '-0.01em'}}>{team.name}</div>
+          <div style={{fontSize: 23, color: C.ink2, marginTop: 8}}>{team.track}</div>
+        </div>
+      )}
     </AbsoluteFill>
   );
 };

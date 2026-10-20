@@ -1,6 +1,13 @@
 # Demo video: plan (at most 5 minutes)
 
-The official demo video has two parts, in this order:
+> **Current pipeline (2026-10-20), which replaces the two-part plan below.** One narration for the whole video,
+> `voiceover_script.txt` (20 paragraphs, about 590 words, for ElevenLabs), and its timecoded production plan,
+> `video_storyboard.md`. The live part is a screen recording of the real app driven at human pace by
+> `scripts/demo_record.py`; the opening and the close reuse the Remotion scenes of the launch film. Build:
+> `scripts/demo_video.py sync <voiceover.mp3>` then `scripts/demo_video.py render --out <file>.mp4` (it refuses anything over 5:00
+> and writes the `.en.srt`). The rest of this page is the earlier plan, kept for the scene audit.
+
+The earlier plan had two parts, in this order:
 
 | Part | Length | Source | What it shows |
 |---|---|---|---|
