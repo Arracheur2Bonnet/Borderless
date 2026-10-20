@@ -102,6 +102,57 @@ def voice_lengths(texts: list[str]) -> tuple[list[float], bool]:
     return [len(t.split()) / WPM * 60 for t in texts], False
 
 
+def toks(text: str) -> list[str]:
+    """Lower-case word tokens; CamelCase is split ("BorderlessGuard" -> borderless guard), as a transcript writes it."""
+    return re.findall(r"[a-z0-9']+", re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text).lower())
+
+
+def word_cues() -> dict[int, list[dict]]:
+    """Per-cue word timings (seconds from the start of the cue clip), written by `sync --words`; {} without them."""
+    path = VO_DIR / "cues.json"
+    if not path.exists():
+        return {}
+    return {int(k): v["words"] for k, v in json.loads(path.read_text(encoding="utf-8")).items()}
+
+
+def said_at(ws: list[dict], seq: list[str]) -> float | None:
+    """Time (in the cue clip) at which the token sequence `seq` starts being said."""
+    flat = [(i, t) for i, w in enumerate(ws) for t in toks(w["w"])]
+    for j in range(len(flat) - len(seq) + 1):
+        if [t for _, t in flat[j:j + len(seq)]] == seq:
+            return ws[flat[j][0]]["s"]
+    return None
+
+
+def chunk_times(chunks: list[str], ws: list[dict]) -> list[tuple[float, float]]:
+    """Start and end of each subtitle chunk, from the words actually said: the chunk's words (digits, as the subtitles
+    write them) are aligned with the transcript's words, so a chunk starts on its first word and ends on its last."""
+    import difflib
+    flat = [(i, t) for i, w in enumerate(ws) for t in toks(w["w"])]          # transcript token -> its word
+    asr = [t for _, t in flat]
+    per = [toks(c) for c in chunks]
+    script = [t for p in per for t in p]
+    ops = difflib.SequenceMatcher(None, script, asr, autojunk=False).get_opcodes()
+
+    def to_asr(j: int) -> int:                       # script token index -> transcript token index
+        for tag, i1, i2, j1, j2 in ops:
+            if i1 <= j < i2 or (j == i2 == len(script)):
+                return j1 + (j - i1) if tag == "equal" else j1 + round((j - i1) * (j2 - j1) / max(1, i2 - i1))
+        return len(asr)
+
+    bounds, acc = [0], 0
+    for p in per[:-1]:
+        acc += len(p)
+        bounds.append(min(max(to_asr(acc), bounds[-1] + 1), len(asr) - 1))
+    bounds.append(len(asr))
+    out = []
+    for k in range(len(chunks)):
+        first_w = flat[bounds[k]][0]
+        last_w = flat[max(bounds[k], bounds[k + 1] - 1)][0]
+        out.append((ws[first_w]["s"], ws[last_w]["e"]))
+    return out
+
+
 def subtitle_chunks(text: str, limit: int = 84) -> list[str]:
     for a, b in SUBS_FORM:
         text = text.replace(a, b)
@@ -138,8 +189,9 @@ def zoom_keys(box: list[float] | None, rel_f: int, dur: int, smax: float) -> lis
 
 
 # seconds of picture left for the jury to read the evidence after the narration of a scene (scaled to fit the target)
-HOLD = {"quarantine": 1.5, "note": 1.0, "plan": 1.0, "code": 1.0, "receipts": 1.2, "deletion": 1.2, "correction": 0.8,
-        "payee": 1.0, "limit": 1.0, "attacks": 1.6, "measured": 1.6, "evidence": 1.0}
+HOLD = {"brand": 0.5, "account": 1.0, "request": 0.8, "quarantine": 1.5, "note": 1.2, "plan": 1.2, "taps": 0.8, "code": 1.2,
+        "done": 1.0, "receipts": 1.4, "deletion": 1.4, "correction": 1.0, "payee": 1.2, "limit": 1.2, "attacks": 1.8,
+        "measured": 1.8, "evidence": 1.4, "close": 0.5}
 TARGET = 280.0                 # 4:40, in the 4:30-4:50 window asked for; never above MAX_SECONDS
 
 
@@ -148,7 +200,7 @@ def plan() -> dict:
     vo, measured = voice_lengths(texts)
     mk = json.loads(MARKERS.read_text(encoding="utf-8"))
     best = None
-    for k10 in range(0, 16):                         # hold factor 0.0 .. 1.5: closest to TARGET, never over the limit
+    for k10 in range(0, 21):                         # hold factor 0.0 .. 2.0: closest to TARGET, never over the limit
         cand = _build(texts, vo, measured, mk, k10 / 10)
         if cand["total"] / FPS > MAX_SECONDS - 3:
             continue
@@ -170,6 +222,12 @@ def plan() -> dict:
 
 def _build(texts: list[str], vo: list[float], measured: bool, mk: dict, hold_k: float) -> dict:
     rec_scenes, rec_boxes = mk["scenes"], mk.get("boxes", {})
+    wc = word_cues() if measured else {}
+
+    def at(cue: int, seq: list[str], fallback: float) -> float:
+        """When `seq` is said in a cue: from the transcript, else from its share of the words."""
+        got = said_at(wc[cue], seq) if cue in wc else None
+        return got if got is not None else fallback
     scenes, voice, subs = [], [], []
     t = 0.0
     for sid, kind, cue_ids, marker, chapter, min_s, zoom, callout in SCENES:
@@ -194,17 +252,17 @@ def _build(texts: list[str], vo: list[float], measured: bool, mk: dict, hold_k: 
         if kind == "brand":                             # the team card appears when the narration says "We are Team Centrale"
             words = texts[cue_ids[0] - 1].split()
             k = next((i for i, w in enumerate(words) if w == "We"), len(words) // 2)
-            s["team_from"] = round((LEAD + vo[cue_ids[0] - 1] * k / len(words)) * FPS)
+            s["team_from"] = round((LEAD + at(cue_ids[0], ["we", "are", "team"], vo[cue_ids[0] - 1] * k / len(words))) * FPS)
         if kind == "measured":                          # the Qwen result lands when the narration names it
             words = texts[cue_ids[0] - 1].split()
             k = next((i for i in range(len(words) - 2) if words[i + 2].startswith("Qwen")), len(words) // 2)
-            said = (LEAD + vo[cue_ids[0] - 1] * k / len(words)) * FPS
+            said = (LEAD + at(cue_ids[0], ["with", "a", "local"], vo[cue_ids[0] - 1] * k / len(words))) * FPS
             s["warp"] = round(min(1.0, max(0.55, 290 / max(1.0, said))), 3)
         if kind == "payoff":                            # the three lines rise as the voice says them
             words = texts[cue_ids[0] - 1].split()
             k = next((i for i in range(len(words) - 2) if words[i:i + 3] == ["The", "AI", "reads."]), 0)
-            s["principle_from"] = round((LEAD + vo[cue_ids[0] - 1] * k / len(words)) * FPS)
-            s["dur"] = dur_f = max(dur_f, s["principle_from"] + 230)
+            s["principle_from"] = round((LEAD + at(cue_ids[0], ["the", "ai", "reads"], vo[cue_ids[0] - 1] * k / len(words))) * FPS)
+            s["dur"] = dur_f = max(dur_f, s["principle_from"] + 300)      # the end card stays about 3 s
         if kind == "rec":
             box, rel = None, 0
             if zoom:
@@ -224,12 +282,18 @@ def _build(texts: list[str], vo: list[float], measured: bool, mk: dict, hold_k: 
         for c, st in zip(cue_ids, starts):
             voice.append({"id": f"{c:02d}", "from": round(st * FPS), "src": f"vo/{c:02d}.wav"})
             chunks = subtitle_chunks(texts[c - 1])
-            total_chars = sum(len(x) for x in chunks)
-            u = st
-            for ch in chunks:
-                d = vo[c - 1] * len(ch) / total_chars
-                subs.append({"from": round(u * FPS), "to": round((u + d) * FPS), "text": ch})
-                u += d
+            if c in wc and len(wc[c]) >= len(chunks):           # timed on the words actually said
+                times = chunk_times(chunks, wc[c])
+                for i, (ch, (a, b)) in enumerate(zip(chunks, times)):
+                    nxt = times[i + 1][0] if i + 1 < len(times) else b + 0.6
+                    subs.append({"from": round((st + a - 0.05) * FPS), "to": round((st + min(nxt, b + 0.45)) * FPS), "text": ch})
+            else:
+                total_chars = sum(len(x) for x in chunks)
+                u = st
+                for ch in chunks:
+                    d = vo[c - 1] * len(ch) / total_chars
+                    subs.append({"from": round(u * FPS), "to": round((u + d) * FPS), "text": ch})
+                    u += d
         scenes.append(s)
         t += dur_f / FPS
     total = round(t * FPS) + FPS                        # one second of the closing frame
@@ -244,8 +308,10 @@ def srt(p: dict, path: Path) -> None:
         ms = round(f / FPS * 1000)
         return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
     lines = []
-    for i, s in enumerate(p["subs"], 1):
-        lines += [str(i), f"{ts(s['from'])} --> {ts(s['to'])}", s["text"], ""]
+    subs = p["subs"]
+    for i, s in enumerate(subs, 1):
+        end = min(s["to"], subs[i]["from"] - 1) if i < len(subs) else s["to"]     # never overlap the next entry
+        lines += [str(i), f"{ts(s['from'])} --> {ts(end)}", s["text"], ""]
     path.write_text("\n".join(lines), encoding="utf-8")
     print(f"wrote {path}")
 
@@ -297,6 +363,57 @@ def sync(audio: Path) -> None:
     full.unlink()
 
 
+def sync_words(audio: Path, words_json: Path) -> None:
+    """Split one voice-over file into the 20 cues using word timings (a local transcript of the same file): each cue
+    starts at the first word of its paragraph, and the cut sits at the quietest 10 ms between the last word of one
+    paragraph and the first word of the next, so no word is ever cut. The audio itself is not changed."""
+    import numpy as np
+    ff = imageio_ffmpeg.get_ffmpeg_exe()
+    VO_DIR.mkdir(parents=True, exist_ok=True)
+    full = VO_DIR / "_full.wav"
+    subprocess.run([ff, "-y", "-loglevel", "error", "-i", str(audio), "-ac", "1", "-ar", "44100", str(full)], check=True)
+    with wave.open(str(full)) as w:
+        sr, raw = w.getframerate(), w.readframes(w.getnframes())
+    x = np.frombuffer(raw, dtype=np.int16).astype(np.float32)
+    hop = sr // 100
+    n = len(x) // hop
+    rms = np.sqrt((x[: n * hop].reshape(n, hop) ** 2).mean(axis=1))
+    total = len(x) / sr
+    words = json.loads(words_json.read_text(encoding="utf-8"))["words"]
+    flat = [(i, t) for i, w in enumerate(words) for t in toks(w["w"])]
+    texts = cues()
+    first, pos = [], 0
+    for k, text in enumerate(texts, 1):
+        key = toks(text)[:4]
+        j = next((j for j in range(pos, len(flat) - 3)
+                  if sum(a == b for a, (_, b) in zip(key, flat[j:j + 4])) >= 3), None)
+        if j is None:
+            raise SystemExit(f"paragraph {k} ('{' '.join(key)} ...') is not in the transcript")
+        first.append(flat[j][0])
+        pos = j + 1
+    cuts = [0.0]
+    for k in range(1, 20):
+        a, b = words[first[k] - 1]["e"], words[first[k]]["s"]
+        f0, f1 = max(0, int((min(a, b) - 0.25) * 100)), min(n - 1, int((max(a, b) + 0.25) * 100))
+        cuts.append((f0 + int(np.argmin(rms[f0:f1 + 1]))) / 100 if f1 > f0 else (a + b) / 2)
+    cuts.append(total)
+    out = {}
+    for k in range(1, 21):
+        a, b = cuts[k - 1], cuts[k]
+        subprocess.run([ff, "-y", "-loglevel", "error", "-i", str(full), "-ss", f"{a:.3f}", "-to", f"{b:.3f}",
+                        "-af", "afade=t=in:d=0.008,areverse,afade=t=in:d=0.012,areverse", str(VO_DIR / f"{k:02d}.wav")],
+                       check=True)
+        ws = words[first[k - 1]:(first[k] if k < 20 else len(words))]
+        out[f"{k:02d}"] = {"dur": round(b - a, 3), "words": [{"w": w["w"], "s": round(w["s"] - a, 3), "e": round(w["e"] - a, 3)}
+                                                            for w in ws]}
+        spoken = ws[-1]["e"] - ws[0]["s"]
+        nw = len(texts[k - 1].split())
+        print(f"cue {k:02d}: {a:7.2f}-{b:7.2f}s  words {ws[0]['s']:7.2f}-{ws[-1]['e']:7.2f}s  "
+              f"{nw / max(0.1, spoken) * 60:4.0f} wpm  '{ws[0]['w']} ... {ws[-1]['w']}'")
+    (VO_DIR / "cues.json").write_text(json.dumps(out, indent=0) + "\n", encoding="utf-8")
+    full.unlink()
+
+
 def render(out: Path) -> None:
     p = plan()
     remotion = FILM / "node_modules" / ".bin" / ("remotion.cmd" if sys.platform == "win32" else "remotion")
@@ -316,13 +433,19 @@ def main() -> int:
     sub.add_parser("plan")
     s = sub.add_parser("sync")
     s.add_argument("audio", type=Path)
+    s.add_argument("--words", type=Path, default=None,
+                   help="word timings of the same file (JSON {words: [{w, s, e}]}, from a local transcript): cut on words")
     r = sub.add_parser("render")
     r.add_argument("--out", type=Path, default=FILM / "out" / "demo-video.mp4")
     a = ap.parse_args()
     if a.cmd == "plan":
         srt(plan(), FILM / "out" / "demo-video.en.srt")
     elif a.cmd == "sync":
-        sync(a.audio)
+        if a.words:
+            sync_words(a.audio, a.words)
+        else:
+            (VO_DIR / "cues.json").unlink(missing_ok=True)
+            sync(a.audio)
         srt(plan(), FILM / "out" / "demo-video.en.srt")
     else:
         render(a.out)

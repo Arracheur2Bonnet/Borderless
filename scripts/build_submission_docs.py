@@ -1101,7 +1101,7 @@ def build_evidence() -> Path:
     c = Cursor(doc, anchors["Timestamp, action, result and relevant screenshot/link"]._p)
     c.p("The sandbox clock is fixed at 2026-10-28T09:00:00Z. Receipts (`issued_at`) and exchange quotes (`expires_at`) "
         "carry that time; the other records carry only `seq`, their position in the log, so the first column below is the fixed "
-        "sandbox time of the mission, not a wall-clock time (the runs were made on 2026-10-20). The video of the demo is submitted separately.", size=9.5, after=3)
+        "sandbox time of the mission, not a wall-clock time (the runs were made on 2026-10-20). The demo video (4:40, English subtitles) is `deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4`: its live part is a screen recording of the real app on the same sandbox.", size=9.5, after=3)
     c.table(["Timestamp (sandbox)", "Action", "Result", "Evidence file"], mission_rows(), [1.3, 3.2, 3.0, 2.8],
             indent=False, size=7.2)
     c.figure(f_plan, 14.0, "Screenshot 1 (T01). The request, the quarantined forged invoice and the first of three actions, "

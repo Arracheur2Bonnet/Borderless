@@ -2,9 +2,11 @@
 
 Team: Centrale. Track: International AI Track, Topic C (Cross-border and Student Finance). Submission date: 2026-10-20.
 
-**How these outputs were produced.** Every output below was captured, or re-run and compared with the quoted text, on 2026-10-20, in the working tree after commit `3b4e894` (the round-3 security fixes and the light interface are not committed yet). The golden-path hashes in Section 3 were regenerated on that date. Environment: Python 3.11.6, Windows 11, Git Bash, `./.venv/Scripts/python`.
+**How these outputs were produced.** Every output below was captured, or re-run and compared with the quoted text, on 2026-10-20, on the code published on `main` (commit `efcf667` and later; the commits after it change documents and the video only). The golden-path hashes in Section 3 were regenerated on that date. Environment: Python 3.11.6, Windows 11, Git Bash, `./.venv/Scripts/python`.
 
 **What is needed.** Sections 1 to 8: no network access, no API key and no model. Section 9 (the language-model evaluation) needs Ollama and a downloaded model; its reports are committed, so you can read the results without running it.
+
+**Demo video.** [`deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4`](submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4) (4:40, 1080p, English subtitles in the picture and in the `.en.srt` beside it). Its live part is a screen recording of the real app on this sandbox, made with `scripts/demo_record.py`: the golden path of Section 3 (the request with the forged invoice, three approvals, 600.00 EUR and 196.74 USD left, three receipts checked against the signed copy), then a correction, a payee check that does not match, the 4,000 EUR cap and the seven attacks. Links: `deliverables/submission/DEMO_VIDEO.md`.
 
 **Reproducibility.** The hashes below reproduce exactly on any machine with the same code and dependency versions, for two reasons:
 

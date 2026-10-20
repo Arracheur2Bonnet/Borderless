@@ -1086,7 +1086,7 @@ The cascade and the connector were run after the grounding fix, on the same case
 5. Check my receipts against my copy;
 6. Run all 7 attacks.
 
-The demo video (`deliverables/pitch/demo_video_script.md`) has two parts: a launch film made in code (`media/launch-video`), then a recorded walkthrough of the real app (`deliverables/demo/index.html`) that covers the same steps.
+The demo video (`deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4`, 4:40) shows these steps on the real app: its live part is a screen recording of the running interface, driven at human pace by `scripts/demo_record.py`; the narration is `deliverables/pitch/voiceover_script.txt` and the timecoded plan `deliverables/pitch/video_storyboard.md`.
 
 | Screenshot | Shows |
 |---|---|

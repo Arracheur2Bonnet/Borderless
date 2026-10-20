@@ -135,6 +135,8 @@ is sped up or cut.
 - Stability about 50 %, Similarity about 75 %, Style 0 to 15 %, Speaker boost on, Speed 1.0. The target pace is 145 to 160
   words a minute; below about 130 the video would pass 5:00 (the build refuses it), so use Speed 1.05 if the voice is slow.
 - Export MP3 44.1 kHz (128 kbps or more) or WAV.
+- Used for the final video: voice "Killian" (Clear, Warm, Upbeat & Friendly), Speed 1.00, Stability 50 %, Similarity 75 %:
+  one file of 3:32.8 (`media/launch-video/voiceover.mp3`), about 168 words a minute.
 
 ## Pronunciation notes (change the words in ElevenLabs only; the subtitles keep the written form)
 
@@ -154,13 +156,18 @@ digits.
 ## Synchronisation and render
 
 ```bash
-./.venv/Scripts/python scripts/demo_video.py sync path/to/voiceover.mp3     # cuts the file at the 19 paragraph pauses
+./.venv/Scripts/python scripts/demo_video.py sync media/launch-video/voiceover.mp3 --words media/launch-video/voiceover.words.json
 ./.venv/Scripts/python scripts/demo_video.py render --out deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4
 ```
 
-`sync` finds the pause that best matches each paragraph break (by word share and pause length), writes `public/vo/01.wav` to
-`20.wav` and prints the pace of every cue; `render` re-plans the edit around the measured cues, renders the MP4 and writes the
-matching `.en.srt`. To re-record the app after a UI change: `./.venv/Scripts/python scripts/demo_record.py`.
+`voiceover.words.json` holds the word timings of the same file, from a local transcript (faster-whisper `small.en`, CPU, run
+outside the project's environment). With it, `sync` starts each cue on the first word of its paragraph and cuts at the
+quietest 10 ms between two paragraphs, so no word is cut and the speech is not changed; the subtitles are then timed on the
+words actually said. The transcript also served as a check that the audio says the script: it matches word for word, apart
+from transcription spellings ("Team Central" for Centrale, "quen" for Qwen). Without `--words`, `sync` falls back to the
+pauses that best match the paragraph breaks (this voice pauses too little between paragraphs for that to be reliable).
+`render` re-plans the edit around the measured cues, renders the MP4 and writes the matching `.en.srt`. To re-record the
+app after a UI change: `./.venv/Scripts/python scripts/demo_record.py`.
 
 ## Accuracy rules followed
 
