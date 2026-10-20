@@ -4,7 +4,7 @@ Team Centrale · International AI Track, Topic C (Cross-border and Student Finan
 
 | | |
 |---|---|
-| Video | [`InternationalAI-TopicC-Centrale-DemoVideo.mp4`](InternationalAI-TopicC-Centrale-DemoVideo.mp4): 4:40, 1920x1080 (16:9), 30 fps, H.264 with AAC audio, English narration |
+| Video | [`InternationalAI-TopicC-Centrale-DemoVideo.mp4`](InternationalAI-TopicC-Centrale-DemoVideo.mp4): 4:40, 1920x1080 (16:9), 30 fps, H.264 with AAC audio (48 kHz, normalised to -16 LUFS), English narration |
 | Watch in the browser | https://github.com/Arracheur2Bonnet/Borderless/blob/main/deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4 |
 | Download | https://github.com/Arracheur2Bonnet/Borderless/raw/main/deliverables/submission/InternationalAI-TopicC-Centrale-DemoVideo.mp4 |
 | English subtitles | Burnt into the picture, and as a file: [`InternationalAI-TopicC-Centrale-DemoVideo.en.srt`](InternationalAI-TopicC-Centrale-DemoVideo.en.srt) |
@@ -30,8 +30,12 @@ Team Centrale · International AI Track, Topic C (Cross-border and Student Finan
 - The live part is a screen recording of the real app (Streamlit UI, real backend, offline rules parser, sandbox ledger),
   driven at human pace by `scripts/demo_record.py`. Nothing in it is mocked or redrawn; the pointer is drawn from the real
   mouse events.
-- The opening and the close are motion graphics built in code (Remotion, `media/launch-video`) from the same product data
-  and the frozen blind reports.
+- The edit, the motion design and the graphics are built in code (Remotion, `media/launch-video`, composition `DemoVideo2`):
+  kinetic headlines revealed on the words the voice says, an iris from the dark opening into the light app, spring camera
+  push-ins with a spotlight on the element discussed, stamps on verified results (each repeats what the app shows), and
+  animated panels for the decision flow, the risk tiers, the receipt chain (its real fingerprints) and the attack test.
+  The opening and the close use the same product data and the frozen blind reports.
+- The few UI sounds (a soft whoosh, a low thud, a chime) are original, synthesised by `scripts/demo_sfx.py`; there is no music.
 - The voice was generated with ElevenLabs (voice "Killian") from the narration text. `scripts/demo_video.py` cut it into 20
   cues on its word timings, without changing the speech, and built the edit, the subtitles and the render around it.
 - Sandbox prototype: no real money moves.

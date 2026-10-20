@@ -69,6 +69,30 @@ SHOT = {
 }
 
 
+# the motion and VFX of the v2 composition (DemoVideo2), scene by scene
+FX_V2 = {
+    "hook": "Dark canvas; the invoice floats in as a 3D card that settles; red glow and a low thud when the hidden line appears; headline 'One line was written for an AI.'",
+    "brand": "Dark canvas with slow light rays; the mark draws itself on a light tile, the wordmark wipes in; the team card rises when the voice names the team.",
+    "account": "Iris opening from the dark into the light app; spring settle; push-in on the balances and the landlord; headline 'The real app. No real money.'",
+    "request": "Spring settle on the cut; headline 'One sentence. One forged invoice.'; the typing is the action.",
+    "quarantine": "Push-in on the alert, spotlight with a red ring; stamp QUARANTINED when the voice says it; two-line headline.",
+    "note": "Push-in on the document text; headline 'The hidden note, as plain text.'",
+    "plan": "The stage slides aside for the decision-flow panel (six steps drawing in) at 'Every step is simulated first'; two-line headline.",
+    "taps": "Risk-tier panel R0 to R4 with R2 lit; headline 'Known payees: one tap.'",
+    "code": "Tier panel with R3 lit; push-in on the rent card; headline 'New payee: a one-time code.'",
+    "done": "Tier panel with R2 and R3 ticked; a chime; headline '600.00 EUR left. Reserve kept.'",
+    "receipts": "Receipt-chain panel (three hash-linked receipts with their real fingerprints, her signed copy); push-in, green ring and stamp VERIFIED on the match.",
+    "deletion": "Chain panel with her copy highlighted; spotlight and stamp CAUGHT BY HER COPY on the result.",
+    "correction": "Push-in on the reply and the new card; headline 'Actually, make it 40.' then 'Cancelled, never edited. Checked again.'",
+    "payee": "Push-in, amber ring and stamp NO MATCH on the card; two-line headline.",
+    "limit": "Tier panel with R4 lit; red ring and stamp DENIED · R4 on the card; a thud.",
+    "attacks": "Panel of the seven attacks ticking to BLOCKED one after the other, finishing as the voice says 'All seven'; a chime.",
+    "measured": "70 dots fill in order; slowed so the Qwen result lands when the voice names it; headline 'Measured blind.'",
+    "evidence": "Dark canvas, terminal window settling in 3D, the command typed, PASS lines lighting up green.",
+    "close": "Dark canvas: the honest limit first, then the three lines rise as the voice says them, then the lockup with the typed command and 'Offline · No API key · Sandbox · MIT licence'.",
+}
+
+
 def tc(frames: int, fps: int = 30) -> str:
     s = frames / fps
     return f"{int(s // 60)}:{s % 60:04.1f}"
@@ -85,6 +109,7 @@ def write(plan: dict, texts: list[str]) -> None:
         ids = list(range(cue + 1, cue + 1 + n))
         cue += n
         src, action, fx = SHOT[s["id"]]
+        fx = FX_V2.get(s["id"], fx)
         narr = " / ".join(f"[{i:02d}] {texts[i - 1]}" for i in ids)
         rows.append(f"| {tc(s['from'], fps)} to {tc(s['from'] + s['dur'], fps)} | {s['chapter'] or 'Close'} | {src} | {action} | "
                     f"{fx} | {narr} |")
@@ -104,16 +129,32 @@ measurement, the evidence anyone can rerun, and the principle. The middle of the
 driven at human pace by `scripts/demo_record.py` (real clicks and typing, real replies; nothing mocked or redrawn). The opening and
 the closing are motion graphics built in code from the same product data (`media/launch-video`).
 
+## Visual direction (v2, the `DemoVideo2` composition)
+
+Taken from the two references in `references/` (a Cursor launch film and an AgentPlay film) and adapted to the product:
+
+- **Dark for the stakes, light for the product.** The hook, the brand, the evidence and the close sit on a dark canvas with a
+  slow grid and a soft glow; the real app sits on a warm paper canvas. The first cut into the app is an iris opening from the dark.
+- **Kinetic headlines.** Above the picture, an eyebrow names the chapter and one or two short lines restate what is on screen;
+  each line rises word by word, with a spring and a blur, at the moment the voice says the matching words (word timings of the
+  transcript). Key words take the tone of the result: green for verified, amber for a code, red for a refusal or a threat.
+- **Camera.** Every cut settles with a short spring (a slight 3D tilt and blur that resolve in about half a second); the camera
+  pushes in on the part of the screen being discussed (boxes measured from the page during the recording).
+- **Attention and proof.** A spotlight dims the rest of the frame around the element that matters, with a pulsing ring; a stamp
+  lands on it when the voice says the result: QUARANTINED, VERIFIED, CAUGHT BY HER COPY, NO MATCH, DENIED · R4. Each stamp
+  repeats what the app itself shows.
+- **Animated side panels** when the narration explains a mechanism: the decision flow (model proposes, grounding, simulation,
+  14 rules, her approval, ledger and receipt), the risk tiers R0 to R4 with the active one lit, the three hash-linked receipts with
+  their real fingerprints and her signed copy, and the seven attacks ticking to blocked. The stage slides aside to make room.
+- **Sound.** Original UI sounds synthesised by `scripts/demo_sfx.py` (a soft whoosh at cuts, a low thud for a refusal or the hidden
+  line, a two-note chime for a verified result), mixed well under the voice. No music, no third-party audio.
+
 ## Format
 
-- 1920x1080, 16:9, 30 fps, H.264 (CRF 18) with AAC audio; English subtitles burnt in under the picture and delivered as `.en.srt`.
-- Frame: the picture sits in a 1574x886 stage on the paper background; the top bar names the chapter on the left and
-  "Team Centrale, International AI Track, Topic C, sandbox, no real money" on the right; subtitles sit under the stage, so they
-  never cover the app.
-- Transitions: a 0.2 s fade from paper at every cut. No sound effects. No music (no licensed track is available; the guide forbids
-  copyrighted material).
-- Motion and VFX: slow camera push-ins on the part of the screen the narration talks about (boxes measured from the page during
-  the recording), short callout chips that repeat a fact already visible on screen, the pointer drawn from the real mouse events.
+- 1920x1080, 16:9, 30 fps, H.264 (CRF 18) with AAC audio; English subtitles burnt in at the bottom on a soft pill and delivered as
+  `.en.srt`.
+- Light scenes: the recording sits in a 1498x843 stage (1188x669 when a side panel is open) under the headline zone.
+- The timings, the voice and the subtitles are the same as in v1 (`DemoVideo`); only the visual layer changed.
 
 ## Timeline
 

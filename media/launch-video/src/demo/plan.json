@@ -15,7 +15,156 @@
    "from": 0,
    "chapter": "The threat",
    "a": 247,
-   "dur": 601
+   "dur": 601,
+   "eyebrow": "THE THREAT",
+   "headline": [
+    {
+     "text": "This is Lina's rent invoice.",
+     "accent": [],
+     "tone": "info",
+     "at": 7
+    },
+    {
+     "text": "One line was written for an AI.",
+     "accent": [
+      "AI."
+     ],
+     "tone": "deny",
+     "at": 252
+    }
+   ],
+   "sfx": [
+    {
+     "src": "sfx/thud.wav",
+     "from": 247,
+     "vol": 0.55
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 595,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 1066,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 1602,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 1934,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/thud.wav",
+     "from": 2052,
+     "vol": 0.55
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 2409,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 2635,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 3273,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 3566,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 3996,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/chime.wav",
+     "from": 4012,
+     "vol": 0.42
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 4220,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/chime.wav",
+     "from": 4458,
+     "vol": 0.42
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 4615,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/chime.wav",
+     "from": 4777,
+     "vol": 0.42
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 4938,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 5410,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/thud.wav",
+     "from": 5673,
+     "vol": 0.55
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 5835,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/thud.wav",
+     "from": 6018,
+     "vol": 0.55
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 6227,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/chime.wav",
+     "from": 6476,
+     "vol": 0.42
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 6702,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 7436,
+     "vol": 0.32
+    },
+    {
+     "src": "sfx/whoosh.wav",
+     "from": 7859,
+     "vol": 0.32
+    }
+   ]
   },
   {
    "id": "brand",
@@ -49,22 +198,35 @@
      "y": 540
     },
     {
-     "f": 152,
-     "s": 1.25,
-     "x": 768.0,
-     "y": 432.0
+     "f": 138,
+     "s": 1.438,
+     "x": 667.8,
+     "y": 402.6
     },
     {
      "f": 512,
-     "s": 1.25,
-     "x": 768.0,
-     "y": 432.0
+     "s": 1.438,
+     "x": 667.8,
+     "y": 402.6
     },
     {
      "f": 534,
      "s": 1,
      "x": 960,
      "y": 540
+    }
+   ],
+   "eyebrow": "LIVE APP \u00b7 SANDBOX BANK",
+   "headline": [
+    {
+     "text": "The real app. No real money.",
+     "accent": [
+      "No",
+      "real",
+      "money."
+     ],
+     "tone": "warn",
+     "at": 14
     }
    ]
   },
@@ -84,6 +246,17 @@
      "s": 1,
      "x": 960,
      "y": 540
+    }
+   ],
+   "eyebrow": "ONE REQUEST",
+   "headline": [
+    {
+     "text": "One sentence. One forged invoice.",
+     "accent": [
+      "forged"
+     ],
+     "tone": "deny",
+     "at": 9
     }
    ]
   },
@@ -111,16 +284,16 @@
      "y": 540
     },
     {
-     "f": 63,
-     "s": 1.25,
+     "f": 49,
+     "s": 1.438,
      "x": 1140.0,
-     "y": 648.0
+     "y": 649.7
     },
     {
      "f": 451,
-     "s": 1.25,
+     "s": 1.438,
      "x": 1140.0,
-     "y": 648.0
+     "y": 649.7
     },
     {
      "f": 473,
@@ -134,6 +307,36 @@
     "tone": "warn",
     "from": 53,
     "dur": 150
+   },
+   "eyebrow": "HIDDEN INSTRUCTION",
+   "headline": [
+    {
+     "text": "Hidden instruction found.",
+     "accent": [
+      "found."
+     ],
+     "tone": "deny",
+     "at": 3
+    },
+    {
+     "text": "Read as data, never as an order.",
+     "accent": [
+      "data,"
+     ],
+     "tone": "info",
+     "at": 164
+    }
+   ],
+   "stamp": {
+    "text": "QUARANTINED",
+    "tone": "deny",
+    "box": [
+     602.4,
+     599.3,
+     1075.2,
+     100.8
+    ],
+    "at": 112
    }
   },
   {
@@ -160,22 +363,34 @@
      "y": 540
     },
     {
-     "f": 108,
-     "s": 1.2,
-     "x": 1120.0,
-     "y": 450.0
+     "f": 94,
+     "s": 1.38,
+     "x": 1140.0,
+     "y": 391.3
     },
     {
      "f": 202,
-     "s": 1.2,
-     "x": 1120.0,
-     "y": 450.0
+     "s": 1.38,
+     "x": 1140.0,
+     "y": 391.3
     },
     {
      "f": 224,
      "s": 1,
      "x": 960,
      "y": 540
+    }
+   ],
+   "eyebrow": "HIDDEN INSTRUCTION",
+   "headline": [
+    {
+     "text": "The hidden note, as plain text.",
+     "accent": [
+      "plain",
+      "text."
+     ],
+     "tone": "info",
+     "at": 11
     }
    ]
   },
@@ -202,6 +417,32 @@
     "tone": "info",
     "from": 24,
     "dur": 150
+   },
+   "eyebrow": "THE PLAN",
+   "headline": [
+    {
+     "text": "A plan that keeps exactly 600 EUR.",
+     "accent": [
+      "600",
+      "EUR."
+     ],
+     "tone": "ok",
+     "at": 13
+    },
+    {
+     "text": "Simulated first. Checked by fixed rules.",
+     "accent": [
+      "fixed",
+      "rules."
+     ],
+     "tone": "info",
+     "at": 350
+    }
+   ],
+   "panel": {
+    "kind": "flow",
+    "active": null,
+    "at": 347
    }
   },
   {
@@ -227,6 +468,23 @@
     "tone": "ok",
     "from": 24,
     "dur": 150
+   },
+   "eyebrow": "APPROVAL FOLLOWS RISK",
+   "headline": [
+    {
+     "text": "Known payees: one tap.",
+     "accent": [
+      "one",
+      "tap."
+     ],
+     "tone": "ok",
+     "at": 14
+    }
+   ],
+   "panel": {
+    "kind": "tiers",
+    "active": "R2",
+    "at": 11
    }
   },
   {
@@ -253,7 +511,7 @@
      "y": 540
     },
     {
-     "f": 62,
+     "f": 48,
      "s": 1.0,
      "x": 960.0,
      "y": 540.0
@@ -276,6 +534,23 @@
     "tone": "warn",
     "from": 52,
     "dur": 150
+   },
+   "eyebrow": "APPROVAL FOLLOWS RISK",
+   "headline": [
+    {
+     "text": "New payee: a one-time code.",
+     "accent": [
+      "one-time",
+      "code."
+     ],
+     "tone": "warn",
+     "at": 7
+    }
+   ],
+   "panel": {
+    "kind": "tiers",
+    "active": "R3",
+    "at": 4
    }
   },
   {
@@ -301,6 +576,23 @@
     "tone": "ok",
     "from": 24,
     "dur": 150
+   },
+   "eyebrow": "EXECUTED IN THE SANDBOX",
+   "headline": [
+    {
+     "text": "600.00 EUR left. Reserve kept.",
+     "accent": [
+      "Reserve",
+      "kept."
+     ],
+     "tone": "ok",
+     "at": 13
+    }
+   ],
+   "panel": {
+    "kind": "tiers",
+    "active": "done",
+    "at": 10
    }
   },
   {
@@ -327,16 +619,16 @@
      "y": 540
     },
     {
-     "f": 264,
-     "s": 1.2,
-     "x": 1120.0,
-     "y": 630.0
+     "f": 250,
+     "s": 1.38,
+     "x": 1140.0,
+     "y": 688.7
     },
     {
      "f": 371,
-     "s": 1.2,
-     "x": 1120.0,
-     "y": 630.0
+     "s": 1.38,
+     "x": 1140.0,
+     "y": 688.7
     },
     {
      "f": 393,
@@ -350,6 +642,42 @@
     "tone": "ok",
     "from": 245,
     "dur": 142
+   },
+   "eyebrow": "PROOF",
+   "headline": [
+    {
+     "text": "Every action leaves a linked receipt.",
+     "accent": [
+      "linked"
+     ],
+     "tone": "info",
+     "at": 7
+    },
+    {
+     "text": "Checked against her signed copy.",
+     "accent": [
+      "signed",
+      "copy."
+     ],
+     "tone": "ok",
+     "at": 159
+    }
+   ],
+   "panel": {
+    "kind": "chain",
+    "active": "chain",
+    "at": 4
+   },
+   "stamp": {
+    "text": "VERIFIED",
+    "tone": "ok",
+    "box": [
+     602.4,
+     1027.7,
+     1075.2,
+     76.8
+    ],
+    "at": 232
    }
   },
   {
@@ -376,16 +704,16 @@
      "y": 540
     },
     {
-     "f": 159,
-     "s": 1.15,
-     "x": 1085.2,
-     "y": 610.4
+     "f": 145,
+     "s": 1.322,
+     "x": 1140.0,
+     "y": 671.7
     },
     {
      "f": 299,
-     "s": 1.15,
-     "x": 1085.2,
-     "y": 610.4
+     "s": 1.322,
+     "x": 1140.0,
+     "y": 671.7
     },
     {
      "f": 321,
@@ -399,6 +727,34 @@
     "tone": "ok",
     "from": 149,
     "dur": 150
+   },
+   "eyebrow": "PROOF",
+   "headline": [
+    {
+     "text": "Receipts deleted? Her copy catches it.",
+     "accent": [
+      "catches",
+      "it."
+     ],
+     "tone": "ok",
+     "at": 10
+    }
+   ],
+   "panel": {
+    "kind": "chain",
+    "active": "anchor",
+    "at": 7
+   },
+   "stamp": {
+    "text": "CAUGHT BY HER COPY",
+    "tone": "ok",
+    "box": [
+     602.4,
+     518.9,
+     1075.2,
+     484.8
+    ],
+    "at": 156
    }
   },
   {
@@ -425,7 +781,7 @@
      "y": 540
     },
     {
-     "f": 338,
+     "f": 324,
      "s": 1.0,
      "x": 960.0,
      "y": 540.0
@@ -441,6 +797,24 @@
      "s": 1,
      "x": 960,
      "y": 540
+    }
+   ],
+   "eyebrow": "A REAL CONVERSATION",
+   "headline": [
+    {
+     "text": "\u201cActually, make it 40.\u201d",
+     "accent": [],
+     "tone": "info",
+     "at": 199
+    },
+    {
+     "text": "Cancelled, never edited. Checked again.",
+     "accent": [
+      "never",
+      "edited."
+     ],
+     "tone": "info",
+     "at": 241
     }
    ]
   },
@@ -468,7 +842,7 @@
      "y": 540
     },
     {
-     "f": 249,
+     "f": 235,
      "s": 1.087,
      "x": 1037.0,
      "y": 583.3
@@ -491,6 +865,37 @@
     "tone": "warn",
     "from": 239,
     "dur": 150
+   },
+   "eyebrow": "PAYEE CHECK",
+   "headline": [
+    {
+     "text": "New bank details? The name is checked.",
+     "accent": [
+      "checked."
+     ],
+     "tone": "info",
+     "at": 5
+    },
+    {
+     "text": "No match: she is warned.",
+     "accent": [
+      "No",
+      "match:"
+     ],
+     "tone": "warn",
+     "at": 254
+    }
+   ],
+   "stamp": {
+    "text": "NO MATCH",
+    "tone": "warn",
+    "box": [
+     602.4,
+     332.9,
+     1075.2,
+     854.3
+    ],
+    "at": 257
    }
   },
   {
@@ -517,16 +922,16 @@
      "y": 540
     },
     {
-     "f": 145,
-     "s": 1.15,
-     "x": 1085.2,
-     "y": 610.4
+     "f": 131,
+     "s": 1.322,
+     "x": 1140.0,
+     "y": 671.7
     },
     {
      "f": 368,
-     "s": 1.15,
-     "x": 1085.2,
-     "y": 610.4
+     "s": 1.322,
+     "x": 1140.0,
+     "y": 671.7
     },
     {
      "f": 390,
@@ -540,6 +945,41 @@
     "tone": "deny",
     "from": 135,
     "dur": 150
+   },
+   "eyebrow": "HARD LIMIT",
+   "headline": [
+    {
+     "text": "Above the cap: refused.",
+     "accent": [
+      "refused."
+     ],
+     "tone": "deny",
+     "at": 13
+    },
+    {
+     "text": "No code, no message can unlock it.",
+     "accent": [
+      "unlock"
+     ],
+     "tone": "deny",
+     "at": 174
+    }
+   ],
+   "panel": {
+    "kind": "tiers",
+    "active": "R4",
+    "at": 10
+   },
+   "stamp": {
+    "text": "DENIED \u00b7 R4",
+    "tone": "deny",
+    "box": [
+     602.4,
+     492.5,
+     1075.2,
+     381.6
+    ],
+    "at": 177
    }
   },
   {
@@ -565,6 +1005,28 @@
     "tone": "ok",
     "from": 24,
     "dur": 150
+   },
+   "eyebrow": "ATTACK TEST",
+   "headline": [
+    {
+     "text": "7 known attacks, replayed live.",
+     "accent": [],
+     "tone": "info",
+     "at": 10
+    },
+    {
+     "text": "7 / 7 blocked.",
+     "accent": [
+      "blocked."
+     ],
+     "tone": "ok",
+     "at": 243
+    }
+   ],
+   "panel": {
+    "kind": "shields",
+    "active": null,
+    "at": 7
    }
   },
   {
@@ -573,14 +1035,36 @@
    "from": 6708,
    "chapter": "Measured blind",
    "dur": 734,
-   "warp": 0.781
+   "warp": 0.781,
+   "eyebrow": "MEASURED BLIND",
+   "headline": [
+    {
+     "text": "Measured blind.",
+     "accent": [
+      "blind."
+     ],
+     "tone": "info",
+     "at": 10
+    }
+   ]
   },
   {
    "id": "evidence",
    "kind": "terminal",
    "from": 7442,
    "chapter": "Execution evidence",
-   "dur": 423
+   "dur": 423,
+   "eyebrow": "EXECUTION EVIDENCE",
+   "headline": [
+    {
+     "text": "Rerun everything. Offline. No API key.",
+     "accent": [
+      "Offline."
+     ],
+     "tone": "ok",
+     "at": 9
+    }
+   ]
   },
   {
    "id": "close",
@@ -588,7 +1072,12 @@
    "from": 7865,
    "chapter": "",
    "dur": 541,
-   "principle_from": 211
+   "principle_from": 211,
+   "close_lines": [
+    211,
+    253,
+    297
+   ]
   }
  ],
  "voice": [

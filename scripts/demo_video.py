@@ -177,16 +177,62 @@ def zoom_keys(box: list[float] | None, rel_f: int, dur: int, smax: float) -> lis
     if not box:
         return [{"f": 0, "s": 1, "x": 960, "y": 540}]
     x, y, w, h = box
-    s = max(1.0, min(smax, 0.86 * 1920 / max(w, 1), 0.86 * 1080 / max(h, 1)))
+    s = max(1.0, min(smax * 1.15, 0.86 * 1920 / max(w, 1), 0.86 * 1080 / max(h, 1)))   # v2: stronger push-ins
     cx = min(max(x + w / 2, 960 / s), 1920 - 960 / s)
     cy = min(max(y + h / 2, 540 / s), 1080 - 540 / s)
     f0 = max(6, min(rel_f + 6, dur - 70))
     k = [{"f": 0, "s": 1, "x": 960, "y": 540}, {"f": f0, "s": 1, "x": 960, "y": 540},
-         {"f": f0 + 40, "s": round(s, 3), "x": round(cx, 1), "y": round(cy, 1)}]
-    if dur - 24 > f0 + 40:
+         {"f": f0 + 26, "s": round(s, 3), "x": round(cx, 1), "y": round(cy, 1)}]
+    if dur - 24 > f0 + 26:
         k += [{"f": dur - 24, "s": round(s, 3), "x": round(cx, 1), "y": round(cy, 1)}, {"f": dur - 2, "s": 1, "x": 960, "y": 540}]
     return k
 
+
+# v2 motion layer. Kinetic headline lines (text, accent words, tone, cue, tokens that trigger the line when said), the
+# animated side panel, the stamp on the measured box (text, tone, box name, cue, tokens). Every headline and stamp restates
+# what the footage or the narration already shows; none adds a claim.
+EYEBROW = {"hook": "THE THREAT", "account": "LIVE APP · SANDBOX BANK", "request": "ONE REQUEST", "quarantine": "HIDDEN INSTRUCTION",
+           "note": "HIDDEN INSTRUCTION", "plan": "THE PLAN", "taps": "APPROVAL FOLLOWS RISK", "code": "APPROVAL FOLLOWS RISK",
+           "done": "EXECUTED IN THE SANDBOX", "receipts": "PROOF", "deletion": "PROOF", "correction": "A REAL CONVERSATION",
+           "payee": "PAYEE CHECK", "limit": "HARD LIMIT", "attacks": "ATTACK TEST", "measured": "MEASURED BLIND",
+           "evidence": "EXECUTION EVIDENCE"}
+HEADLINE = {
+    "hook": [("This is Lina's rent invoice.", [], "info", 1, ["this", "is", "lina's"]),
+             ("One line was written for an AI.", ["AI."], "deny", 2, ["but", "one", "line"])],
+    "account": [("The real app. No real money.", ["No", "real", "money."], "warn", 4, ["this", "is", "the", "real"])],
+    "request": [("One sentence. One forged invoice.", ["forged"], "deny", 5, ["she", "attaches"])],
+    "quarantine": [("Hidden instruction found.", ["found."], "deny", 6, ["the", "agent", "spots"]),
+                   ("Read as data, never as an order.", ["data,"], "info", 6, ["it", "is", "read"])],
+    "note": [("The hidden note, as plain text.", ["plain", "text."], "info", 7, ["opened", "as", "plain"])],
+    "plan": [("A plan that keeps exactly 600 EUR.", ["600", "EUR."], "ok", 8, ["then", "it", "builds"]),
+             ("Simulated first. Checked by fixed rules.", ["fixed", "rules."], "info", 8, ["every", "step", "is"])],
+    "taps": [("Known payees: one tap.", ["one", "tap."], "ok", 9, ["approval", "follows"])],
+    "code": [("New payee: a one-time code.", ["one-time", "code."], "warn", 10, ["the", "landlord", "is", "new"])],
+    "done": [("600.00 EUR left. Reserve kept.", ["Reserve", "kept."], "ok", 11, ["done"])],
+    "receipts": [("Every action leaves a linked receipt.", ["linked"], "info", 12, ["every", "action"]),
+                 ("Checked against her signed copy.", ["signed", "copy."], "ok", 12, ["lina", "keeps"])],
+    "deletion": [("Receipts deleted? Her copy catches it.", ["catches", "it."], "ok", 13, ["if", "an", "insider"])],
+    "correction": [("“Actually, make it 40.”", [], "info", 14, ["actually"]),
+                   ("Cancelled, never edited. Checked again.", ["never", "edited."], "info", 14, ["the", "first", "payment"])],
+    "payee": [("New bank details? The name is checked.", ["checked."], "info", 15, ["now", "someone"]),
+              ("No match: she is warned.", ["No", "match:"], "warn", 15, ["it", "does", "not"])],
+    "limit": [("Above the cap: refused.", ["refused."], "deny", 16, ["some", "requests"]),
+              ("No code, no message can unlock it.", ["unlock"], "deny", 16, ["nothing", "can"])],
+    "attacks": [("7 known attacks, replayed live.", [], "info", 17, ["the", "attack", "test"]),
+                ("7 / 7 blocked.", ["blocked."], "ok", 17, ["all", "seven"])],
+    "measured": [("Measured blind.", ["blind."], "info", 18, ["we", "also", "measured"])],
+    "evidence": [("Rerun everything. Offline. No API key.", ["Offline."], "ok", 19, ["all", "of", "this"])],
+}
+PANEL = {"plan": ("flow", None, 8, ["every", "step", "is"]), "taps": ("tiers", "R2", 9, ["approval", "follows"]),
+         "code": ("tiers", "R3", 10, ["the", "landlord"]), "done": ("tiers", "done", 11, ["done"]),
+         "receipts": ("chain", "chain", 12, ["every", "action"]), "deletion": ("chain", "anchor", 13, ["if", "an"]),
+         "limit": ("tiers", "R4", 16, ["some", "requests"]), "attacks": ("shields", None, 17, ["the", "attack"])}
+STAMP = {"quarantine": ("QUARANTINED", "deny", "notice", 6, ["the", "document", "is"]),
+         "receipts": ("VERIFIED", "ok", "result", 12, ["and", "the", "check"]),
+         "deletion": ("CAUGHT BY HER COPY", "ok", "test", 13, ["her", "signed", "copy"]),
+         "payee": ("NO MATCH", "warn", "card", 15, ["it", "does", "not"]),
+         "limit": ("DENIED · R4", "deny", "card", 16, ["nothing", "can"])}
+SFX_AT = {"whoosh": 0.32, "thud": 0.55, "chime": 0.42}
 
 # seconds of picture left for the jury to read the evidence after the narration of a scene (scaled to fit the target)
 HOLD = {"brand": 0.5, "account": 1.0, "request": 0.8, "quarantine": 1.5, "note": 1.2, "plan": 1.2, "taps": 0.8, "code": 1.2,
@@ -229,6 +275,7 @@ def _build(texts: list[str], vo: list[float], measured: bool, mk: dict, hold_k: 
         got = said_at(wc[cue], seq) if cue in wc else None
         return got if got is not None else fallback
     scenes, voice, subs = [], [], []
+    cue_at: dict[int, float] = {}                       # cue -> second (in the video) at which its clip starts
     t = 0.0
     for sid, kind, cue_ids, marker, chapter, min_s, zoom, callout in SCENES:
         s = {"id": sid, "kind": kind, "from": round(t * FPS), "chapter": chapter}
@@ -280,6 +327,7 @@ def _build(texts: list[str], vo: list[float], measured: bool, mk: dict, hold_k: 
             c_from = min(c_from, max(0, dur_f - 150))
             s["callout"] = {"text": callout[0], "tone": callout[1], "from": c_from, "dur": min(150, dur_f - c_from - 8)}
         for c, st in zip(cue_ids, starts):
+            cue_at[c] = st
             voice.append({"id": f"{c:02d}", "from": round(st * FPS), "src": f"vo/{c:02d}.wav"})
             chunks = subtitle_chunks(texts[c - 1])
             if c in wc and len(wc[c]) >= len(chunks):           # timed on the words actually said
@@ -298,9 +346,59 @@ def _build(texts: list[str], vo: list[float], measured: bool, mk: dict, hold_k: 
         t += dur_f / FPS
     total = round(t * FPS) + FPS                        # one second of the closing frame
     scenes[-1]["dur"] += FPS
+    _motion_layer(scenes, texts, vo, wc, cue_at, rec_boxes, rec_scenes)
     return {"fps": FPS, "total": total, "stage": STAGE, "rec": "rec/demo.mp4", "scenes": scenes,
             "voice": voice if measured else [], "subs": subs, "terminal": TERMINAL, "team": TEAM, "topic": TOPIC,
             "voice_measured": measured, "hold_k": hold_k}
+
+
+def _motion_layer(scenes: list[dict], texts: list[str], vo: list[float], wc: dict, cue_at: dict, rec_boxes: dict,
+                  rec_scenes: dict) -> None:
+    """Add, to each scene, the frames at which its kinetic headline lines, side panel and stamp appear, from the words
+    actually said (or their share of the cue when no transcript exists), and the sound cues. Frames are scene-local."""
+    def said(cue: int, seq: list[str]) -> float:
+        got = said_at(wc[cue], seq) if cue in wc else None
+        if got is None:
+            tk = toks(texts[cue - 1])
+            k = next((i for i in range(len(tk)) if tk[i:i + len(seq)] == seq), 0)
+            got = vo[cue - 1] * k / max(1, len(tk))
+        return cue_at.get(cue, 0.0) + got
+
+    sfx = []
+    for s in scenes:
+        f0 = s["from"]
+        loc = lambda sec: max(0, round(sec * FPS) - f0)     # noqa: E731
+        if s["id"] in EYEBROW:
+            s["eyebrow"] = EYEBROW[s["id"]]
+        if s["id"] in HEADLINE:
+            s["headline"] = [{"text": tx, "accent": acc, "tone": tone, "at": max(2, loc(said(c, seq)) - 3)}
+                             for tx, acc, tone, c, seq in HEADLINE[s["id"]]]
+        if s["id"] in PANEL:
+            kind, active, c, seq = PANEL[s["id"]]
+            s["panel"] = {"kind": kind, "active": active, "at": max(0, loc(said(c, seq)) - 6)}
+        if s["id"] in STAMP and s["kind"] == "rec":
+            text, tone, name, c, seq = STAMP[s["id"]]
+            box = next((b["box"] for b in rec_boxes.get(s["id"], []) if b["name"] == name), None)
+            if box:
+                at = loc(said(c, seq))
+                s["stamp"] = {"text": text, "tone": tone, "box": box, "at": at}
+                sfx.append({"src": "sfx/chime.wav" if tone == "ok" else "sfx/thud.wav", "from": f0 + at,
+                            "vol": SFX_AT["chime" if tone == "ok" else "thud"]})
+        if s["kind"] == "payoff":
+            s["close_lines"] = [loc(said(20, seq)) for seq in (["the", "ai", "reads"], ["the", "rules", "decide"],
+                                                                ["she", "approves"])]
+        if s["id"] != "hook":
+            sfx.append({"src": "sfx/whoosh.wav", "from": max(0, f0 - 6), "vol": SFX_AT["whoosh"]})
+    for s in scenes:                                    # the hidden line, the approval, the seven blocked attacks
+        if s["id"] == "hook":
+            sfx.append({"src": "sfx/thud.wav", "from": s["from"] + s["a"], "vol": SFX_AT["thud"]})
+        if s["id"] == "done":
+            sfx.append({"src": "sfx/chime.wav", "from": s["from"] + 10, "vol": SFX_AT["chime"]})
+        if s["id"] == "attacks":
+            hl = s.get("headline", [])
+            if len(hl) > 1:
+                sfx.append({"src": "sfx/chime.wav", "from": s["from"] + hl[1]["at"], "vol": SFX_AT["chime"]})
+    scenes[0]["sfx"] = sorted(sfx, key=lambda x: x["from"])
 
 
 def srt(p: dict, path: Path) -> None:
@@ -418,7 +516,7 @@ def render(out: Path) -> None:
     p = plan()
     remotion = FILM / "node_modules" / ".bin" / ("remotion.cmd" if sys.platform == "win32" else "remotion")
     tmp = FILM / "out" / "demo-video.mp4"
-    subprocess.run([str(remotion), "render", "src/index.ts", "DemoVideo", str(tmp), "--codec=h264", "--crf=18",
+    subprocess.run([str(remotion), "render", "src/index.ts", "DemoVideo2", str(tmp), "--codec=h264", "--crf=18",
                     "--pixel-format=yuv420p", "--audio-codec=aac"], check=True, cwd=FILM)
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.resolve() != tmp.resolve():
