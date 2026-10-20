@@ -1,0 +1,27 @@
+{
+  "name": "borderlessguard-launch-video",
+  "private": true,
+  "version": "1.0.0",
+  "description": "BorderlessGuard launch video (Remotion). Real product data from scripts/export_video_data.py.",
+  "scripts": {
+    "data": "cd ../.. && .venv/Scripts/python scripts/export_video_data.py",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts LaunchVideo out/borderlessguard-launch.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p",
+    "render:60fps": "remotion render src/index.ts LaunchVideo60 out/borderlessguard-launch-60fps.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p",
+    "still": "remotion still src/index.ts LaunchVideo out/still.png --frame=1500",
+    "sync-voice": "node scripts/sync-voice.mjs",
+    "captions": "node scripts/captions.mjs",
+    "voice": "node scripts/voice-elevenlabs.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.537",
+    "@remotion/google-fonts": "^4.0.537",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.537"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "typescript": "^7.0.2"
+  }
+}

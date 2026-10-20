@@ -1,4 +1,4 @@
-"""Regressions for defects found by the simulated judge panel (docs/review/judge_panel.md)."""
+"""Regressions for defects found by an internal simulated judge-panel review."""
 from decimal import Decimal
 
 import pytest

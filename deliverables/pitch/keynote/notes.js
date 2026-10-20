@@ -151,7 +151,7 @@ window.KEYNOTE_NOTES = {
  },
  "3": {
   "section": "S3",
-  "words": 107,
+  "words": 108,
   "from": "1:16",
   "to": "2:08",
   "paras": [
@@ -192,7 +192,7 @@ window.KEYNOTE_NOTES = {
    [
     [
      "say",
-     "It has no tools. It never sees a bank account number."
+     "It has no tools. It never sees a saved bank account number."
     ]
    ],
    [
@@ -265,7 +265,7 @@ window.KEYNOTE_NOTES = {
   "section": "S4",
   "words": 43,
   "from": "2:08",
-  "to": "2:28",
+  "to": "2:29",
   "paras": [
    [
     [
@@ -308,8 +308,8 @@ window.KEYNOTE_NOTES = {
  "5": {
   "section": "S5",
   "words": 77,
-  "from": "2:28",
-  "to": "3:05",
+  "from": "2:29",
+  "to": "3:06",
   "paras": [
    [
     [
@@ -388,7 +388,7 @@ window.KEYNOTE_NOTES = {
  "6": {
   "section": "S6",
   "words": 59,
-  "from": "3:05",
+  "from": "3:06",
   "to": "3:34",
   "paras": [
    [
@@ -465,7 +465,7 @@ window.KEYNOTE_NOTES = {
   "section": "S7",
   "words": 56,
   "from": "3:34",
-  "to": "4:00",
+  "to": "4:01",
   "paras": [
    [
     [
@@ -532,8 +532,8 @@ window.KEYNOTE_NOTES = {
  "8": {
   "section": "S8",
   "words": 37,
-  "from": "4:00",
-  "to": "4:18",
+  "from": "4:01",
+  "to": "4:19",
   "paras": [
    [
     [
@@ -573,9 +573,9 @@ window.KEYNOTE_NOTES = {
  },
  "9": {
   "section": "S9",
-  "words": 72,
-  "from": "4:18",
-  "to": "4:53",
+  "words": 73,
+  "from": "4:19",
+  "to": "4:54",
   "paras": [
    [
     [
@@ -628,7 +628,7 @@ window.KEYNOTE_NOTES = {
     ],
     [
      "say",
-     "We also had our code audited twice: twenty-three findings, all fixed or mitigated."
+     "We also had our code audited three times: thirty-one findings, all fixed or mitigated."
     ]
    ]
   ]
@@ -636,8 +636,8 @@ window.KEYNOTE_NOTES = {
  "10": {
   "section": "S10",
   "words": 45,
-  "from": "4:53",
-  "to": "5:14",
+  "from": "4:54",
+  "to": "5:15",
   "paras": [
    [
     [
@@ -678,8 +678,8 @@ window.KEYNOTE_NOTES = {
  "11": {
   "section": "S11",
   "words": 93,
-  "from": "5:14",
-  "to": "5:59",
+  "from": "5:15",
+  "to": "6:00",
   "paras": [
    [
     [
@@ -784,8 +784,8 @@ window.KEYNOTE_NOTES = {
  "12": {
   "section": "S12",
   "words": 152,
-  "from": "5:59",
-  "to": "7:12",
+  "from": "6:00",
+  "to": "7:13",
   "paras": [
    [
     [
@@ -884,8 +884,8 @@ window.KEYNOTE_NOTES = {
  "13": {
   "section": "S13",
   "words": 50,
-  "from": "7:12",
-  "to": "7:36",
+  "from": "7:13",
+  "to": "7:37",
   "paras": [
    [
     [
@@ -916,8 +916,8 @@ window.KEYNOTE_NOTES = {
  "14": {
   "section": "S14",
   "words": 31,
-  "from": "7:36",
-  "to": "7:51",
+  "from": "7:37",
+  "to": "7:52",
   "paras": [
    [
     [
@@ -958,8 +958,8 @@ window.KEYNOTE_NOTES = {
  "15": {
   "section": "S15",
   "words": 83,
-  "from": "7:51",
-  "to": "8:31",
+  "from": "7:52",
+  "to": "8:32",
   "paras": [
    [
     [
@@ -1018,7 +1018,33 @@ window.KEYNOTE_NOTES = {
    [
     [
      "do",
-     "Stay on slide 15 for questions. Do not go back to slide 1."
+     "Stay on slide 15 for questions. Do not go back to slide 1. If asked how it is built, type 16 and Enter: the architecture appendix."
+    ]
+   ]
+  ]
+ },
+ "16": {
+  "section": "S16",
+  "words": 42,
+  "from": "8:32",
+  "to": "8:52",
+  "paras": [
+   [
+    [
+     "do",
+     "Not part of the 10 minutes. Press End to reach it, or type 16 and Enter."
+    ]
+   ],
+   [
+    [
+     "say",
+     "This is the whole path of a request. Left of the dashed line, the model and the documents can be fooled."
+    ]
+   ],
+   [
+    [
+     "say",
+     "Right of it is plain code: grounding, the orchestrator, a simulation, fourteen rules, her approval, the ledger and a signed receipt."
     ]
    ]
   ]

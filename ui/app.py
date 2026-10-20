@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st  # noqa: E402
 
+from bg.agent.rules_parser import RulesParser  # noqa: E402
 from bg.contracts.models import RiskLevel, UntrustedDocument  # noqa: E402
 from bg.contracts.params import (  # noqa: E402
     DEMO_GOAL, DEMO_NOW, DEMO_OTP, DEMO_RESERVE_EUR, DEMO_USER_ID, MAX_OTP_ATTEMPTS, NEW_BENEFICIARY_WINDOW,
@@ -26,13 +27,17 @@ from bg.contracts.params import (  # noqa: E402
 )
 from ui import guided  # noqa: E402
 from ui.attacks import ATTACKS, run_attack  # noqa: E402
-from ui.theme import ICON, RISK, STATUS, kv_html, load_css, pill  # noqa: E402
+from ui.theme import ICON, MARK_SMALL, RISK, STATUS, kv_html, load_css, pill  # noqa: E402
 from ui.util import (  # noqa: E402
-    anchor_label, balance_by_currency, esc_html, esc_md, extra_lines, get, humanize, iban_tail, money, quick_replies,
+    anchor_label, balance_by_currency, esc_html, esc_md, extra_lines, get, humanize, money, quick_replies,
     receipt_label, short, to_dec, truncation_demo, why_line,
 )
 
-st.set_page_config(page_title="BorderlessGuard (sandbox)", page_icon="\U0001F6E1", layout="wide")
+st.set_page_config(page_title="BorderlessGuard (sandbox)", page_icon=str(MARK_SMALL) if MARK_SMALL.exists() else None,
+                   layout="wide")
+
+# Notices carry an icon as well as words: meaning is never colour alone.
+IC_OK, IC_ERR, IC_WARN, IC_INFO = (":material/check_circle:", ":material/error:", ":material/warning:", ":material/info:")
 
 # Said once, in the header. The video closes on a different line.
 PITCH = "The AI reads your request. Fixed rules and your approval move the money."
@@ -95,9 +100,10 @@ def _audit_sink(rec: dict) -> None:
 
 def build_parser(kind: str = "rules", *, model: str | None = None, base_url: str | None = None,
                  api_key: str | None = None):
-    """(parser or None, notice). None means the default path (the orchestrator's own rules parser)."""
+    """(parser, notice). "rules" is always an explicit RulesParser: BG_PARSER cannot turn "Rules only" into a remote
+    model behind the label (APPSEC-2)."""
     if kind == "rules":
-        return None, ""
+        return RulesParser(), ""
     if kind == "connected" and not (base_url and model):
         return None, "Enter the base URL and model name, then press Connect. Until then the rules are used."
     if make_parser is None:
@@ -118,6 +124,8 @@ def make_backend(poisoned_fx: bool = False, parser=None, *, sink=None):
         from ui.fake_backend import build_fake
         return build_fake(poisoned_fx=poisoned_fx)
     from bg.app import build_default
+    if parser is None:                  # never the BG_PARSER fallback: the UI shows which parser reads the text
+        parser = RulesParser()
     return build_default(poisoned_fx=poisoned_fx, parser=parser, audit_sink=sink)
 
 
@@ -167,6 +175,10 @@ def init_state() -> None:
         s.parser_kind = env_kind if env_kind in ("cascade", "local") else "rules"
     s.setdefault("local_model", os.environ.get("BG_LOCAL_MODEL", LOCAL_MODELS[0])
                  if os.environ.get("BG_LOCAL_MODEL", LOCAL_MODELS[0]) in LOCAL_MODELS else LOCAL_MODELS[0])
+    # the "Connect a model" form starts with the operator's endpoint and model name (no secret): the environment key
+    # is then used only if the Base URL stays the one in BG_MODEL_BASE_URL (APPSEC-1)
+    s.setdefault("conn_base_url", os.environ.get("BG_MODEL_BASE_URL", ""))
+    s.setdefault("conn_model", os.environ.get("BG_MODEL_NAME", ""))
     s.setdefault("setup_notice", "")
     s.setdefault("last_parser", "")
     s.setdefault("parsers", {})
@@ -306,10 +318,15 @@ def action_details(av, payees: dict) -> list[tuple[str, str]]:
 
 
 def render_rules(decision) -> None:
+    """Every rule checked, as a ruled list: status (icon and word), rule id, plain detail. All text escaped."""
+    items = []
     for r in decision.rules:
-        icon = "Passed" if r.passed else ("Failed" if r.severity == RiskLevel.R4 else "Needs a code")
-        rid = str(r.rule_id).replace("`", "")
-        st.markdown(f"{icon} · `{rid}` ({r.severity.value}): {esc_md(humanize(r.detail))}")
+        mark = (pill("check", "Passed", "ok", "sm") if r.passed else
+                pill("block", "Failed", "bad", "sm") if r.severity == RiskLevel.R4 else
+                pill("key", "Needs a code", "warn", "sm"))
+        items.append(f"<li>{mark}<span><code>{esc_html(str(r.rule_id).replace('`', ''))}</code> ({esc_html(r.severity.value)})</span>"
+                     f"<span class='d'>{esc_html(humanize(r.detail))}</span></li>")
+    st.markdown(f"<ul class='bg-rules'>{''.join(items)}</ul>", unsafe_allow_html=True)
 
 
 def render_technical(av) -> None:
@@ -333,7 +350,8 @@ def render_technical(av) -> None:
             rows.append(("Agent's summary", st.session_state.titles[a.action_id]))
         if av.confirmation_request:
             rows += [("Agent's note", line) for line in av.confirmation_request.lines]
-        st.markdown("\n".join(f"- **{k}**: `{str(v).replace('`', '')}`" for k, v in rows))
+        st.markdown("<dl class='bg-tech'>" + "".join(f"<dt>{esc_html(k)}</dt><dd>{esc_html(v)}</dd>" for k, v in rows)
+                    + "</dl>", unsafe_allow_html=True)
 
 
 def last_pending_id() -> str | None:
@@ -356,14 +374,19 @@ def amount_hero(av) -> str:
     return f"<div class='bg-amount'>{esc_html(f'{to_dec(amt):,.2f}')}<small>{esc_html(cur)}</small></div>"
 
 
+CARD_PHASE = {"awaiting_confirmation": "pending", "executed": "done", "denied": "blocked", "rejected_by_user": "muted",
+              "replayed": "dup", "failed": "failed"}
+
+
 def render_card(av, payees: dict) -> None:
+    """One action. A surface (a card) only while a decision is needed; afterwards it is a flat, ruled record
+    (CSS reads the phase and the risk level from the container key)."""
     s = st.session_state
     aid = av.action.action_id
     d, cr = av.decision, av.confirmation_request
     locked = av.status == "denied" and bool(s.otp_fails.get(aid)) and code_budget()[1]
     lvl = "R4" if av.status == "denied" else risk_value(d.risk_level if d else (cr.risk_level if cr else "R0"))
-    tone = "muted" if av.status == "rejected_by_user" else lvl
-    with st.container(border=False, key=f"card_{tone}_{aid}"):
+    with st.container(border=False, key=f"card_{CARD_PHASE.get(av.status, 'other')}_{lvl}_{aid}"):
         if s.get("g_target") == ("card", aid):
             st.markdown("<div class='g-target'></div>", unsafe_allow_html=True)
         icon, why = why_line(av, payees, DEMO_NOW, locked=locked)
@@ -375,9 +398,9 @@ def render_card(av, payees: dict) -> None:
                     unsafe_allow_html=True)
         if av.status == "denied":
             if locked:
-                st.markdown("**LOCKED: too many wrong codes**")
+                st.markdown(pill("lock", "LOCKED: too many wrong codes", "bad", "caps"), unsafe_allow_html=True)
                 st.error(f"Locked after {MAX_OTP_ATTEMPTS} wrong verification codes. Nothing was sent; "
-                         f"the attempt is recorded in receipt {receipt_label(av.receipt_id)}.")
+                         f"the attempt is recorded in receipt {receipt_label(av.receipt_id)}.", icon=IC_ERR)
         else:
             st.markdown(kv_html(action_details(av, payees), extra_lines(av)), unsafe_allow_html=True)
             if d and av.status == "awaiting_confirmation":
@@ -392,13 +415,13 @@ def render_card(av, payees: dict) -> None:
         if av.status == "awaiting_confirmation" and cr:
             render_pending_controls(aid, av, cr)
         elif av.status == "executed":
-            st.success(f"Done in the sandbox. Receipt {receipt_label(av.receipt_id)}")
+            st.success(f"Done in the sandbox. Receipt {receipt_label(av.receipt_id)}", icon=IC_OK)
         elif av.status == "replayed":
-            st.info("Already done: duplicate ignored, no money moved twice.")
+            st.info("Already done: duplicate ignored, no money moved twice.", icon=IC_INFO)
         elif av.status == "rejected_by_user":
             st.caption("Cancelled by you. Nothing was sent.")
         elif av.status == "failed":
-            st.error("Execution failed. Nothing was sent.")
+            st.error("Execution failed. Nothing was sent.", icon=IC_ERR)
 
 
 def code_budget() -> tuple[int, bool]:
@@ -419,7 +442,7 @@ def render_pending_controls(aid: str, av, cr) -> None:
     if cr.verdict == "step_up":
         left, code_locked = code_budget()
         what = "Adding a payee" if av.action.action_type == "add_beneficiary" else "This payment"
-        st.warning(f"{what} needs your one-time code.")
+        st.warning(f"{what} needs your one-time code.", icon=IC_WARN)
         o1, o2 = st.columns([2, 3])
         otp = o1.text_input("SMS verification code", key=f"otp_{aid}", type="password", disabled=code_locked,
                             help=f"Simulated SMS code for the demo: {DEMO_OTP}")
@@ -427,9 +450,9 @@ def render_pending_controls(aid: str, av, cr) -> None:
                     f"Attempts remaining: **{left} of {MAX_OTP_ATTEMPTS}** (counted for your account, not per payment)")
         if code_locked:
             st.error(f"Approval by code is locked on your account after {MAX_OTP_ATTEMPTS} wrong codes. "
-                     "The bank has to unlock it (in this demo: Reset demo).")
+                     "The bank has to unlock it (in this demo: Reset demo).", icon=IC_ERR)
         elif s.otp_fails.get(aid):
-            st.error(f"Wrong code. {left} attempt(s) left before approval by code is locked on your account.")
+            st.error(f"Wrong code. {left} attempt(s) left before approval by code is locked on your account.", icon=IC_ERR)
     is_last = aid == last_pending_id()
     if is_last:
         c1, c2, c3, c4 = st.columns([1.3, 1.1, 0.7, 0.7], vertical_alignment="bottom")
@@ -468,17 +491,19 @@ def render_projection(p, key: str) -> None:
         tags = [pill("check", "Reserve kept", "ok") if get(p, "reserve_ok") else pill("alert", "Reserve breached", "bad")]
         if not get(p, "feasible"):
             tags.append(pill("block", "Not enough money", "bad"))
-        st.markdown(" ".join(tags) + (f"<span class='bg-sub'>Your reserve: <b>{esc_html(money(floor))}</b></span>"
-                                      if floor is not None else ""), unsafe_allow_html=True)
+        st.markdown("<div class='bg-proj-meta'>" + "".join(tags)
+                    + (f"<span class='bg-sub'>Your reserve: <b>{esc_html(money(floor))}</b></span>" if floor is not None else "")
+                    + "</div>", unsafe_allow_html=True)
         now, after = get(p, "balances_now", {}), get(p, "balances_after", {})
         curs = list(dict.fromkeys([*now, *after]))
-        cols = st.columns(len(curs) or 1)
+        cols = st.columns(len(curs) or 1, gap="large")
         for col, cur in zip(cols, curs):
             n, a = to_dec(now.get(cur, 0)), to_dec(after.get(cur, 0))
-            col.metric(f"{cur}: now {n:,.2f} → after", f"{a:,.2f}", delta=f"{a - n:+,.2f}")
+            col.metric(f"{cur}: now {n:,.2f} → after", f"{a:,.2f}", delta=f"{a - n:+,.2f}", delta_color="off")
         lines = get(p, "lines", [])
         if lines:
-            st.markdown("\n".join(f"- {esc_md(humanize(x))}" for x in lines))
+            st.markdown("<ul class='bg-lines'>" + "".join(f"<li>{esc_html(humanize(x))}</li>" for x in lines) + "</ul>",
+                        unsafe_allow_html=True)
 
 
 def render_events(events, names: dict[str, str]) -> None:
@@ -487,12 +512,12 @@ def render_events(events, names: dict[str, str]) -> None:
             fname = names.get(e.source, "the attached document")
             st.error(f"**Untrusted document, quarantined:** {esc_md(fname)}  \n"
                      "It contains hidden instructions addressed to the AI. They were ignored: the document is read "
-                     "as data only, and any payment uses the account saved for the payee.")
+                     "as data only, and any payment uses the account saved for the payee.", icon=IC_ERR)
         elif e.kind == "step_up_failed":
             continue                       # shown on the card itself (attempt counter)
         else:
             icon, title, plain = EVENT_PLAIN.get(e.kind, ("", "Security check", ""))
-            st.warning(f"**{title}.** {plain}")
+            st.warning(f"**{title}.** {plain}", icon=IC_WARN)
 
 
 def render_event_details(events, names: dict[str, str]) -> None:
@@ -544,11 +569,10 @@ def render_sidebar(ov: dict) -> None:
         floor = DEMO_RESERVE_EUR
         ok = eur >= floor
         st.markdown(
-            f"<div class='bg-side-brand'><span class='bg-logo'>{ICON['shield_check']}</span>BorderlessGuard</div>"
-            "<div class='bg-account'><div class='bg-avatar'>L</div><div><div class='n'>Lina</div>"
-            "<div class='d'>International student in France</div></div></div>"
-            "<div class='bg-side-label'>Accounts</div>"
-            "<div class='bg-group'>"
+            "<div class='bg-account'><div class='bg-side-label'>Account</div><div class='n'>Lina</div>"
+            "<div class='d'>International student in France</div></div>"
+            "<div class='bg-side-label'>Balances</div>"
+            "<div class='bg-ledger'>"
             f"<div class='bg-row'><span class='k'>EUR balance</span><span class='v'>{eur:,.2f}</span></div>"
             f"<div class='bg-row'><span class='k'>USD balance</span><span class='v'>{usd:,.2f}</span></div>"
             f"<div class='bg-row small'><span class='k'>Reserve to keep</span><span class='v'>{esc_html(money(floor))}</span></div>"
@@ -562,14 +586,14 @@ def render_sidebar(ov: dict) -> None:
                 age = (DEMO_NOW - added) if added is not None else None
                 new = age is not None and age < NEW_BENEFICIARY_WINDOW
                 tag = pill("clock", f"new · added {int(age.total_seconds() // 3600)} h ago", "warn", "sm") if new else ""
-                rows.append(f"<div class='bg-payee'><div class='nm'>{esc_html(get(b, 'display_name'))}</div>"
-                            f"<div class='meta'><code>{esc_html(iban_tail(get(b, 'iban')))}</code>{tag}</div></div>")
+                rows.append(f"<div class='bg-payee'><div><div class='nm'>{esc_html(get(b, 'display_name'))}</div>"
+                            f"<div class='meta'>ending <code>{esc_html((get(b, 'iban') or '')[-4:])}</code>{tag}</div></div></div>")
             for o in ov.get("obligations", []):
                 due = get(o, "due_date")
                 due_s = due.strftime('%d %b %Y') if hasattr(due, 'strftime') else str(due)
-                rows.append(f"<div class='bg-payee'><div class='nm'>{esc_html(str(get(o, 'kind')).title())}: "
-                            f"{esc_html(money(get(o, 'amount'), get(o, 'currency')))}</div>"
-                            f"<div class='meta'>due {esc_html(due_s)}</div></div>")
+                rows.append(f"<div class='bg-payee'><div><div class='nm'>{esc_html(str(get(o, 'kind')).title())}</div>"
+                            f"<div class='meta'>due {esc_html(due_s)}</div></div>"
+                            f"<div class='amt'>{esc_html(money(get(o, 'amount'), get(o, 'currency')))}</div></div>")
             st.markdown("".join(rows), unsafe_allow_html=True)
         st.markdown("<div class='bg-side-label'>Demo controls</div>", unsafe_allow_html=True)
         st.toggle("Guided demo (6 steps)", key="guided", on_change=start_guided,
@@ -577,24 +601,28 @@ def render_sidebar(ov: dict) -> None:
         render_model_selector()
         st.toggle("Lying exchange-rate feed", key="poisoned", on_change=reset_backend,
                   help="The simulated exchange-rate provider slips instructions into its response.")
-        if st.button("Reset demo", key="reset", width="stretch"):
+        if st.button("Reset demo", key="reset", width="stretch",
+                     help="Starts a fresh sandbox: balances, receipts and the code lock. In this demo it also stands in "
+                          "for the bank's operator unlock, so the lock is shown here, not protective."):
             reset_backend()
             st.rerun()
 
 
 # --------------------------------------------------------------------------- header
 def render_header() -> None:
-    left, right = st.columns([4, 1.4], vertical_alignment="top")
+    """Mark and wordmark (the mark is drawn by CSS next to the title), the sandbox status, the one-line pitch, the
+    risk legend. Said once: the pitch is not repeated anywhere else on the page."""
+    left, right = st.columns([3, 1.4], vertical_alignment="center")
     with left:
         st.title("BorderlessGuard")
-        st.markdown(f"<div class='bg-pitch'>{esc_html(PITCH)}</div>"
-                    "<div class='bg-sub'>Pays an international student's bills across currencies, "
-                    "and asks before anything moves.</div>"
-                    "<div class='bg-legend'><span class='bg-legend-label'>Risk levels</span>"
-                    + " ".join(risk_badge(lv) for lv in ("R0", "R2", "R3", "R4")) + "</div>", unsafe_allow_html=True)
     with right:
-        st.markdown("<div style='text-align:right;padding-top:6px'>"
-                    + pill("flask", "SANDBOX · no real money", "warn", "sandbox") + "</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:right'>" + pill("flask", "SANDBOX · no real money", "neutral", "sandbox")
+                    + "</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='bg-pitch'>{esc_html(PITCH)}</div>"
+                "<div class='bg-sub'>Pays an international student's bills across currencies, "
+                "and asks before anything moves.</div>"
+                "<div class='bg-legend'><span class='bg-legend-label'>Risk levels</span>"
+                + "".join(risk_badge(lv) for lv in ("R0", "R2", "R3", "R4")) + "</div>", unsafe_allow_html=True)
 
 
 # --------------------------------------------------------------------------- guided demo
@@ -660,9 +688,11 @@ def render_guided() -> None:
             obs = s.g_obs.get(stp.key)
             cls = ("done" if obs.ok else "bad") if obs else ("now" if i == s.g_done else "")
             mark = (ICON["check"] if obs.ok else ICON["x"]) if obs else str(i + 1)
-            cells.append(f"<div class='bg-step {cls}'><span class='n'>{mark}</span><span>{esc_html(stp.title)}</span></div>")
+            cur = " aria-current='step'" if cls == "now" else ""
+            cells.append(f"<li class='bg-step {cls}'{cur}><span class='bar'></span><span class='t'><span class='n'>{mark}</span>"
+                         f"<span>{esc_html(stp.title)}</span></span></li>")
         st.markdown(f"<div class='bg-guided-head'>{ICON['play']}Guided demo</div>"
-                    f"<div class='bg-stepper'>{''.join(cells)}</div>", unsafe_allow_html=True)
+                    f"<ol class='bg-stepper'>{''.join(cells)}</ol>", unsafe_allow_html=True)
         if s.g_done == 0:
             st.markdown("<div class='bg-caption'>Six clicks tell the whole story. Each step runs the real agent, "
                         "rules and sandbox ledger: nothing is pre-recorded.</div>", unsafe_allow_html=True)
@@ -675,7 +705,7 @@ def render_guided() -> None:
                         + "</div>", unsafe_allow_html=True)
             if not obs.ok:
                 st.warning("This step did not go as the story expects. Shown above is what the backend actually "
-                           "returned. Restart the guided demo to try again.")
+                           "returned. Restart the guided demo to try again.", icon=IC_WARN)
         c1, c2 = st.columns([3, 1], vertical_alignment="center")
         if s.g_done < n:
             nxt = guided.STEPS[s.g_done]
@@ -685,7 +715,7 @@ def render_guided() -> None:
                 s.g_done += 1
                 st.rerun()
         else:
-            c1.success("Guided demo complete. Details: Receipts and Attack test tabs.")
+            c1.success("Guided demo complete. Details: Receipts and Attack test tabs.", icon=IC_OK)
         c2.button("↺ Restart guided demo", key="guided_restart", width="stretch", on_click=start_guided)
 
 
@@ -708,29 +738,30 @@ def scroll_to_target() -> None:
 
 # --------------------------------------------------------------------------- tabs
 def render_examples() -> None:
+    """Examples as two ruled lists (a row is one request), then the invoices to attach as quiet outlined buttons."""
     s = st.session_state
     with st.container(key="examples"):
         st.caption("Try an example, or type your own request below.")
-        rows = [EXAMPLES[:3], EXAMPLES[3:]]      # 3 + 4 chips
-        for row in rows:
-            cols = st.columns(len(row))
-            for col, (key, label, text) in zip(cols, row):
+        cols = st.columns(2)
+        for col, items in zip(cols, (EXAMPLES[:4], EXAMPLES[4:])):
+            for key, label, text in items:
                 if col.button(label, key=key, width="stretch"):
                     submit(text)
                     st.rerun()
-        dcols = st.columns([1, 1, 1])
-        for i, d in enumerate(SEED_DOCUMENTS):
+    with st.container(horizontal=True, key="attach"):
+        for d in SEED_DOCUMENTS:
             done = d["document_id"] in s.attached
-            if dcols[i].button(("✓ " if done else "") + DOC_LABELS.get(d["document_id"], d["filename"]),
-                               key=f"attach_{d['document_id']}", width="stretch"):
+            if st.button(("✓ " if done else "") + DOC_LABELS.get(d["document_id"], d["filename"]),
+                         key=f"attach_{d['document_id']}"):
                 if not done:
                     s.attached.append(d["document_id"])
                 st.rerun()
-        with dcols[2].popover("Upload your own invoice (.txt)", width="stretch"):
+        with st.popover("Upload your own invoice (.txt)"):
             up = st.file_uploader("Invoice text file. It is treated as untrusted data.", type=["txt"],
                                   key=f"upload_{s.upload_gen}")
             if up is not None:
-                text = up.getvalue().decode("utf-8", errors="replace")[:MAX_UPLOAD_CHARS]
+                raw = up.getvalue()[: MAX_UPLOAD_CHARS * 4]       # at most 4 bytes per kept character (APPSEC-7)
+                text = raw.decode("utf-8", errors="replace")[:MAX_UPLOAD_CHARS]
                 doc_id = f"upload_{len(s.custom_docs) + 1}"
                 s.custom_docs.append({"document_id": doc_id, "source": "upload", "filename": up.name[:120],
                                       "text": text})
@@ -741,7 +772,7 @@ def render_examples() -> None:
 
 def render_welcome() -> None:
     with st.container(border=False, key="welcome"):
-        st.markdown(f"<div class='bg-welcome-icon'>{ICON['hand']}</div><div class='bg-welcome-title'>Hi Lina.</div>"
+        st.markdown("<div class='bg-welcome-title'>Hi Lina.</div>"
                     "<div class='bg-welcome-text'>Ask me to pay your bills, send money home, convert currency, or "
                     "check \"can I afford…?\" first. I simulate every plan, fixed rules check it, and nothing moves "
                     "until you approve it. Invoices you attach are read as data, never as orders. "
@@ -751,14 +782,14 @@ def render_welcome() -> None:
 
 def tab_assistant() -> None:
     s = st.session_state
+    if not s.history:
+        render_welcome()
     if not s.guided:
         render_examples()
     if s.attached:
         names = doc_names()
         st.caption("Sent with your next message, as untrusted data: "
                    + ", ".join(esc_md(names.get(a, a)) for a in s.attached))
-    if not s.history:
-        render_welcome()
 
     ov_payees = payees_by_id(s.backend.overview(s.session_id))
     names = doc_names()
@@ -807,11 +838,10 @@ def render_chips(entry: dict, payees: list) -> None:
                           tuition_and_rent_text=DEMO_GOAL)
     if not chips:
         return
-    with st.container(key="chips"):
-        cols = st.columns(len(chips) + max(0, 4 - len(chips)))
+    with st.container(horizontal=True, key="chips"):
         for j, (label, msg) in enumerate(chips):
-            if cols[j].button(label, key=f"chip_{j}", width="stretch",
-                              help=f"Sends: \"{esc_md(msg)}\". It is checked like any typed message."):
+            if st.button(label, key=f"chip_{j}",
+                         help=f"Sends: \"{esc_md(msg)}\". It is checked like any typed message."):
                 submit(msg)
                 st.rerun()
 
@@ -828,8 +858,8 @@ def call_verify(fn, anchor):
 def set_verify_result(res, anchor) -> None:
     ok = bool(get(res, "valid"))
     st.session_state.verify_result = (
-        ok, f"✓ Matches your copy (receipt {anchor_label(anchor)}). " if ok
-        else f"✕ Does NOT match your copy (receipt {anchor_label(anchor)}). ", str(get(res, "detail", "")))
+        ok, f"Matches your copy (receipt {anchor_label(anchor)}). " if ok
+        else f"Does NOT match your copy (receipt {anchor_label(anchor)}). ", str(get(res, "detail", "")))
 
 
 def tab_proof(ov: dict) -> None:
@@ -840,44 +870,51 @@ def tab_proof(ov: dict) -> None:
                 "linked to the previous one, so history cannot be edited quietly.</div>", unsafe_allow_html=True)
     anchor = s.customer_anchor
     if anchor is not None:
-        st.markdown(f"Your copy of the latest receipt: <span class='bg-anchor'>{esc_html(anchor_label(anchor))}</span>",
-                    unsafe_allow_html=True)
+        signed = bool(get(anchor, "signature"))
+        st.markdown("<div class='bg-copy'><span class='k'>Your copy of the latest receipt:</span> "
+                    f"<span class='bg-anchor'>{esc_html(anchor_label(anchor))}</span>"
+                    + (pill("check", "Signed copy", "ok", "sm") if signed else pill("alert", "Unsigned copy", "warn", "sm"))
+                    + "</div>", unsafe_allow_html=True)
         st.caption("Signed by the bank and kept on your side, like a statement number. It lets you detect deleted or "
                    "rewritten receipts, which the chain alone cannot.")
     else:
         st.caption("No copy yet: you get one after the first receipt is written.")
     key_info = ov.get("signing_key")
     if key_info:
-        (st.warning if ov.get("demo_key_in_use") else st.caption)(f"Receipts signed with: {esc_md(key_info)}")
+        if ov.get("demo_key_in_use"):
+            st.warning(f"Receipts signed with: {esc_md(key_info)}", icon=IC_WARN)
+        else:
+            st.caption(f"Receipts signed with: {esc_md(key_info)}")
     if not receipts:
-        st.info("No receipts yet. Approve an action (or let the rules refuse one) to create the first receipt.")
+        st.info("No receipts yet. Approve an action (or let the rules refuse one) to create the first receipt.", icon=IC_INFO)
     if receipts:
         body = "".join(
             f"<tr><td class='num'>{esc_html(get(r, 'seq'))}</td><td>{esc_html(humanize(get(r, 'summary')))}</td>"
             f"<td>{pill('check', 'Approved', 'ok', 'sm') if get(r, 'confirmation_hash') else pill('block', 'Refused', 'bad', 'sm')}</td>"
             f"<td class='mono'>{esc_html(short(get(r, 'receipt_hash')))}</td>"
             f"<td class='mono'>{esc_html(short(get(r, 'prev_receipt_hash')))}</td></tr>" for r in receipts)
-        st.markdown("<table class='bg-table'><thead><tr><th>#</th><th>What happened</th><th>Approved by you</th>"
-                    "<th>Fingerprint</th><th>Links to</th></tr></thead><tbody>" + body + "</tbody></table>",
-                    unsafe_allow_html=True)
+        st.markdown("<table class='bg-table'><caption>Receipts, oldest first</caption><thead><tr>"
+                    "<th scope='col'>#</th><th scope='col'>What happened</th><th scope='col'>Approved by you</th>"
+                    "<th scope='col'>Fingerprint</th><th scope='col'>Links to</th></tr></thead><tbody>" + body
+                    + "</tbody></table>", unsafe_allow_html=True)
     fn = ov.get("verify_fn")
     c1, c2, _ = st.columns([1, 1.4, 2])
     if c1.button("Check the chain", key="verify", width="stretch", disabled=not receipts):
         if callable(fn):
             res = call_verify(fn, None)
-            s.verify_result = (bool(get(res, "valid")), "✓ Chain valid. " if get(res, "valid") else "✕ Chain BROKEN. ",
+            s.verify_result = (bool(get(res, "valid")), "Chain valid. " if get(res, "valid") else "Chain BROKEN. ",
                                str(get(res, "detail", "")))
         else:
             from ui.util import links_ok
             ok = links_ok(receipts)
-            s.verify_result = (ok, "✓ Chain valid. " if ok else "✕ Chain BROKEN. ",
+            s.verify_result = (ok, "Chain valid. " if ok else "Chain BROKEN. ",
                                "Link check only; the backend exposes no verify function.")
     if c2.button("Check against my copy", key="verify_anchor", type="primary", width="stretch",
                  disabled=anchor is None or not callable(fn)):
         set_verify_result(call_verify(fn, anchor), anchor)
     vr = s.get("verify_result")
     if vr:
-        (st.success if vr[0] else st.error)(vr[1] + esc_md(humanize(vr[2])))
+        (st.success if vr[0] else st.error)(vr[1] + esc_md(humanize(vr[2])), icon=IC_OK if vr[0] else IC_ERR)
 
     with st.expander("What if someone deletes receipts? (runs on a copy, the real ledger is not touched)"):
         st.markdown(
@@ -894,10 +931,12 @@ def tab_proof(ov: dict) -> None:
                         f"{tr['original_length']} → {tr['truncated_length']} receipts.")
             (st.warning if tr["chain_only_valid"] else st.success)(
                 "Chain-only check on the copy: " + ("links still fit, the deletion is invisible."
-                                                    if tr["chain_only_valid"] else "broken."))
+                                                    if tr["chain_only_valid"] else "broken."),
+                icon=IC_WARN if tr["chain_only_valid"] else IC_OK)
             (st.error if tr["anchor_valid"] else st.success)(
                 "Check against your copy: " + ("still matches (unexpected)." if tr["anchor_valid"]
-                                               else f"receipt #{tr['deleted_from_seq']} is missing: TAMPERING DETECTED."))
+                                               else f"receipt #{tr['deleted_from_seq']} is missing: TAMPERING DETECTED."),
+                icon=IC_ERR if tr["anchor_valid"] else IC_OK)
             st.caption("Illustration on a copy. The real check is \"Check against my copy\", which the ledger runs "
                        "on its own database.")
 
@@ -910,16 +949,26 @@ def run_attacks(attacks) -> None:
             results[a.key] = run_attack(a, factory)
 
 
-def render_attack_result(res) -> None:
-    a = res.attack
-    with st.container(border=False, key=f"atk_{a.key}"):
-        head = pill("check", "BLOCKED", "ok") if (res.blocked and not res.error) else pill("x", "NOT BLOCKED", "bad")
-        st.markdown(f"<div class='bg-atk-head'>{head}<span>{esc_html(a.name)}</span></div>", unsafe_allow_html=True)
+def render_attack_row(a) -> None:
+    """One attack = one ruled row: its name (the button that replays it) and its verdict; once run, the details
+    (what the attacker tried, the messages sent, how it was stopped, the evidence) open underneath."""
+    results = st.session_state.attack_results
+    with st.container(border=False, key=f"attack_{'ran_' if a.key in results else ''}{a.key}"):
+        c1, c2 = st.columns([5, 1.5], vertical_alignment="center")
+        if c1.button(a.name, key=f"run_{a.key}", width="stretch"):
+            run_attacks([a])
+        res = results.get(a.key)
+        if res is None:
+            c2.markdown("<div class='bg-atk-status'><span class='none'>Not run</span></div>", unsafe_allow_html=True)
+            return
+        head = (pill("check", "BLOCKED", "ok", "caps") if (res.blocked and not res.error)
+                else pill("x", "NOT BLOCKED", "bad", "caps"))
+        c2.markdown(f"<div class='bg-atk-status'>{head}</div>", unsafe_allow_html=True)
         st.markdown(f"**Attack:** {esc_md(a.plain_description or a.description or a.user_text)}")
         st.code(a.script, language=None, wrap_lines=True)
         st.markdown(f"**How it is stopped:** {esc_md(a.plain_defence or a.expected_defence)}")
         if res.error:
-            st.error(f"Run failed (counted as NOT blocked): {esc_md(res.error)}")
+            st.error(f"Run failed (counted as NOT blocked): {esc_md(res.error)}", icon=IC_ERR)
         with st.expander("Evidence"):
             st.markdown(f"**Technical description:** {esc_md(a.description or a.user_text)}")
             st.markdown(f"**Technical defence:** {esc_md(a.expected_defence)}")
@@ -928,27 +977,26 @@ def render_attack_result(res) -> None:
 
 
 def tab_attacks() -> None:
-    st.markdown("Each button replays a known attack against a **fresh** sandbox account and reports whether it was "
-                "blocked. A crash counts as NOT blocked.")
+    st.markdown("<div class='bg-lede'>Each attack replays a known attack against a <b>fresh</b> sandbox account and "
+                "reports whether it was blocked. A crash counts as NOT blocked. Pick one, or run all of them.</div>",
+                unsafe_allow_html=True)
     results = st.session_state.attack_results
     if st.button(f"Run all {len(ATTACKS)} attacks", key="run_all", type="primary"):
         run_attacks(ATTACKS)
-    cols = st.columns(2)
-    for i, a in enumerate(ATTACKS):
-        lone = i == len(ATTACKS) - 1 and len(ATTACKS) % 2 == 1      # last odd item spans the full width
-        if (st if lone else cols[i % 2]).button(a.name, key=f"run_{a.key}", width="stretch"):
-            run_attacks([a])
+    score = st.container()                  # filled after the rows, so a single run is counted in this pass
+    with st.container(key="attacklist"):
+        for a in ATTACKS:
+            render_attack_row(a)
     done = [results[a.key] for a in ATTACKS if a.key in results]
-    if done:
-        n = sum(r.blocked and not r.error for r in done)
-        good = n == len(done)
-        st.markdown(f"<div class='bg-score {'' if good else 'bad'}'><span class='ic'>{ICON['check' if good else 'x']}</span>"
-                    f"{n} / {len(done)} blocked</div>", unsafe_allow_html=True)
-    else:
-        st.info("No attack run yet. Click **Run all** or pick one attack.")
-    for a in ATTACKS:
-        if a.key in results:
-            render_attack_result(results[a.key])
+    with score:
+        if done:
+            n = sum(r.blocked and not r.error for r in done)
+            good = n == len(done)
+            st.markdown(f"<div class='bg-score {'' if good else 'bad'}'>{n} / {len(done)} blocked</div>"
+                        "<div class='bg-score-sub'>Each attack ran on a fresh sandbox account.</div>",
+                        unsafe_allow_html=True)
+        else:
+            st.info("No attack run yet. Click **Run all** or pick one attack.", icon=IC_INFO)
 
 
 # --------------------------------------------------------------------------- main

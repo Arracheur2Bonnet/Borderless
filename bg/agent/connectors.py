@@ -6,24 +6,26 @@
 * `CascadeParser`: rules first, then bigger and slower tiers only when the cheaper one could not read the message.
 * `make_parser`: the one place that turns a kind ("rules", "local", "connected", "cascade") into a parser.
 
-The model is only ever a proposer of typed intents. The API key comes from the argument or BG_MODEL_API_KEY, is
-sent only in the Authorization header, and is never logged, stored in notes or put in an audit record."""
+The model is only ever a proposer of typed intents. The API key comes from the argument, or from BG_MODEL_API_KEY only for the
+endpoint named in BG_MODEL_BASE_URL; it is sent only in the Authorization header, and is never logged, stored in notes or put in an audit record."""
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import os
+import socket
 import time
 import urllib.error
 import urllib.parse
 from typing import Any, Callable
 
 from bg.contracts.interfaces import IntentParser
-from bg.contracts.models import Beneficiary, ParsedRequest
+from bg.contracts.models import Beneficiary, Clarify, ParsedRequest
 
 from .grounding import GroundingContext, ground_intents
 from .local_parser import DEFAULT_LOCAL_MODEL, LocalLLMParser
-from .model_parser import LOOPBACK_HOSTS, ModelParser, post_json
+from .model_parser import LOOPBACK_HOSTS, ModelEndpointRefused, ModelParser, post_json
 from .rules_parser import RulesParser, is_generic_clarify
 
 log = logging.getLogger(__name__)
@@ -41,6 +43,40 @@ def _check_base_url(base_url: str) -> urllib.parse.ParseResult:
     if u.hostname not in LOOPBACK_HOSTS and u.scheme != "https":
         raise ValueError("a model endpoint outside this machine must use https")
     return u
+
+
+def check_public_endpoint(url: str) -> None:
+    """A remote model endpoint must resolve to public addresses only (APPSEC-4: no SSRF into the operator's network
+    from a Base URL typed in the UI). Loopback stays allowed for local model servers. An operator who runs a model
+    on a private network on purpose sets BG_MODEL_ALLOW_PRIVATE=1."""
+    host = urllib.parse.urlparse(url).hostname or ""
+    if host in LOOPBACK_HOSTS or os.environ.get("BG_MODEL_ALLOW_PRIVATE") == "1":
+        return
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except OSError as exc:
+        raise ModelEndpointRefused("model endpoint host does not resolve") from exc
+    for info in infos:
+        addr = ipaddress.ip_address(info[4][0].split("%")[0])
+        if not addr.is_global:
+            raise ModelEndpointRefused("model endpoint resolves to a private, loopback or reserved address")
+
+
+def _origin(u: urllib.parse.ParseResult) -> tuple[str, str, int | None]:
+    return (u.scheme, (u.hostname or "").lower(), u.port or (443 if u.scheme == "https" else 80))
+
+
+def _env_key_for(u: urllib.parse.ParseResult) -> str | None:
+    """BG_MODEL_API_KEY is the operator's key for the operator's endpoint (BG_MODEL_BASE_URL). It is used only when
+    this parser talks to that same origin, so a URL typed by a visitor in the UI can never receive it (APPSEC-1)."""
+    key = os.environ.get("BG_MODEL_API_KEY") or None
+    env_url = os.environ.get("BG_MODEL_BASE_URL") or ""
+    if not key or not env_url:
+        return None
+    try:
+        return key if _origin(_check_base_url(env_url)) == _origin(u) else None
+    except ValueError:
+        return None
 
 
 class OpenAICompatibleParser(ModelParser):
@@ -62,10 +98,11 @@ class OpenAICompatibleParser(ModelParser):
         self.timeout = timeout
         self.label = label or "connected"
         self.noun = f"{self.label.capitalize()} model"
-        self._api_key = api_key if api_key else (os.environ.get("BG_MODEL_API_KEY") or None)
+        self._api_key = api_key if api_key else _env_key_for(u)
         self._http = http or self._default_http
         self._mode = "json_schema"
-        self.parser_tag = f"connected:{self.host_name}"          # type: ignore[misc]
+        self._temperature = True
+        self.parser_tag = f"connected:{self.host_name[:80]}"      # type: ignore[misc]   (the label is capped at 100 characters)
 
     # the key must not leak through repr(), logging or a debugger print of the parser
     def __repr__(self) -> str:
@@ -78,12 +115,13 @@ class OpenAICompatibleParser(ModelParser):
 
     @staticmethod
     def _default_http(url: str, payload: dict, timeout: float, headers: dict) -> dict:
+        check_public_endpoint(url)                     # checked at every call: DNS may change between calls
         return post_json(url, payload, timeout, headers)
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
 
-    def _post(self, mode: str, messages: list[dict]) -> dict:
+    def _post(self, mode: str, messages: list[dict], temperature: bool = True) -> dict:
         msgs = [dict(m) for m in messages]
         if mode == "json_schema":
             rf: dict[str, Any] = {"type": "json_schema",
@@ -92,17 +130,42 @@ class OpenAICompatibleParser(ModelParser):
             rf = {"type": "json_object"}
             msgs[0]["content"] = (msgs[0]["content"] + "\n\nReply with ONE JSON object that follows this JSON schema:\n"
                                   + json.dumps(self.schema, separators=(",", ":")))
-        payload = {"model": self.model, "temperature": 0, "stream": False, "messages": msgs, "response_format": rf}
+        payload = {"model": self.model, "stream": False, "messages": msgs, "response_format": rf}
+        if temperature:
+            payload["temperature"] = 0
         return self._http(self.base_url + "/chat/completions", payload, self.timeout, self._headers())
 
-    def _send(self, messages: list[dict]) -> dict:
-        mode = self._mode
+    @staticmethod
+    def _refusal_text(exc: urllib.error.HTTPError) -> str:
+        """The first bytes of an error body, lower-cased; empty when there is none to read."""
+        deadline = time.monotonic() + 2.0                     # review P2-3: an error body sent slowly cannot hold the call
+        got = b""
         try:
-            return self._post(mode, messages)
+            while len(got) < 2048 and time.monotonic() < deadline:
+                fp = exc.fp
+                chunk = (fp.read1(512) if hasattr(fp, "read1") else fp.read(512)) if fp is not None else b""
+                if not chunk:
+                    break
+                got += chunk
+        except Exception:                                                          # noqa: BLE001
+            pass
+        return got.decode("utf-8", "replace").lower()
+
+    def _send(self, messages: list[dict]) -> dict:
+        mode, temp = self._mode, self._temperature
+        try:
+            return self._post(mode, messages, temp)
         except urllib.error.HTTPError as exc:
-            if mode == "json_schema" and exc.code in (400, 404, 415, 422):     # json_schema not supported here
+            if exc.code not in (400, 404, 415, 422):
+                raise
+            why = self._refusal_text(exc)
+            if temp and "temperature" in why and "response_format" not in why and "schema" not in why:
+                self._temperature = False                      # some reasoning models accept no temperature
+                return self._post(mode, messages, False)
+            # json_schema not supported here. A 404/422 about something else (the model name) changes nothing.
+            if mode == "json_schema" and (not why or any(w in why for w in ("response_format", "json_schema", "schema", "json"))):
                 self._mode = "json_object"
-                return self._post("json_object", messages)
+                return self._post("json_object", messages, temp)
             raise
 
     def _content(self, data: dict) -> str:
@@ -184,7 +247,11 @@ class CascadeParser:
                 rules_res = res
             if not is_rules:
                 last = (res, label)
-            useless = is_generic_clarify(res.intents) or (
+            # A smaller model that only asks a question has not read the message (the 3B turns "Bitte 40 Euro an Mama
+            # senden" into "Which payee should receive the money?"): ask the next tier. The last tier's question stands.
+            asks_only = (not is_rules and n < len(self.tiers) and pending_question is None
+                         and all(isinstance(i, Clarify) for i in res.intents))
+            useless = is_generic_clarify(res.intents) or asks_only or (
                 pending_question is None and grounding_rejects_all(res, text, beneficiary_names))
             if useless:
                 continue

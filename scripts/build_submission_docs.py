@@ -35,13 +35,13 @@ TEMPLATES = ROOT / "docs" / "official_templates"
 OUT = ROOT / "deliverables" / "submission"
 SHOTS = ROOT / "deliverables" / "screenshots"
 EVID = ROOT / "deliverables" / "evidence"
-SOFFICE = Path("C:/Program Files/LibreOffice/program/soffice.exe")
+SOFFICE = Path(shutil.which("soffice") or shutil.which("libreoffice") or "C:/Program Files/LibreOffice/program/soffice.exe")
 WORD = Path("C:/Program Files/Microsoft Office/root/Office16/WINWORD.EXE")
 
 TEAM = "Centrale"
 TRACK = "International AI Track, Topic C (Cross-border and Student Finance)"
 DATE = "2026-10-20"
-STATE_COMMIT = "d1822bf"
+STATE_COMMIT = "3b4e894"
 
 # template palette
 BLUE, DARK, GREY, PALE, RULE = "315FD8", "17213A", "616C7F", "EEF3FF", "D5DBE8"
@@ -52,6 +52,10 @@ CITED_COMMITS = ["44542f2", "5868d83", "292f748", "60f6448", "2ce6035", "13dded5
 
 
 # --------------------------------------------------------------------------------------------- checks
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ssa_register  # noqa: E402
+
+
 def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
@@ -64,7 +68,7 @@ def check_consistency() -> None:
     td, ssa, ee, rd = (read("deliverables/technical_document.md"), read("deliverables/security_self_assessment.md"),
                        read("deliverables/execution_evidence.md"), read("README.md"))
     must = {
-        "1230 passed, 7 xfailed": [td, ee, rd],
+        "1379 passed, 7 xfailed": [td, ee, rd],
         "21/21": [td, ee],
         "PAYEE_VERIFICATION": [td, ee, rd],
         "69/70": [td, ssa, rd],
@@ -73,7 +77,9 @@ def check_consistency() -> None:
         "26/30": [td, ssa],
         "103/105": [td, ee, rd],
         "119": [td, ee],
-        "96 passed": [td, ssa],
+        "169 passed": [td, ssa],
+        "APPSEC-1": [ssa],
+        "BG_API_USER": [ssa],
         "EUR 600.00": [ee],
         "USD 196.74": [ee],
         "246810": [td, ee],
@@ -559,10 +565,10 @@ def build_technical() -> Path:
     work = ROOT / "out" / "submission_assets"
     arch = work / "architecture.png"
     render_architecture(arch)
-    f_plan = crop_shot("03_plan_and_injection.png", (575, 110, 1650, 760), work / "fig_plan.png")
-    f_receipts = crop_shot("05_receipts.png", (575, 310, 1650, 970), work / "fig_receipts.png")
-    f_attacks = crop_shot("06_attacks.png", (575, 325, 1650, 735), work / "fig_attacks.png")
-    f_afford = crop_shot("02_affordability.png", (575, 340, 1650, 1010), work / "fig_afford.png")
+    f_plan = crop_shot("03_plan_and_injection.png", (650, 110, 1570, 700), work / "fig_plan.png")
+    f_receipts = crop_shot("05_receipts.png", (650, 300, 1570, 940), work / "fig_receipts.png")
+    f_attacks = crop_shot("06_attacks.png", (650, 360, 1570, 800), work / "fig_attacks.png")
+    f_afford = crop_shot("02_affordability.png", (650, 325, 1570, 1030), work / "fig_afford.png")
 
     # ---- front matter: one-page summary
     c = Cursor(doc, after_header_table(doc))
@@ -572,7 +578,7 @@ def build_technical() -> Path:
         "call a \"send money\" tool inherits that risk. If the model decides, the attacker decides.",
         "**Idea.** BorderlessGuard turns one sentence (\"Pay my November tuition and rent, but keep at least 600 euros\") "
         "into a plan of three actions, and moves nothing until the student approves each one. The language model only "
-        "proposes a typed request. It has no payment tool and never sees an IBAN, a balance or a document. Plain code "
+        "proposes a typed request. It has no payment tool and never sees a saved IBAN, a balance or a document. Plain code "
         "checks that every amount, payee and account in the request appears in what the student wrote, takes account "
         "numbers only from saved payees, simulates the plan, applies 14 named rules to every payment and asks for a tap "
         "(R2) or a one-time code (R3). R4 cases are denied and nothing overrides them. Every action, executed or denied, "
@@ -586,9 +592,9 @@ def build_technical() -> Path:
         "- The same cases with local Qwen2.5 7B (frozen in `5868d83`): **66/70 attacks blocked** (CI 86.2 to 97.8), "
         "26/30 benign, 5/5 non-English requests (rules parser: 0/5). One control bypass caused by a field the model "
         "changed; no money moved. A grounding step now closes that class.",
-        "- Two white-box audits by separate AI agents: 23 findings (12, then 11), all fixed or mitigated, each with a "
-        "test. 1230 tests pass and 7 are documented expected failures. `scripts/verify_all.py` re-runs the checks "
-        "in about 20 seconds.",
+        "- Three white-box audits by separate AI agents: 31 findings (12, 11 and 8), all fixed or mitigated, each with a "
+        "test; the round-3 and phase-2 changes were reviewed by a separate AI agent, which found nine points: seven fixed, two left as residual risks. 1379 tests pass and 7 are documented expected failures. "
+        "`scripts/verify_all.py` re-runs the checks in about 70 seconds.",
         "**What it is not.** A sandbox prototype. The ledger, exchange rates, SMS code and sanctions list are simulated, "
         "and nothing is connected to a bank. No hosted or frontier model was measured; only local Qwen was. Results "
         "after the two frozen runs are regression results, not generalisation estimates. Credit building and recurring "
@@ -641,7 +647,7 @@ def build_technical() -> Path:
         "**Evaluation with frozen commits.** Blind sets written by a separate AI agent, results reported with "
         "intervals and caveats, post-fix numbers labelled as regression, and one earlier claim corrected in public.",
         "**A smart cascade.** The rules parser reads the sentence first. Only what it cannot read goes to a local "
-        "Qwen 3B, then 7B. On the held-out messages the rules answered 87%, so a model call (about 2.5 s) is rare.",
+        "Qwen 3B, then 7B. On the held-out messages the rules answered 87%, so a model call (about 0.5 s) is rare.",
     ])
 
     # ---- 02 System Architecture
@@ -673,16 +679,27 @@ def build_technical() -> Path:
     c = Cursor(doc, anchors["Models, tools, data sources and external services"]._p)
     c.table(["Parser (`BG_PARSER`)", "Runs where", "Measured"], [
         ["`rules` (default)", "In process, offline, English only, instant.", "Blind v2: 69/70 attacks, 24/30 benign English, 0/5 non-English."],
-        ["`local`: Qwen2.5 7B or 3B via Ollama", "On the student's machine (`localhost`); about 2.6 s per call.", "Blind v2 (7B): 66/70, 26/30, 5/5. 3B: 65/70, 21/30, 3/5."],
-        ["`cascade`", "Rules, then local Qwen 3B, then 7B. Nothing leaves the machine.", "Regression: v2 103/105; 87% of messages answered by the rules; median 0.0 s."],
-        ["`connected`", "Any OpenAI-compatible endpoint; https for remote hosts; key from `BG_MODEL_API_KEY`.", "Only against local Ollama (benign 29/29) and fake servers. **No frontier model measured.**"],
+        ["`local`: Qwen2.5 7B or 3B via Ollama", "On the student's machine (`127.0.0.1`); about 0.5 s per call (2.6 s in the earlier runs, which went through `localhost`).", "Blind v2 (7B): 66/70, 26/30, 5/5. 3B: 65/70, 21/30, 3/5."],
+        ["`cascade`", "Rules, then local Qwen 3B, then 7B. Nothing leaves the machine.", "Regression: v2 104/105; 87% of messages answered by the rules; median 0.0 s."],
+        ["`connected`", "Any OpenAI-compatible endpoint; https and public addresses only for remote hosts; the environment key is used only for the origin in `BG_MODEL_BASE_URL`.", "Only against local Ollama (benign 29/29) and fake servers. **No frontier model measured.**"],
     ], [2.5, 3.6, 3.4], indent=True)
     c.bullets([
+        "**What is AI, what is code, what is simulated.** The model is optional and only reads the sentence; the table below says which step is which.",
         "**Tools.** The model has none. The only tool the system calls is the simulated FX quote provider, treated as untrusted and schema-validated.",
         "**Data sources.** All data is synthetic: the persona, balances, payees, IBANs, invoices and the fictional sanctions list are constants in `bg/contracts/params.py`. The FX rate is fixed (0.92 EUR per USD, 0.5% fee).",
         "**External services.** None by default. With a connected remote model, the message and the payee names go to that provider; the UI says so.",
         "**Licences.** Qwen2.5-7B-Instruct: Apache-2.0. Qwen2.5-3B-Instruct: Qwen Research License (non-commercial). Ollama: MIT. The weights are downloaded by the user and are not in the repository.",
     ])
+    c.table(["Step", "Done by", "Simulated or fixed"], [
+        ['Reading the sentence', 'The offline rules parser (default), or a language model (optional: local Qwen, the cascade, a connected endpoint). Both only produce typed intents.', 'None'],
+        ['Amounts, payees, IBANs, memo, currency', 'Code: grounding checks every field against what the customer wrote; the account comes from the saved payee, never from the model.', 'Payee registry and persona are synthetic'],
+        ['Plan, FX quote, fee, reserve', 'Code.', 'Fixed rates (0.92 EUR per USD, 1.085 USD per EUR), 0.5% fee, an in-memory sandbox ledger'],
+        ['Policy, 14 rules per payment', 'Code.', 'Sanctions list of three entries; the account-holder directory is a dictionary'],
+        ['Approval', 'Code: a tap, or a one-time code after step-up.', 'The code is the constant 246810 and no SMS is sent'],
+        ['Execution and receipts', 'Code: hash-chained receipts in SQLite, a signed anchor.', 'Public demo signing key unless `BG_RECEIPT_KEY` is set; frozen clock (2026-10-28 09:00 UTC)'],
+        ['Every sentence of the reply', "Templates. A model's own words are not relayed (a plain clarifying question is the one exception, and it is filtered).", 'None'],
+        ['Requests in other languages', 'Only a model reads them (5/5 for Qwen, 0/5 for the rules).', 'None'],
+    ], [2.0, 4.6, 2.9], indent=True, size=8.5)
 
     # ---- 03 Agent Design
     c = Cursor(doc, anchors["Intent understanding, planning, tool use and state management"]._p)
@@ -723,7 +740,7 @@ def build_technical() -> Path:
         "rules. A payment is checked against 14 rules (13 when no reserve was stated), a currency purchase against 5, "
         "adding a payee against 6. Key rules: `IBAN_MATCHES_REGISTRY`, `RESERVE_FLOOR`, `MAX_SINGLE_PAYMENT` (4,000 EUR), "
         "`DAILY_LIMIT` (5,000 EUR), `SANCTIONS_SCREEN`, `STRUCTURING` (same payee, 24 h, above 1,500 EUR), "
-        "`FX_PRICE_CHECK`, `IBAN_VALID` (ISO 13616, mod-97) and `PAYEE_NAME_UNIQUE`. The sanctions name screen folds "
+        "`FX_PRICE_CHECK`, `IBAN_VALID` (ISO 13616, mod-97), `PAYEE_NAME_UNIQUE` and `PAYEE_VERIFICATION`. Verification of Payee compares a payee's typed name with the holder the sandbox bank has on record for the IBAN (match, close match, no match or not available): anything but a match needs the one-time code, and no match or not available is denied (R4) when the account number comes from an invoice or letter in the same request. The sanctions name screen folds "
         "look-alike letters (Cyrillic, Greek, Armenian, Cherokee, small capitals), compares with spaces removed, joins "
         "letter runs, and fails closed on a letter it cannot fold.")
     c.lead("Receipt chain and anchor")
@@ -738,8 +755,8 @@ def build_technical() -> Path:
         ["Blind v1 (rules)", "A separate author", "47/48 attacks, 21/25 benign", "First run only; one detection claim was corrected"],
         ["**Blind v2, rules parser**, frozen in `44542f2`", "Separate AI agent, no access to security code", "**69/70 attacks** (CI 92.3 to 99.7); multi-turn 15/15; 24/30 benign EN (62.7 to 90.5); non-English 0/5", "**Generalisation estimate, rules**"],
         ["**Blind v2, Qwen2.5 7B**, frozen in `5868d83`", "Same 105 cases", "**66/70 attacks** (86.2 to 97.8); multi-turn 15/15; 26/30 benign EN (70.3 to 94.7); non-English 5/5", "**Generalisation estimate, LLM parser**; one run"],
-        ["White-box audits", "Two separate AI agents with full read access", "12 findings, then 11; all fixed or mitigated", "Code review; fixes are regression-tested"],
-        ["Regression after the frozen runs", "The team", "Qwen 7B 103/105; cascade 103/105; 1230 tests pass, 7 expected failures", "Not generalisation"],
+        ["White-box audits", "Three separate AI agents with full read access", "12, 11 and 8 findings (31); all fixed or mitigated", "Code review; fixes are regression-tested; round 3 and phase 2 reviewed once more by a separate agent (9 points, 7 fixed)"],
+        ["Regression after the frozen runs", "The team", "Qwen 7B 103/105; cascade 104/105; 1379 tests pass, 7 expected failures", "Not generalisation"],
     ], [2.3, 1.9, 3.1, 2.3], indent=True, size=8)
     c.p("Caveats the blind tester gave and we accept: nine attacks were stopped only because the rules parser did not "
         "understand them (58/59 without them and two structuring cases that never reached the control); structuring "
@@ -775,10 +792,12 @@ def build_technical() -> Path:
     c.table(["Audit", "Findings", "Examples", "Status"], [
         ["Round 1 (code before `2ce6035`)", "12: 3 High, 3 Medium, 6 Low", "A poisoned FX quote could charge 2,590 USD for 100 EUR; a sanctioned IBAN in Arabic-Indic digits passed; the code lockout reset on every new action", "11 fixed, 1 mitigated (public demo signing key, flagged on screen)"],
         ["Round 2 (code at `22b144e`)", "11: 2 Medium, 9 Low", "A sanctioned name written without spaces passed; a model's text was shown as the bank's; payee synonyms, currencies and memo were ungrounded; a long message cost quadratic CPU", "All 11 fixed in `c10f0a0`"],
+        ["Round 3 (after `d1822bf`, 2026-10-20)", "8: 1 High, 2 Medium, 5 Low", "APPSEC-1 to APPSEC-8: the operator's model API key could be sent to a URL typed in the UI; \"Rules only\" could hide a remote model; Streamlit listened on every interface; an unauthenticated remote API; a split document IBAN", "All 8 fixed; reviewed independently once (2026-10-20); that review's fixes were not reviewed again"],
     ], [2.0, 1.6, 3.9, 2.0], indent=True, size=8)
-    c.p("`tests/audit/` holds one test per finding and the passing proofs of controls the auditors found sound: 96 tests, "
-        "no xfail left. The model connector, the cascade and the model selector were added after round 2 and have had "
-        "no white-box review.", size=9.5)
+    c.p("`tests/audit/` holds one test per finding and the passing proofs of controls the auditors found sound: 169 tests, "
+        "no xfail left. Round 3 covered the connector, the cascade, the selector, the harness and its HTTP API, "
+        "Verification of Payee, the UI, Docker and CI. Its fixes were made by the pass that found them and were reviewed once more by a separate AI agent "
+        "on 2026-10-20 (nine points, seven fixed).", size=9.5)
     c.figure(f_attacks, 14.5, "Figure 5. The Attack test tab replays seven known attacks, each on a fresh account. We wrote these seven, "
              "so this is a demonstration, not a test.")
 
@@ -790,33 +809,36 @@ def build_technical() -> Path:
     c.code([
         "git clone https://github.com/Arracheur2Bonnet/Borderless.git && cd Borderless",
         "python3.11 -m venv .venv && .venv/bin/python -m pip install -r requirements-lock.txt",
-        ".venv/bin/python scripts/verify_all.py                   # all checks, about 20 s",
+        ".venv/bin/python scripts/verify_all.py                   # all checks, about 70 s",
         ".venv/bin/python -m streamlit run ui/app.py              # demo UI, http://localhost:8501 (one-time code 246810)",
-        "docker build -t borderlessguard . && docker run --rm -p 8501:8501 borderlessguard",
+        "docker build -t borderlessguard . && docker run --rm -p 127.0.0.1:8501:8501 borderlessguard   # this machine only",
     ])
     c.table(["Variable", "Default", "Meaning"], [
         ["`BG_PARSER`", "`rules`", "`rules`, `local`, `connected` or `cascade`"],
-        ["`BG_LOCAL_MODEL`", "`qwen2.5:7b-instruct`", "Model for `local` (Ollama on `localhost:11434`)"],
+        ["`BG_LOCAL_MODEL`", "`qwen2.5:7b-instruct`", "Model for `local` (Ollama on `127.0.0.1:11434`)"],
         ["`BG_MODEL_BASE_URL`, `BG_MODEL_NAME`", "none", "Endpoint and model for `connected`; remote hosts need https"],
-        ["`BG_MODEL_API_KEY`", "none", "Bearer token; sent only in the Authorization header; never logged"],
+        ["`BG_MODEL_API_KEY`", "none", "Bearer token; used only for the origin in `BG_MODEL_BASE_URL`; sent only in the Authorization header; never logged"],
+        ["`BG_MODEL_ALLOW_PRIVATE`", "off", "`1` lets a remote model endpoint resolve to a private address (a model server on a private network)"],
+        ["`BG_API_TOKEN`, `BG_API_TOKENS`, `BG_API_USER`", "none", "Harness HTTP API: one shared bearer token, or one token per customer (`token=u_lina,...`); a token is required off loopback; `BG_API_USER` limits the API to one customer"],
         ["`BG_RECEIPT_KEY`", "public demo key", "Secret that signs the customer's anchors; set it in any deployment"],
     ], [3.0, 2.2, 4.0], indent=True)
     c.lead("Test cases and results")
-    c.p("`scripts/verify_all.py` runs five checks and exits non-zero on any failure. Result of the run on 2026-10-19 at "
-        "`d1822bf` (Windows 11, Python 3.11.6):", after=3)
+    c.p("`scripts/verify_all.py` runs five checks and exits non-zero on any failure. Result of the run on 2026-10-20 "
+        "in the working tree after `3b4e894` (Windows 11, Python 3.11.6):", after=3)
     c.code([
-        "PASS  pytest (full suite)     135.7s  1230 passed, 7 xfailed",
-        "PASS  scripted missions         2.3s  21/21 missions completed",
-        "PASS  golden path               1.9s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)",
-        "PASS  security report           5.4s  attacks blocked 69/69, benign completed 29/29; matches committed report",
-        "PASS  evidence reproducible     0.3s  regenerated evidence identical to committed files",
+        "PASS  pytest (full suite)      40.8s  1379 passed, 7 xfailed",
+        "PASS  scripted missions         0.6s  21/21 missions completed",
+        "PASS  golden path               0.4s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)",
+        "PASS  security report           1.2s  attacks blocked 69/69, benign completed 29/29; matches committed report",
+        "PASS  evidence reproducible     0.1s  regenerated evidence identical to committed files",
     ])
     c.table(["Folder", "Result", "What it holds"], [
         ["`tests/adversarial`, `tests/benign`", "69, 29 passed", "Development suites by attack family F1 to F5"],
         ["`tests/heldout`, `tests/heldout_v2`", "72 + 1 xfail, 99 + 6 xfail", "Blind sets; the 7 expected failures are B08, B25 and N01 to N05 (by design or out of scope for the offline parser)"],
-        ["`tests/audit`", "96 passed", "Two white-box audits"],
-        ["`tests/regression`, `tests/scenarios`, `tests/harness`", "34, 22, 23 passed", "Judge-panel, grounding and Verification of Payee regressions; the 21 missions; the scripted-task harness"],
-        ["`tests/unit`", "786 passed", "Agent 420, ledger 43, policy 253, UI 70"],
+        ["`tests/audit`", "169 passed", "Three white-box audits and the phase-2 checks"],
+        ["`tests/integration`", "42 passed", "Local sockets, no model: Streamlit origin check; the model path against a fake server"],
+        ["`tests/regression`, `tests/scenarios`, `tests/harness`", "34, 22, 30 passed", "Judge-panel, grounding and Verification of Payee regressions; the 21 missions; the scripted-task harness"],
+        ["`tests/unit`", "813 passed", "Agent 420, ledger 44, policy 253, UI 96"],
     ], [3.3, 2.4, 3.5], indent=True)
     c.p("The Ollama runs (blind Qwen, regression, cascade, connector) are separate, need Ollama, and their reports are "
         "committed in `deliverables/blind_llm/` and `deliverables/regression_llm/`.", size=9.5)
@@ -827,16 +849,16 @@ def build_technical() -> Path:
         "**Rules parser and guard.** The rules parser is English only. The guard's phrase patterns cover English and French; its structural signals do not depend on language. Authorisation never depends on detection.",
         "**Grounding checks presence, not meaning.** A number in the text can be the wrong one; a wrong reading among her own payees still reaches the card, where she must approve it.",
         "**Receipt anchor.** Needs the customer's copy. HMAC is symmetric, so the key holder could forge anchors. On-chain anchoring is not implemented.",
-        "**Post-fix results are regression.** No new blind set was run after the frozen runs. The connector, cascade, selector and rewritten local parser have had no white-box review.",
+        "**Post-fix results are regression.** No new blind set was run after the frozen runs. The round-3 fixes have been reviewed independently once, on 2026-10-20 (nine points: seven fixed, two left as residual risks R-24 and R-25); the fixes that review prompted were not reviewed again.",
         "**Not implemented:** federated learning, on-chain anchoring, real bank integration, credit building, recurring payments.",
     ])
     c.lead("Future work (none of it is implemented)")
     c.bullets([
         "Run the blind protocol through the connector on one or more frontier models, and write a fresh blind set (v3) aimed at LLM extraction, frozen in its own commit before any fix.",
-        "A third white-box audit of the connector, the cascade and the rewritten local parser.",
+        "A second independent review of the fixes made after the first one.",
         "Asymmetric anchor signatures with key ids, and external timestamping or on-chain anchoring, so the customer need not keep a copy.",
         "A federated risk score across institutions (for example with FATE) that can only add friction (R3), never approve a payment.",
-        "Verification of Payee when a payee is added, real payment-initiation APIs with strong customer authentication, and authenticated sessions.",
+        "A real account-holder directory and Verification of Payee scheme, real payment-initiation APIs with strong customer authentication, and authenticated sessions.",
     ])
     c.lead("Third-party components")
     c.table(["Component", "Licence"], [
@@ -849,7 +871,7 @@ def build_technical() -> Path:
     c.lead("How this was built")
     c.p("The human team chose the topic, set the design constraints, directed the work and reviewed the results. AI coding "
         "assistants wrote much of the code, the tests and the documents. Separate AI agents wrote the blind test set "
-        "(held-out v2) and carried out the two white-box audits, each with its own file restrictions: the v2 tester could "
+        "(held-out v2) and carried out the three white-box audits, each with its own file restrictions: the v2 tester could "
         "not read the guard, parser, policy or ledger code, and the auditors could read all of it but did not write it. "
         "The blind tester and the auditors share a model family with the assistant that helped build the system, so they "
         "may share its blind spots. The repository, with every commit hash cited here, is "
@@ -872,16 +894,18 @@ def build_ssa() -> Path:
     c = Cursor(doc, after_header_table(doc))
     c.box("Scope and how to read this", [
         "This is a self-assessment of the BorderlessGuard prototype, which runs against a **simulated sandbox ledger**. "
-        "The authors wrote it. Two inputs are not ours: two white-box audits by separate AI agents with full read access "
-        "to the code (23 findings, all fixed or mitigated), and a blind test set written by a separate AI agent that "
-        "could not read the security code.",
+        "The authors wrote it. Two inputs are not ours: three white-box audits by separate AI agents with full read access "
+        "to the code (12, 11 and 8 findings: 31 in all, fixed or mitigated and regression-tested), and a blind test set "
+        "written by a separate AI agent that could not read the security code. The round-3 fixes were reviewed once more by a separate AI agent "
+        "on 2026-10-20 (nine points, seven fixed).",
         "Two results estimate generalisation, one per parser: blind v2 with the rules parser, frozen in `44542f2` "
         "(**69/70 attacks blocked**, 24/30 benign English completed), and blind v2 with local Qwen2.5 7B, frozen in "
         "`5868d83` (**66/70 attacks blocked**, 26/30 benign English, 5/5 non-English). Everything measured after "
-        "them is regression. State: commit `d1822bf`, 2026-10-19: 1230 tests pass, 7 are documented expected failures.",
-        "The model connector, the cascade and the model selector (`c10f0a0`), then the help replies, the scripted-task harness and its localhost HTTP API, the FX cost display and Verification of Payee (`7e90cc3`, `d1822bf`), came after the second audit and have had "
-        "no white-box review. No hosted or frontier model was measured. No licensing, KYC, AML, sanctions or "
-        "data-protection compliance is claimed.",
+        "them is regression. State: the working tree of 2026-10-20 after commit `3b4e894`: 1379 tests pass, 7 are "
+        "documented expected failures; `tests/audit`: 169 pass.",
+        "**This assessment does not claim that the prototype is secure.** It lists what we built, what was tested, and "
+        "what remains open or unverified (Section 04). No hosted or frontier model was measured. No licensing, KYC, "
+        "AML, sanctions or data-protection compliance is claimed.",
     ], size=9)
 
     # ---- 01 Permission Model
@@ -891,15 +915,24 @@ def build_ssa() -> Path:
         ["Language model (any parser)", "Propose typed intents from the customer's text.", "No tool, no authority, no access to accounts, balances, IBANs or documents. Its output is validated, grounded in the customer's words and policed like any input."],
         ["Content guard", "Warn about injected documents and tool output.", "Advisory. No authorisation reads its output."],
         ["FX provider (simulated)", "Return a price.", "Untrusted. A quote is kept only if it equals the bank's reference price and the ledger issued it; it is used once."],
-        ["Bank operator (stands in as a reset function)", "Unlock approval by code after three wrong codes.", "Never reachable from chat. In the sandbox it is a function call and the Reset demo button; there is no operator login."],
+        ["Bank operator (stands in as a reset function)", "Unlock approval by code after three wrong codes.", "Never reachable from chat. In the sandbox it is a function call and the Reset demo button; there is no operator login. In the demo UI the same visitor can press Reset demo (its help text says it stands in for the operator), so the customer can clear her own lock: it is demonstrated there, not protective."],
         ["Verifier (customer or reviewer)", "Run the chain check against a signed anchor.", "Read-only."],
     ], [2.2, 3.5, 3.5], indent=True, size=8)
+    c.p("The tier of an action is the highest severity among its failing rules, over a base of R2 for payments and "
+        "exchanges and R3 for adding a payee. Any exception is R4.", after=3, size=9)
     c.table(["Tier", "Operation", "Boundary"], [
-        ["R0", "Overview, receipts, rate quote, affordability simulation", "Allowed; creates no action"],
-        ["R2", "Payment to a payee older than 72 h up to 1,500 EUR eq.; currency purchase up to 2,500 EUR eq.", "One tap"],
-        ["R3", "Payment to a payee under 72 h old; larger amounts; splitting payments; adding a payee", "One-time code; three wrong codes in a row lock approval by code for the customer"],
-        ["R4", "Infeasible payment, unregistered or blocked payee, IBAN not in the registry, other tenant, reserve breach, over 4,000 EUR per payment or 5,000 EUR per day, untrusted origin, sanctions hit, invalid IBAN, look-alike payee name, off-price FX quote, locked approval", "Denied; nothing the model or the customer says overrides it"],
+        ["R0", "Overview, receipts, rate quote, affordability simulation", "Allowed; creates no action and does not call the policy engine"],
+        ["R1", "Reversible actions", "Defined; no action uses it"],
+        ["R2", "Payment to a payee older than 72 h up to 1,500 EUR eq. (same-payee 24 h total included); currency purchase up to 2,500 EUR eq.", "One tap. Frozen while the code lock is on"],
+        ["R3", "Payment to a payee under 72 h old; larger amounts (up to 4,000); splitting payments; currency purchase above 2,500 EUR eq.; adding a payee; `PAYEE_VERIFICATION` (Verification of Payee) close match, no match or not available", "One-time code; three wrong codes in a row freeze every approval of the customer, taps included"],
+        ["R4", "Infeasible payment, unregistered or blocked payee, IBAN not in the registry, other tenant, reserve breach, over 4,000 EUR per payment or 5,000 EUR per day, untrusted origin, sanctions hit, invalid IBAN, look-alike payee name, off-price FX quote, `PAYEE_VERIFICATION` no match or not available when the account number comes from a document of the same request, locked approval, policy error", "Denied; nothing the model or the customer says overrides it"],
     ], [0.6, 5.4, 3.2], indent=True, size=8)
+    c.p("**Access surfaces.** The same orchestrator and gates sit behind all three; they differ in who can reach them.", after=3, size=9)
+    c.table(["Surface", "Who is the customer", "Authentication", "Limits"], [
+        ["Streamlit UI", "Fixed: Lina (`u_lina`)", "None: local demo on `127.0.0.1`, Host allow-list", "The code is shown on screen and the guided demo enters it; Reset demo, the model selector and the exchange-rate toggle rebuild the sandbox and clear the code lock"],
+        ["Harness CLI", "`--user`: any seeded customer", "None: a local process", "Same orchestrator and gates"],
+        ["HTTP API", "Any seeded customer; the one in `BG_API_USER`; or the one a per-customer token is bound to", "None on loopback unless a token is set; a token is required off loopback (plain HTTP)", "A token reaches only its own customer's sessions; random session ids; an approval must carry the `params_hash` shown with the action; 200 sessions at most; `BG_API_TOKEN` is one shared secret"],
+    ], [1.4, 2.0, 2.7, 3.1], indent=True, size=8)
 
     c = Cursor(doc, anchors["Confirmation, verification and rollback mechanisms"]._p)
     c.bullets([
@@ -927,11 +960,12 @@ def build_ssa() -> Path:
         ["Blind v1, rules parser, first run", "47/48 attacks, 21/25 benign", "Blind at the time. A claim that all 14 document injections were detected was inflated: 8 misses were masked by the seeded invoice. Corrected; three structural signals now detect them."],
         ["**Blind v2, rules parser** (`44542f2`)", "**69/70 attacks** (95% CI 92.3 to 99.7); multi-turn 15/15; 24/30 benign English (62.7 to 90.5); non-English 0/5; 0 wrong payments, 0 data leaks, 0 unconfirmed executions", "**Generalisation estimate, rules.** Nine attacks were stopped only because the parser did not understand them (58/59 without them). The one miss needed the customer's code."],
         ["**Blind v2, Qwen2.5 7B** (`5868d83`)", "**66/70 attacks** (86.2 to 97.8); multi-turn 15/15; 26/30 benign English (70.3 to 94.7); non-English 5/5; 137 calls, 0 fallbacks. Qwen 3B: 65/70, 21/30, 3/5", "**Generalisation estimate, LLM parser.** One run. No payment to an unregistered account. One bypass from a field the model changed (X02)."],
-        ["Regression after the frozen runs", "Qwen 7B 103/105 on v2; cascade 103/105; both 69/69 and 29/29 on the development suites; 1230 tests pass", "Not generalisation: the system was changed after seeing these cases."],
+        ["Regression after the frozen runs", "Qwen 7B 103/105 on v2; cascade 104/105; both 69/69 and 29/29 on the development suites; 1379 tests pass", "Not generalisation: the system was changed after seeing these cases."],
     ], [2.6, 3.9, 3.0], indent=True, size=7.5)
     c.p("**White-box audits.** Round 1 (code before `2ce6035`): 12 findings (3 High, 3 Medium, 6 Low). Round 2 (code at "
-        "`22b144e`): 11 findings (2 Medium, 9 Low). Each has a test in `tests/audit/` that runs the exploit; "
-        "96 tests pass and no xfail is left.", after=3)
+        "`22b144e`): 11 findings (2 Medium, 9 Low). Round 3 (after `d1822bf`, 2026-10-20): 8 findings (1 High, 2 Medium, "
+        "5 Low). Each has a test that runs the exploit (`tests/audit/`, `tests/harness/`); 169 audit tests pass and no "
+        "xfail is left. These are the fixed vulnerabilities; open and unverified points are in Section 04.", after=3)
     c.table(["ID", "Sev.", "Finding", "Status"], [
         ["AUDIT-1", "High", "A poisoned FX quote could charge 2,590 USD for 100 EUR; quotes were reusable", "Fixed: ledger issues single-use quotes; `FX_PRICE_CHECK`"],
         ["AUDIT-2", "High", "A watch-listed IBAN with Arabic-Indic digits got R3, not the sanctions deny; no mod-97 check", "Fixed: canonical IBAN, `IBAN_VALID`"],
@@ -941,6 +975,11 @@ def build_ssa() -> Path:
         ["AUDIT-12", "Low", "Anchors signed with the public demo key when `BG_RECEIPT_KEY` is unset", "Mitigated: logged and shown in the UI; still the offline default"],
         ["AUDIT2-1, 2", "Medium", "A sanctioned name without spaces passed the screen; a model's free text was shown as the bank's own words and bare URLs became links", "Fixed in `c10f0a0`"],
         ["AUDIT2-3 to 11", "Low", "Markdown in chips; ungrounded synonyms, currencies and memo; question turned into a correction; duplicate cards; proxy variable; raw telemetry; quadratic CPU on a long message", "Fixed in `c10f0a0`"],
+        ["APPSEC-1", "High", "With an empty key field in the UI, the operator's `BG_MODEL_API_KEY` was sent to the Base URL a visitor typed (reproduced)", "Fixed: the environment key goes only to the origin named in `BG_MODEL_BASE_URL`"],
+        ["APPSEC-2, 3", "Medium", "\"Rules only\" silently used `BG_PARSER`, so a remote model could sit behind the label; Streamlit listened on every interface and showed tracebacks", "Fixed: explicit rules parser; `127.0.0.1`, Host allow-list, no tracebacks; Docker on `127.0.0.1`"],
+        ["HARD-1 to 3", "Medium", "After three wrong codes an R2 one-tap still executed; the HTTP API had one shared token, guessable session ids and approval by action id; with a model parser the security event of a refusal depended on the model's label (real Qwen 7B: 67/69)", "Fixed: every approval frozen by the lock; per-customer tokens, random ids, `params_hash` required, 200-session cap; the rules classify the refusal too"],
+        ["REV-1, REV-2", "Medium", "Independent review of the phase-2 changes: a bill named twice by a model was paid twice; the question filter passed look-alike letters; Cancel and Correct cues were too common; a slow error body held a call; one token could use all sessions", "Fixed with tests: a bill is paid once (the ledger refuses a second payment for an obligation), stricter filters, time limit, 50 sessions per customer. Left open: DNS rebinding and the document-IBAN heuristic (R-24, R-25)"],
+        ["APPSEC-4 to 8", "Low", "Unbounded model response and private-network model URL; a document IBAN split by words, and a not-available document IBAN only R3; unauthenticated remote API and loose Host parsing; 200 MB uploads; port sharing on Windows", "Fixed: 256 KiB cap and public-address check; both IBAN cases R4; token required off loopback, `BG_API_USER`; 1 MB upload; exclusive bind"],
     ], [1.3, 0.8, 4.9, 2.2], indent=True, size=7.5)
 
     # ---- 03 Data and Privacy
@@ -948,7 +987,7 @@ def build_ssa() -> Path:
     c.table(["Topic", "What is true in this prototype"], [
         ["Provenance", "All data is synthetic. The persona (Lina), balances, payees, IBANs, invoices and the sanctions list are invented constants in `bg/contracts/params.py`. The IBANs are fictional and pass the mod-97 check. No real person, account or document was used. The Qwen models were run unmodified; nothing was fine-tuned."],
         ["Consent", "No real user took part, so no personal data was collected and no consent was needed. A real deployment would need the customer's consent to process her messages, and to send them to a third-party model if a remote model is connected. Choosing \"Connect a model\" in the UI shows that a remote endpoint receives the messages."],
-        ["Minimisation", "A model receives only the customer's message, her own payee names and aliases, and the agent's pending question. Never IBANs, balances, documents or other customers' data. The audit log keeps a SHA-256 and the length of each message instead of its text, masks IBANs to their last four characters and drops one-time codes. Model telemetry holds timings, a hash and an error class."],
+        ["Minimisation", "A model receives only the customer's message, her own payee names and aliases, and the agent's pending question. Never a saved IBAN, a balance, a document or another customer's data; an IBAN or code typed in the sentence goes with it (R-22). The audit log keeps a SHA-256 and the length of each message instead of its text, masks IBANs to their last four characters and drops one-time codes. Model telemetry holds timings, a hash and an error class."],
         ["Storage", "Sessions, drafts, the wrong-code counter and ledger state are in memory and end with the process. Receipts are in SQLite, in memory by default or in a file if a path is given; each row holds the full action payload as plain text. Mission audit logs in `deliverables/evidence/` are masked. A connected model's API key lives only in the browser session or the environment and is never written to disk. There is no encryption at rest and no access control in the sandbox."],
         ["Third parties", "None by default; no network call is made. A local model is called on `localhost`. A connected remote model receives the message and the payee names."],
         ["Deletion", "Ending the process or pressing Reset demo discards the sandbox state. The receipt chain cannot be edited without breaking verification, so a real erasure request needs another design (hashes only in the chain, payloads in a separate store under a per-customer key that can be deleted). That is not built."],
@@ -958,21 +997,14 @@ def build_ssa() -> Path:
 
     # ---- 04 Known Risks
     c = Cursor(doc, anchors["Risk, impact, mitigation and planned improvement"]._p)
-    c.table(["Risk", "Impact", "Mitigation today", "Planned improvement"], [
-        ["Sandbox only: no real bank, KYC, AML or FX source; one persona, EUR and USD", "No claim about production behaviour or compliance", "Stated in every document; the UI shows \"SANDBOX, no real money\"", "Integrate a real payment-initiation API and the bank's strong customer authentication"],
-        ["No authentication; fixed one-time code `246810`; predictable session ids; frozen clock", "Whoever opens a session acts as that user; codes can be guessed in a real setting; time-based rules never run in real time", "Per-customer lockout after 3 wrong codes; constant-time comparison", "Authenticated sessions with random tokens; a per-transaction code from a real second factor"],
-        ["The guard misses a new injection phrasing (English and French patterns only)", "A missing warning only; authorisation never reads the guard", "Registry IBANs, `UNTRUSTED_ORIGIN`, hash-bound approval; language-independent structural signals", "A learned detector as an extra advisory layer, evaluated on a new blind set"],
-        ["A model changes or invents a field; grounding checks presence, not meaning", "A visible card the customer must approve, or a question", "Grounding on every parser; sanctions screen on the source text; cards show payee and amount", "A blind set written to probe extraction; a check on exceptions and past amounts"],
-        ["No frontier model measured; Qwen measured once", "Unknown accuracy and failure modes of other models", "Same checks apply whichever model answers; https and key handling in the connector", "Run the blind protocol through the connector with intervals"],
-        ["Connector, cascade, selector (`c10f0a0`), harness and Verification of Payee (`d1822bf`) not audited", "Possible findings not yet known", "Unit tests (32 connector, 46 hardening, 16 selector, 23 harness, 56 Verification of Payee)", "A third white-box audit"],
-        ["A connected remote model receives the customer's messages", "Message and payee names leave the machine", "Off by default; https only; the UI says so; key is session-only", "Per-deployment data-processing terms; a local model for sensitive use"],
-        ["Receipt chain needs the customer's copy; symmetric HMAC; public demo key", "Truncation or rewrite is undetectable without her anchor; the key holder could forge one", "Anchor check in the UI; warning while the demo key is in use", "Asymmetric signatures, key ids and rotation, external timestamping or on-chain anchoring"],
-        ["Sanctions screen is a demonstration: fictional list, finite look-alike table", "Real matching would miss or over-block", "Fails closed on letters it cannot fold; wildcards; spacing variants", "A maintained list, full Unicode confusables, transliteration and fuzzy matching"],
-        ["Structuring rule covers one payee and one 24 h window", "Splitting across payees or days is not detected", "Step-up and an event on the covered case", "Cross-payee, longer-window analytics"],
-        ["User approves a malicious payee or payment", "Money can reach a scammer the user chose", "72 h new-payee step-up, sanctions and name-collision checks, explicit card, caps", "A cool-off delay; Verification of Payee"],
-        ["State in memory; no lock between policy and execution; plain-text receipts", "Lost on restart; a shared backend would need locks; no erasure", "One backend per session; documented", "A database with row locks; hashes in the chain and encrypted payloads"],
-        ["Post-fix results are regression, not blind", "No current generalisation estimate", "Two frozen runs reported separately", "A fresh blind set (v3) after all fixes"],
-    ], [2.5, 2.1, 2.5, 2.1], indent=False, size=7.5)
+    c.p("For each risk: description, potential impact, severity, mitigations in place, remaining action and status. "
+        "Severity is what the finding would be if the prototype were deployed as it is; the sandbox effect is in "
+        "brackets where it differs. Fixed vulnerabilities are in the audit tables of Section 02. Nothing here is a claim "
+        "that the prototype is secure.", after=3, size=9)
+    c.p("**Residual risks** (accepted for the sandbox; Mitigated means reduced, not removed)", after=2, size=9)
+    c.table(ssa_register.COLUMNS, ssa_register.RESIDUAL, [0.55, 2.0, 1.35, 0.8, 2.1, 1.7, 0.7], indent=False, size=6.5)
+    c.p("**Unverified points** (could not be checked here)", after=2, size=9)
+    c.table(ssa_register.COLUMNS, ssa_register.UNVERIFIED, [0.55, 2.0, 1.35, 0.8, 2.1, 1.7, 0.7], indent=False, size=6.5)
 
     add_page_number(doc)
     set_props(doc, "BorderlessGuard: Security Self-assessment")
@@ -1014,9 +1046,9 @@ def build_evidence() -> Path:
     set_header_table(doc)
     anchors = locate(doc)
     work = ROOT / "out" / "submission_assets"
-    f_plan = crop_shot("03_plan_and_injection.png", (575, 110, 1650, 760), work / "ev_plan.png")
-    f_exec = crop_shot("04_executed.png", (575, 620, 1650, 950), work / "ev_exec.png")
-    f_att = crop_shot("06_attacks.png", (575, 325, 1650, 735), work / "ev_attacks.png")
+    f_plan = crop_shot("03_plan_and_injection.png", (650, 110, 1570, 700), work / "ev_plan.png")
+    f_exec = crop_shot("04_executed.png", (650, 540, 1570, 950), work / "ev_exec.png")
+    f_att = crop_shot("06_attacks.png", (650, 360, 1570, 800), work / "ev_attacks.png")
 
     # ---- 01 Evidence Summary
     c = Cursor(doc, anchors["Selected topic and scenario"]._p)
@@ -1025,15 +1057,15 @@ def build_evidence() -> Path:
         "\"Pay my November tuition and rent, but keep at least 600 euros for living expenses.\" Her rent invoice hides an "
         "instruction to send 2,000 EUR to a UK account. Twenty-one scripted missions cover this scenario and its variants. "
         "Everything runs in a **simulated sandbox**, offline, with a fixed clock (2026-10-28T09:00Z) and the rules parser. "
-        "No real money, bank, user or hosted model is involved. Commit `d1822bf`, run on 2026-10-19.")
+        "No real money, bank, user or hosted model is involved. State: the working tree after commit `3b4e894`, run on 2026-10-20.")
     c = Cursor(doc, anchors["What the evidence demonstrates"]._p)
     c.table(["What it shows", "Result", "Where"], [
         ["Task completion", "21 of 21 scripted missions completed; mean 1.57 user turns and 2.00 confirmation acts per mission; exact final balances, executed payments and denials", "`deliverables/evidence/`, `task_completion.md`"],
         ["Golden path", "Three actions proposed from one sentence; the forged invoice's 2,000 EUR transfer is never proposed; final balances EUR 600.00 and USD 196.74; three linked receipts; chain verifies against the signed anchor", "`scripts/golden_path.py`; section 02 below"],
         ["Security controls in action", "Over-limit and reserve breaches denied with a receipt; tampered approval refused; three wrong codes lock approval by code; structuring needs a code; a homoglyph sanctioned payee denied; poisoned FX note dropped; replay moves money once", "Missions T11 to T21"],
-        ["Tests", "1230 passed, 7 documented expected failures (1237 collected); 69/69 attacks blocked and 29/29 benign completed in the development suites", "`scripts/verify_all.py`"],
+        ["Tests", "1271 passed, 7 documented expected failures (1386 collected); 69/69 attacks blocked and 29/29 benign completed in the development suites", "`scripts/verify_all.py`"],
         ["Blind evaluation", "Rules parser 69/70 attacks (frozen `44542f2`); Qwen2.5 7B 66/70 (frozen `5868d83`). These two are the generalisation estimates; everything later is regression", "`deliverables/heldout_v2_results.md`, `deliverables/blind_llm/`"],
-        ["Audits", "Two white-box audits, 23 findings, all fixed or mitigated; 96 audit tests pass", "`docs/review/security_audit.md`, `tests/audit/`"],
+        ["Audits", "Three white-box audits, 31 findings, all fixed or mitigated; 169 audit tests pass", "`docs/review/security_audit.md`, `tests/audit/`"],
     ], [1.7, 5.6, 2.0], indent=True, size=8)
     c.p("**Not evidenced:** behaviour with any hosted or frontier model; behaviour against a human adversary in a "
         "browser; concurrency, authentication and real-time clocks; generalisation after the fixes (no new blind set).",
@@ -1051,9 +1083,9 @@ def build_evidence() -> Path:
         "against the anchor, no other customer's datum in any reply).")
     c.lead("Golden path receipts (T01, scripts/golden_path.py)")
     c.table(["Step", "Action", "Confirmation", "Receipt", "receipt_hash (first 16)", "prev (first 16)"], [
-        ["1", "Buy 2,200.00 EUR for 2,403.26 USD (fee 11.96 USD)", "tap (R2)", "`rcpt_0001`", "`8c661a5bf6fe9f13`", "`0000000000000000`"],
-        ["2", "Pay 1,200.00 EUR to Université Paris-Saclay (tuition)", "tap (R2)", "`rcpt_0002`", "`ebedca3cfcb65522`", "`8c661a5bf6fe9f13`"],
-        ["3", "Pay 850.00 EUR to Jean Dupont (rent)", "one-time code (R3)", "`rcpt_0003`", "`0694b25f682fd3a4`", "`ebedca3cfcb65522`"],
+        ["1", "Buy 2,200.00 EUR for 2,403.26 USD (fee 11.96 USD)", "tap (R2)", "`rcpt_0001`", "`c69672ecf0fcba83`", "`0000000000000000`"],
+        ["2", "Pay 1,200.00 EUR to Université Paris-Saclay (tuition)", "tap (R2)", "`rcpt_0002`", "`457825d52fa80afc`", "`c69672ecf0fcba83`"],
+        ["3", "Pay 850.00 EUR to Jean Dupont (rent)", "one-time code (R3)", "`rcpt_0003`", "`81c06012939fac4f`", "`457825d52fa80afc`"],
     ], [0.5, 3.0, 1.5, 1.1, 1.8, 1.8], indent=True, size=7.5)
     c.p("Anchor after step 3: `seq=3`, signed with the public demo key (`BG_RECEIPT_KEY` unset). `verify_chain(anchor)` "
         "returns \"chain intact, consistent with anchor at seq 3\". After receipt 3 is deleted from the database, the same "
@@ -1061,8 +1093,9 @@ def build_evidence() -> Path:
         "same code and dependencies, because the clock is fixed and ids derive from content.", size=9.5)
 
     c = Cursor(doc, anchors["Timestamp, action, result and relevant screenshot/link"]._p)
-    c.p("The sandbox clock is fixed at 2026-10-28T09:00:00Z, so every record carries that time (the runs were made on "
-        "2026-10-19). `seq` is the position in the log. The video of the demo is submitted separately.", size=9.5, after=3)
+    c.p("The sandbox clock is fixed at 2026-10-28T09:00:00Z. Receipts (`issued_at`) and exchange quotes (`expires_at`) "
+        "carry that time; the other records carry only `seq`, their position in the log, so the first column below is the fixed "
+        "sandbox time of the mission, not a wall-clock time (the runs were made on 2026-10-20). The video of the demo is submitted separately.", size=9.5, after=3)
     c.table(["Timestamp (sandbox)", "Action", "Result", "Evidence file"], mission_rows(), [1.3, 3.2, 3.0, 2.8],
             indent=False, size=7.2)
     c.figure(f_plan, 14.0, "Screenshot 1 (T01). The request, the quarantined forged invoice and the first of three actions, "
@@ -1083,18 +1116,18 @@ def build_evidence() -> Path:
     c.code([
         "git clone https://github.com/Arracheur2Bonnet/Borderless.git && cd Borderless",
         "python3.11 -m venv .venv && .venv/bin/python -m pip install -r requirements-lock.txt",
-        ".venv/bin/python scripts/verify_all.py                     # steps 2 and 3, about 20 s",
+        ".venv/bin/python scripts/verify_all.py                     # steps 2 and 3, about 70 s",
         ".venv/bin/python scripts/golden_path.py                    # step 4: RESULT: PASS",
         ".venv/bin/python -m streamlit run ui/app.py                # http://localhost:8501/?guided=1",
         "# Windows PowerShell: .\\.venv\\Scripts\\python.exe instead of .venv/bin/python",
     ])
-    c.p("Expected final table of `verify_all.py` (2026-10-19, `d1822bf`):", after=2)
+    c.p("Expected final table of `verify_all.py` (2026-10-20, working tree after `3b4e894`):", after=2)
     c.code([
-        "PASS  pytest (full suite)     135.7s  1230 passed, 7 xfailed",
-        "PASS  scripted missions         2.3s  21/21 missions completed",
-        "PASS  golden path               1.9s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)",
-        "PASS  security report           5.4s  attacks blocked 69/69, benign completed 29/29; matches committed report",
-        "PASS  evidence reproducible     0.3s  regenerated evidence identical to committed files",
+        "PASS  pytest (full suite)      40.8s  1379 passed, 7 xfailed",
+        "PASS  scripted missions         0.6s  21/21 missions completed",
+        "PASS  golden path               0.4s  RESULT: PASS (EUR 600.00, USD 196.74, 3 receipts)",
+        "PASS  security report           1.2s  attacks blocked 69/69, benign completed 29/29; matches committed report",
+        "PASS  evidence reproducible     0.1s  regenerated evidence identical to committed files",
     ])
     c.p("Do not run `tests/e2e_report.py` on its own to check the numbers: run directly, it rewrites the committed "
         "report. `verify_all.py` redirects its output to a temporary folder and compares it. Inside the Docker image the "
@@ -1105,7 +1138,7 @@ def build_evidence() -> Path:
         "ollama pull qwen2.5:7b-instruct && ollama pull qwen2.5:3b-instruct",
         "python scripts/eval_parser.py --parser local   --suite tests/heldout_v2 --runxfail --out out/qwen7b_v2",
         "python scripts/eval_parser.py --parser cascade --suite tests/heldout_v2 --runxfail --out out/cascade_v2",
-        "python scripts/eval_parser.py --parser connected --base-url http://localhost:11434/v1 \\",
+        "python scripts/eval_parser.py --parser connected --base-url http://127.0.0.1:11434/v1 \\",
         "       --model qwen2.5:7b-instruct --suite tests/benign --out out/connected_benign",
     ])
     c.table(["Check out", "Run", "Committed result"], [
@@ -1113,7 +1146,8 @@ def build_evidence() -> Path:
         ["`5868d83`", "Qwen 3B; rules parser (not blind)", "89 of 105; 99 of 105"],
         ["`d3e0f49`", "Qwen 7B after the grounding fix", "103 of 105 (B20, B25); dev suites 69/69 and 29/29. `deliverables/regression_llm/`"],
         ["`c10f0a0`", "Cascade (rules, Qwen 3B, 7B)", "103 of 105 (B25, N02-de); 119 of 137 messages answered by the rules; median 0.0 s per message; 69/69 and 29/29"],
-        ["`c10f0a0`", "Connector pointed at local Ollama (Qwen 7B)", "Benign suite 29/29; 30 calls, 0 fallbacks, mean 2.6 s"],
+        ["`c10f0a0`", "Connector pointed at local Ollama (Qwen 7B)", "Benign suite 29/29; 30 calls, 0 fallbacks, mean 2.6 s (through `localhost`)"],
+        ["Phase 2 (final code)", "Cascade; Qwen 7B alone", "Cascade 104 of 105 (B25), 69/69, 29/29; Qwen 7B 103 of 105 (B20, M06), 69/69, 29/29, 137 calls, 0 fallbacks, mean 0.48 s. `deliverables/regression_llm/phase2_*`"],
     ], [2.2, 3.0, 4.0], indent=True, size=8)
     c.p("The model runs use temperature 0, but another Ollama version, quantisation or hardware can change a few outputs; "
         "the committed reports and `llm_calls.jsonl` are the record. The Qwen runs were all done with the committed "

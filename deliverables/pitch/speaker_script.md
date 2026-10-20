@@ -5,7 +5,7 @@ which leaves more than a minute of margin inside the 10 minutes.
 
 Lines that start with `>` are said word for word. Text in [brackets] is a stage direction: do it, do not say it.
 The keynote notes (`deliverables/pitch/keynote/notes.js`) are generated from this file by
-`./.venv/Scripts/python deliverables/pitch/build_keynote.py`, one section per slide (15 slides). Edit the words here,
+`./.venv/Scripts/python deliverables/pitch/build_keynote.py`, one section per slide (15 spoken slides, plus S16, an architecture appendix that is not part of the talk). Edit the words here,
 then rebuild. Never edit notes.js by hand. (The older PowerPoint builder `build_deck.py` expects 14 sections and is
 no longer the source of the stage deck.)
 
@@ -13,7 +13,7 @@ no longer the source of the stage deck.)
 one text. If the demo breaks, you keep talking and press the arrow key instead of clicking in the browser.
 
 The live demo uses the app's **Guided demo (6 steps)** mode: one button per step, no typing. The six button labels
-are the ones in `demo_video_script.md` and `ui/guided.py`.
+are the ones in `ui/guided.py`.
 
 How to say numbers (practise these out loud):
 
@@ -60,6 +60,18 @@ extra time the live demo needs.
 
 Total: 1,065 spoken words = 8:31 of speech, plus about 30 seconds of clicks and switching = **about 9:01**.
 The word counts above are from the last count of this file; if you change words, recount (`build_keynote.py` prints the total) and copy the new counts.
+**How the 10 minutes hold up** (1,065 spoken words; the table above rounds each slide down, so its rows add up to 8:23, not 8:31):
+
+| Speaking pace | Speech | + 30 s of clicks | + 60 s | + 75 s |
+|---|---|---|---|---|
+| 150 wpm (brisk) | 7:06 | 7:36 | 8:06 | 8:21 |
+| 125 wpm (planned) | 8:31 | **9:01** | 9:31 | 9:46 |
+| 110 wpm (slow) | 9:40 | 10:10 | 10:40 | 10:55 |
+
+The talk fits in 10:00 at 112 wpm or faster with 30 s of clicks, and at 118 wpm or faster with 60 s of clicks. The live demo is the
+uncertain part: six guided steps in a Streamlit app each take a few seconds to answer, so time them on the real app in the rehearsal and
+use the checkpoints below. S16 is not spoken and adds nothing.
+
 Checkpoints: leave the demo (end of S7) by **4:45**; start the hero slide (S11) by **5:48**; start S12 (the model slide) by **6:33**.
 
 ### S1 · Title slide
@@ -93,7 +105,7 @@ Checkpoints: leave the demo (end of S7) by **4:45**; start the hero slide (S11) 
 > The AI reads your request. Fixed rules and your approval move the money.
 > [point along the line, left to right: the dashed line in the middle is where authority starts]
 > The language model only writes a request, like "pay tuition and rent, keep six hundred".
-> It has no tools. It never sees a bank account number.
+> It has no tools. It never sees a saved bank account number.
 > A checker drops any amount or name that Lina did not write.
 > Account numbers come only from her saved payees.
 > It simulates the whole plan. Then fixed rules give a risk level, from R-zero to R-four.
@@ -182,7 +194,7 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 > Account numbers come only from the saved payees. Approval is tied to a hash, so a changed payment is refused.
 > Codes lock after three wrong tries. A replay never pays twice.
 > [point at the two controls marked Financial crime] And two financial-crime controls: split payments, and sanctions.
-> [point at the line at the bottom] We also had our code audited twice: twenty-three findings, all fixed or mitigated.
+> [point at the line at the bottom] We also had our code audited three times: thirty-one findings, all fixed or mitigated.
 
 ### S10 · 14 named rules on every payment; R4 has no override
 
@@ -248,7 +260,7 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 > You do not make a money agent safe by asking the model to be good.
 > You take away its authority. [pause] Thank you.
 
-[Stay on slide 15 for questions. Do not go back to slide 1.]
+[Stay on slide 15 for questions. Do not go back to slide 1. If asked how it is built, type 16 and Enter: the architecture appendix.]
 
 ### If you are late: cuts in order
 
@@ -256,6 +268,14 @@ happens for five seconds, switch to the backup slide of that step (Part 4).
 2. Past 7:40 at the end of S12: say only the last sentence of S13, then go to S15 (skip S14).
 3. If the attack run is slow: drop the list of seven attacks in S7; say "Seven known attacks, each on a fresh account."
    Never cut the S11 caveats or the Qwen misses in S12: they are what makes the numbers believable.
+
+---
+
+### S16 · Appendix: how a request flows (only if asked about architecture)
+[Not part of the 10 minutes. Press End to reach it, or type 16 and Enter.]
+
+> This is the whole path of a request. Left of the dashed line, the model and the documents can be fooled.
+> Right of it is plain code: grounding, the orchestrator, a simulation, fourteen rules, her approval, the ledger and a signed receipt.
 
 ---
 
@@ -268,7 +288,7 @@ About 285 words (about 2:15). Slides: 1, 3, 11, 12, 15. No live demo; if they al
 > If the model decides, the attacker decides.
 > [slide 3] BorderlessGuard is built so that a fooled model still cannot move money.
 > The AI reads your request. Fixed rules and your approval move the money.
-> The model only writes a request. It has no tools and never sees an account number.
+> The model only writes a request. It has no tools and never sees a saved account number.
 > Account numbers come only from her saved payees. Fixed rules give a risk level: one tap, a code, or a hard no.
 > In the demo, Lina says one sentence: pay my tuition and rent, keep six hundred euros.
 > The invoice is quarantined, the plan pays the real landlord, and she keeps exactly six hundred.
@@ -279,7 +299,7 @@ About 285 words (about 2:15). Slides: 1, 3, 11, 12, 15. No live demo; if they al
 > Zero wrong payments, zero data leaks, zero executions without confirmation.
 > The same test on a local model, Qwen: sixty-six out of seventy, still zero wrong payments.
 > One miss was a shortened sanctioned name, so every name and amount must now be in her own message.
-> [slide 15] Then we had our code audited twice: twenty-three findings, all fixed or mitigated. It is a sandbox. We say so. Next, with WeBank: a federated risk score with FATE, and receipts anchored on FISCO BCOS.
+> [slide 15] Then we had our code audited three times: thirty-one findings, all fixed or mitigated. It is a sandbox. We say so. Next, with WeBank: a federated risk score with FATE, and receipts anchored on FISCO BCOS.
 > You do not make a money agent safe by asking the model to be good. You take away its authority. Thank you.
 
 ## Part 3. The 30-second elevator pitch
@@ -380,7 +400,7 @@ Deck and backups:
 |---|---|---|
 | 20 min | The 5 sentences, from memory, 10 times. | Perfect. |
 | 30 min | Timed run 3, recorded, standing up, with the clicker. | Under 9:15. |
-| 30 min | Q&A drill: someone (or a recording of yourself) reads 15 questions from `qa_prep.md` at random. Answer each in under 40 seconds. | Every answer starts with "Yes", "No" or a number. |
+| 30 min | Q&A drill: someone (or a recording of yourself) reads 15 questions from the team's Q&A prep notes at random. Answer each in under 40 seconds. | Every answer starts with "Yes", "No" or a number. |
 | 20 min | 2-minute version, twice, timed. 30-second pitch, five times. | 2:00 and 0:30, no notes. |
 | 20 min | Timed run 4: full backup path (no live demo, slides 4 to 7). | Same words, about 8:15. |
 | 20 min | Timed run 5: the final dress rehearsal, with the pre-stage checklist first. | Under 9:15, no stumble on the 5 sentences. |

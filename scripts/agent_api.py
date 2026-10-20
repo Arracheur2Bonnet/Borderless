@@ -5,8 +5,9 @@
 
 Endpoints: POST /session, POST /message, POST /confirm, POST /reject, GET /overview?session=..., GET /health.
 See docs/HARNESS.md. The sandbox is in memory and deterministic; restarting the server resets it.
-Set BG_API_TOKEN to require "Authorization: Bearer <token>". Listening on a non-loopback address needs --allow-remote
-(the sandbox has no real money, but the API has no TLS and the demo one-time code is public).
+Set BG_API_TOKEN to require "Authorization: Bearer <token>", or BG_API_TOKENS="<token>=u_lina,<token2>=u_other" for one token per customer
+(a token only reaches its own customer's sessions). Listening on a non-loopback address needs --allow-remote AND a token (the sandbox has no
+real money, but the API has no TLS and the demo one-time code is public). An approval must carry the params_hash shown with the action.
 """
 from __future__ import annotations
 

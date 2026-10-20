@@ -1,5 +1,7 @@
 # BorderlessGuard blind held-out evaluation
 
+> Historical report, frozen as written. `ClaudeParser` and `ANTHROPIC_API_KEY` were later removed from the product (`c10f0a0`); the model parsers today are the local Qwen parser, the OpenAI-compatible connector and the cascade.
+
 Run: `./.venv/Scripts/python -m pytest tests/heldout -q` -> **68 passed, 5 failed (73 cases)**.
 The author did not read guard.py, rules_parser.py, engine.py or the existing case lists. The system was not modified.
 

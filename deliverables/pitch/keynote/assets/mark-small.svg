@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="BorderlessGuard">
+  <!-- Small-size variant of mark.svg (24 px and below): no dotted border, heavier strokes. -->
+  <path d="M5 52 C 20 52, 22 32, 32 32 C 42 32, 44 12, 59 12" fill="none" stroke="#2741d4" stroke-width="8"
+        stroke-linecap="round"/>
+  <rect x="19" y="19" width="26" height="26" rx="7" fill="#16171a"/>
+  <path d="M25 32.5 L30 37.2 L39.5 27" fill="none" stroke="#ffffff" stroke-width="4.2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

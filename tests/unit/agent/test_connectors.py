@@ -117,6 +117,7 @@ def test_label_names_the_endpoint_host_and_fits_the_contract():
 
 def test_api_key_from_environment_and_never_leaks(monkeypatch, tmp_path):
     monkeypatch.setenv("BG_MODEL_API_KEY", KEY)
+    monkeypatch.setenv("BG_MODEL_BASE_URL", "https://api.deepseek.com/v1")   # the env key is for this endpoint only
     stats = tmp_path / "calls.jsonl"
     monkeypatch.setenv("BG_LLM_STATS", str(stats))
     seen = {}
@@ -142,6 +143,7 @@ def test_api_key_from_environment_and_never_leaks(monkeypatch, tmp_path):
 
 def test_explicit_key_wins_over_environment(monkeypatch):
     monkeypatch.setenv("BG_MODEL_API_KEY", "from-env")
+    monkeypatch.setenv("BG_MODEL_BASE_URL", "https://api.deepseek.com/v1")
     seen = {}
 
     def http(url, payload, timeout, headers):

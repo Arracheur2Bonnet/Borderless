@@ -1,7 +1,8 @@
 """Builds the generated parts of the HTML keynote in deliverables/pitch/keynote/:
 
-  assets/*.png   crops of the final dark UI screenshots (deliverables/screenshots/dark), pixel boxes below
-  assets/tokens.css   copy of design/tokens.css (the keynote is one self-contained folder)
+  assets/*.png   crops of the final light UI screenshots (deliverables/screenshots), pixel boxes below
+  assets/tokens.css   copy of design/tokens.css (the keynote is one self-contained folder; light only)
+  assets/mark*.svg    copies of design/brand/mark.svg and mark-small.svg
   notes.js       speaker notes per slide, from the spoken lines and stage directions of speaker_script.md
 
 and CHECKS every number typed in index.html against the repo (sources below). The build fails (assert) if a
@@ -24,7 +25,7 @@ from PIL import Image
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 KN = HERE / "keynote"
-DARK = ROOT / "deliverables/screenshots/dark"
+SHOTS = ROOT / "deliverables/screenshots"
 WPM = 125
 sys.path.insert(0, str(ROOT))
 
@@ -34,21 +35,24 @@ def read(rel: str) -> str:
 
 
 # ============================================================================ assets
-# (output name, source screenshot, pixel box in the 1920x1080 capture). The main column of the app is x 574..1650.
+# (output name, source screenshot, pixel box in the 1920x1080 capture). The main column of the light app is x 662..1558
+# (sidebar 0..300); every box is 920 px wide (x 650..1570) so the crops line up in the keynote window.
 CROPS = [
-    ("s04_affordability.png", "02_affordability.png", (574, 345, 1650, 1005)),
-    ("s05_plan.png", "03_plan_and_injection.png", (574, 105, 1650, 785)),
-    ("s06a_approve.png", "g3_guided_step3.png", (574, 325, 1650, 1005)),
-    ("s06b_code.png", "g4_guided_step4.png", (574, 325, 1650, 1005)),
-    ("s06c_receipts.png", "05_receipts.png", (574, 325, 1650, 1005)),
-    ("s07_attacks.png", "06_attacks.png", (574, 325, 1650, 1040)),
-    ("s08_correction.png", "08_correction.png", (574, 100, 1650, 600)),
+    ("s04_affordability.png", "02_affordability.png", (650, 325, 1570, 1030)),   # question, answer, projection
+    ("s05_plan.png", "03_plan_and_injection.png", (650, 108, 1570, 828)),         # reply, quarantine banner, exchange step
+    ("s06a_approve.png", "g3_guided_step3.png", (650, 160, 1570, 880)),           # exchange and tuition done
+    ("s06b_code.png", "g4_guided_step4.png", (650, 160, 1570, 880)),              # rent paid after the code, receipt 3
+    ("s06c_receipts.png", "05_receipts.png", (650, 300, 1570, 1020)),             # receipts table, matches your copy
+    ("s07_attacks.png", "06_attacks.png", (650, 360, 1570, 1030)),                # 7 / 7 blocked, first attacks
+    ("s08_correction.png", "08_correction.png", (650, 170, 1570, 745)),           # "actually make it 40", new action
 ]
 (KN / "assets").mkdir(parents=True, exist_ok=True)
 for out, src, box in CROPS:
-    assert (DARK / src).is_file(), f"missing screenshot {DARK / src}: run scripts/screenshots.py <out> dark"
-    Image.open(DARK / src).convert("RGB").crop(box).save(KN / "assets" / out, optimize=True)
+    assert (SHOTS / src).is_file(), f"missing screenshot {SHOTS / src}: run scripts/screenshots.py <out_dir>"
+    Image.open(SHOTS / src).convert("RGB").crop(box).save(KN / "assets" / out, optimize=True)
 shutil.copyfile(ROOT / "design/tokens.css", KN / "assets/tokens.css")
+for mk in ("mark.svg", "mark-small.svg"):
+    shutil.copyfile(ROOT / "design/brand" / mk, KN / "assets" / mk)
 
 # ============================================================================ sourced numbers (asserted against index.html)
 HTML = (KN / "index.html").read_text(encoding="utf-8")
@@ -132,7 +136,7 @@ assert qfail == ["D04-nested-quote", "D05-markdown-link", "D08-bursar-doc", "X02
 claim("Qwen's 4 misses", True, "")
 
 # --- Smart cascade (rules first, local Qwen only when needed): regression on held-out v2, NOT blind
-casc = json.loads(read("deliverables/regression_llm/regression_cascade_heldout_v2/report.json"))
+casc = json.loads(read("deliverables/regression_llm/phase2_cascade_heldout_v2/report.json"))
 assert casc["parser"] == "cascade" and casc["suite"] == "tests/heldout_v2" and casc["cases"] == 105, casc["suite"]
 by = casc["cascade"]["answered_by"]
 share_rules = round(100 * by["rules"] / casc["cascade"]["messages"])
@@ -141,7 +145,7 @@ assert casc["cascade"]["latency_s"]["median"] == 0.0 and casc["fallback_rate"] =
 claim("87% of messages answered by rules", share_rules == 87, "cascade report.json: rules 119 of 137 messages")
 claim("median 0.0 s", casc["cascade"]["latency_s"]["median"] == 0.0, "cascade report.json latency median")
 claim("Regression, not blind.", True, "the cascade was designed after the blind runs")
-claim("103/105", casc["passed"] == 103, "cascade also passes 103/105 on held-out v2 (regression)")
+assert casc["passed"] == 104, casc["passed"]       # 104/105 on the final code (B25 by design)
 claim("Smart cascade", True, "")
 # two models of one family were run blind; the 3B report must exist and be a blind (pre-fix) run
 q3 = json.loads(read("deliverables/blind_llm/qwen2.5_3b_heldout_v2/report.json"))
@@ -154,12 +158,13 @@ assert "claude" not in HTML.lower(), "a slide still mentions Claude"
 TC = read("deliverables/task_completion.md")
 m = re.search(r"Tasks: \*\*(\d+)\*\*, completed: \*\*(\d+)\*\*", TC)
 claim(f"{m[2]} of {m[1]}", m[1] == m[2] == "21", "scripted missions")
+assert (ROOT / "docs/HARNESS.md").is_file() and (ROOT / "bg/harness.py").is_file() and (ROOT / "bg/http_api.py").is_file()
+claim("through a CLI or a local HTTP API", True, "bg/harness.py, scripts/agent_cli.py, bg/http_api.py, docs/HARNESS.md")
 AUD = read("docs/review/security_audit.md")
-AUD_N = len(re.findall(r"^\| AUDIT-\d+ \| \*?\*?(?:High|Medium|Low)", AUD, re.M))
-AUD2_N = len(re.findall(r"^\| AUDIT2-\d+ \| \*?\*?(?:High|Medium|Low)", AUD, re.M))
-assert "All 11 round-2 findings are fixed" in AUD
-claim(f"{AUD_N + AUD2_N} findings, all fixed or mitigated", (AUD_N, AUD2_N) == (12, 11), "audit rounds 1 and 2")
-claim(f"{AUD_N + AUD2_N} audit findings fixed or mitigated", (AUD_N, AUD2_N) == (12, 11), "audit rounds 1 and 2")
+AUD_ROUNDS = [len(re.findall(rf"^\| {pre}-\d+ \| \*?\*?(?:High|Medium|Low)", AUD, re.M)) for pre in ("AUDIT", "AUDIT2", "APPSEC")]
+AUD_N = sum(AUD_ROUNDS)                 # round 1 + round 2 + round 3 (docs/review/security_audit.md)
+claim(f"{AUD_N} findings", AUD_N == 31 and AUD_ROUNDS == [12, 11, 8], "audit findings (12 + 11 + 8)")
+claim(f"{AUD_N} audit findings", AUD_N == 31, "audit findings")
 
 # --- the 14 rules and thresholds, from a live run of the golden path
 from bg.app import build_default  # noqa: E402
@@ -172,8 +177,8 @@ t = o.handle_message(sid, P.DEMO_GOAL, [UntrustedDocument(**d) for d in P.SEED_D
 pay = next(v for v in t.actions if v.action.action_type == "payment" and v.action.beneficiary_id == "b_univ")
 RULES = [(x.rule_id, x.severity.value) for x in pay.decision.rules]
 assert len(RULES) == 14 and sum(s == "R4" for _, s in RULES) == 10 and sum(s == "R3" for _, s in RULES) == 4, RULES
+assert "PAYEE_VERIFICATION" in dict(RULES)
 claim("14 named rules", True, "")
-claim("The 14 rules on Lina's tuition payment", True, "")
 claim("10 deny", True, ""); claim("4 ask for a code", True, "")
 for rid, sev in RULES:
     claim(f'<span class="rid {sev.lower()}">{rid}</span>', True, "rule id from live run")
@@ -194,13 +199,13 @@ claim(re.sub(r"\s+", " ", hidden).strip(), True, "hidden comment text, verbatim"
 claim("20 hours ago", True, "demo step 4 text")
 SRCS = read("deliverables/pitch/sources.md")
 assert "Business Email Compromise  $2,770,151,146" in SRCS and "Prompt injection is listed as **LLM01**" in SRCS
-claim('<span class="u pre">USD</span>2.77<span class="u">bn</span>', True, "sources.md S1")
+claim("USD 2.77 bn", True, "sources.md S1")
 claim("#1", True, "")
 
 # --- live test run
 tests_txt = "829"
 if "--skip-tests" not in sys.argv:
-    out = subprocess.run([str(ROOT / ".venv/Scripts/python"), "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider"],
+    out = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider"],
                          cwd=ROOT, capture_output=True, text=True).stdout
     mm = re.search(r"(\d+) passed", out)
     xf = re.search(r"(\d+) xfailed", out)
@@ -218,7 +223,7 @@ for sid_, body in re.findall(r"^### (S\w+?) [^\n]*\n(.*?)(?=^### |\Z)", SCRIPT, 
 
 # slide index (1-based) -> script section; None = slide added in the keynote (notes proposed below)
 SLIDE_TO_SECTION = {1: "S1", 2: "S2", 3: "S3", 4: "S4", 5: "S5", 6: "S6", 7: "S7", 8: "S8", 9: "S9", 10: "S10",
-                    11: "S11", 12: "S12", 13: "S13", 14: "S14", 15: "S15"}
+                    11: "S11", 12: "S12", 13: "S13", 14: "S14", 15: "S15", 16: "S16"}
 PROPOSED: dict = {}   # every slide has a section in speaker_script.md now
 
 

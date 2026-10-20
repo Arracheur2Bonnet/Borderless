@@ -9,6 +9,10 @@ venv
 *.db
 *.sqlite
 .env
+.env.*
+*.pem
+*.key
+*.p12
 data/runtime
 # research material and binaries not needed to run or verify the demo
 *_files
@@ -22,3 +26,20 @@ deliverables/pitch
 deliverables/screenshots
 Dockerfile
 .dockerignore
+# never in the image: personal data, third-party material, media builds, local outputs (public-release audit)
+submission
+references
+media
+out
+verify-report
+.claude
+deliverables/video
+deliverables/demo
+deliverables/submission
+**/node_modules
+*.xlsx
+*.docx
+*.pptx
+*.mp4
+*.mp3
+*.log

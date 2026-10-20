@@ -1,22 +1,38 @@
-"""Visual layer helpers: loads the shared design tokens, inline icons, pills. No untrusted text is handled here
-except through esc_html (pill labels)."""
+"""Visual layer helpers: loads the shared design tokens, inline icons, status marks, the facts list.
+No untrusted text is handled here except through esc_html (mark labels, facts, notes).
+
+LIGHT ONLY: there is no dark theme (design/BRAND.md). The brand mark (design/brand/mark-small.svg) reaches the page
+as a CSS variable (--mark-small), so no <img> is ever emitted."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
+from urllib.parse import quote
 
 from ui.util import esc_html
 
 ROOT = Path(__file__).resolve().parents[1]
+MARK_SMALL = ROOT / "design" / "brand" / "mark-small.svg"
+
+
+def _mark_variable() -> str:
+    """':root { --mark-small: url(data:...) }' from the small mark (24 px and below). Empty if the file is missing."""
+    try:
+        svg = re.sub(r"<!--.*?-->", "", MARK_SMALL.read_text(encoding="utf-8"), flags=re.S)
+    except OSError:                                    # the app still works without the mark
+        return ""
+    svg = re.sub(r"\s+", " ", svg).strip()
+    return f":root {{ --mark-small: url(\"data:image/svg+xml,{quote(svg, safe='')}\"); }}"
 
 
 def load_css() -> str:
     tokens = (ROOT / "design" / "tokens.css").read_text(encoding="utf-8")
     comps = (Path(__file__).parent / "components.css").read_text(encoding="utf-8")
-    return f"<style>\n{tokens}\n{comps}\n</style>"
+    return f"<style>\n{tokens}\n{_mark_variable()}\n{comps}\n</style>"
 
 
 def _svg(body: str, fill: bool = False) -> str:
-    attrs = ('fill="currentColor"' if fill else 'fill="none" stroke="currentColor" stroke-width="2.2" '
+    attrs = ('fill="currentColor"' if fill else 'fill="none" stroke="currentColor" stroke-width="2" '
              'stroke-linecap="round" stroke-linejoin="round"')
     return f'<svg viewBox="0 0 24 24" {attrs} aria-hidden="true">{body}</svg>'
 
@@ -46,23 +62,43 @@ ICON = {
 
 # risk level -> (icon, label, tone)
 RISK = {
-    "R0": ("eye", "Read-only", "neutral"), "R1": ("undo", "Reversible", "info"), "R2": ("check", "One tap", "ok"),
+    "R0": ("eye", "Read-only", "neutral"), "R1": ("undo", "Reversible", "neutral"), "R2": ("check", "One tap", "ok"),
     "R3": ("key", "Code needed", "warn"), "R4": ("block", "Blocked", "bad"),
 }
 STATUS = {
-    "awaiting_confirmation": ("clock", "Waiting for you", "info"), "executed": ("check", "Done", "ok"),
+    "awaiting_confirmation": ("clock", "Waiting for you", "neutral"), "executed": ("check", "Done", "ok"),
     "denied": ("block", "Blocked", "bad"), "rejected_by_user": ("x", "Cancelled", "neutral"),
     "replayed": ("repeat", "Duplicate ignored", "neutral"), "failed": ("x", "Failed", "bad"),
     "proposed": ("clock", "Proposed", "neutral"),
 }
-TONE_OF_RISK = {"R0": "neutral", "R1": "info", "R2": "ok", "R3": "warn", "R4": "bad"}
+TONE_OF_RISK = {"R0": "neutral", "R1": "neutral", "R2": "ok", "R3": "warn", "R4": "bad"}
 
 
 def pill(icon: str, text: str, tone: str = "neutral", extra: str = "") -> str:
+    """A status mark: icon + word in the meaning colour (never colour alone). Quiet by design: no filled shape."""
     return f"<span class='bg-pill {tone} {extra}'>{ICON.get(icon, '')}{esc_html(text)}</span>"
 
 
+# Verification of Payee: "Payee check: <outcome> - <detail>" (bg/agent/orchestrator.py, mirrored by the fake backend).
+_PAYEE_CHECK = "Payee check: "
+_PAYEE_OUTCOME = {"match": ("check", "ok", "Match"), "close match": ("alert", "warn", "Close match"),
+                  "no match": ("alert", "bad", "No match"), "not available": ("info", "warn", "Not available")}
+
+
+def _note_row(note: str) -> str:
+    if note.startswith(_PAYEE_CHECK):
+        outcome, _, detail = note[len(_PAYEE_CHECK):].partition(" - ")
+        icon, tone, label = _PAYEE_OUTCOME.get(outcome.strip().lower(), ("info", "neutral", outcome.strip()))
+        return (f"<div class='r check'><div class='k'>Payee check</div><div class='v'>"
+                f"<span class='bg-pill {tone}'>{ICON[icon]}{esc_html(label)}</span>"
+                f"<span class='d'>{esc_html(detail)}</span></div></div>")
+    return f"<div class='r note'><div class='k'>Note</div><div class='v'>{esc_html(note)}</div></div>"
+
+
 def kv_html(rows: list[tuple[str, str]], notes: list[str] | None = None) -> str:
-    cells = "".join(f"<div><div class='k'>{esc_html(k)}</div><div class='v'>{esc_html(v)}</div></div>" for k, v in rows)
-    cells += "".join(f"<div class='note'>{ICON['info']}<span>{esc_html(n)}</span></div>" for n in notes or [])
+    """The key facts of a decision card: a hairline-ruled list (label left, value right), no boxes.
+    Every interpolated value is escaped; `notes` are the agent's extra lines (a Payee check gets its own row)."""
+    cells = "".join(f"<div class='r'><div class='k'>{esc_html(k)}</div><div class='v'>{esc_html(v)}</div></div>"
+                    for k, v in rows)
+    cells += "".join(_note_row(n) for n in notes or [])
     return f"<div class='bg-kv'>{cells}</div>"

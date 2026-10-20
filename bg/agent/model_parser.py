@@ -15,15 +15,45 @@ import urllib.parse
 import urllib.request
 from typing import Any, Callable
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, model_validator
 
 from bg.contracts.models import FinancialIntent, ParsedRequest
 
 from .rules_parser import RulesParser
 
 
+MAX_INTENTS = 10          # a message holds a handful of requests; a longer list is a malfunction, not a plan
+MAX_FIELD_CHARS = 500     # no free-text field of an intent (name, reference, memo, question, reason) is longer
+
+
+class ModelEndpointRefused(ValueError):
+    """The endpoint was refused before any request (host does not resolve, or resolves to a private address)."""
+
+
+class ModelResponseTooLarge(ValueError):
+    """The reply went over MAX_MODEL_RESPONSE_BYTES."""
+
+
+def _longest_text(node: Any) -> int:
+    if isinstance(node, str):
+        return len(node)
+    if isinstance(node, dict):
+        return max((_longest_text(v) for v in node.values()), default=0)
+    if isinstance(node, (list, tuple)):
+        return max((_longest_text(v) for v in node), default=0)
+    return 0
+
+
 class _Envelope(BaseModel):
     intents: list[FinancialIntent]
+
+    @model_validator(mode="after")
+    def _bounded(self) -> "_Envelope":
+        if len(self.intents) > MAX_INTENTS:
+            raise ValueError(f"more than {MAX_INTENTS} intents")
+        if _longest_text([i.model_dump(mode="python") for i in self.intents]) > MAX_FIELD_CHARS:
+            raise ValueError(f"a text field is longer than {MAX_FIELD_CHARS} characters")
+        return self
 
 
 BASE_PROMPT = """You are the intent parser of a banking assistant. Convert the user's message into typed intents and nothing else.
@@ -156,11 +186,31 @@ def opener_for(url: str) -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(*handlers)
 
 
+MAX_MODEL_RESPONSE_BYTES = 256 * 1024     # a typed-intent reply is a few hundred bytes; anything bigger is refused
+
+
 def post_json(url: str, payload: dict, timeout: float, headers: dict[str, str] | None = None) -> dict:
+    """One POST. `timeout` bounds each wait on the socket AND, since phase 2, the whole exchange: a server that
+    sends one byte at a time cannot hold the caller for longer than `timeout` seconds once the headers are in."""
     req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
                                  headers={"Content-Type": "application/json", **(headers or {})}, method="POST")
+    deadline = time.monotonic() + timeout
+    chunks: list[bytes] = []
+    size = 0
     with opener_for(url).open(req, timeout=timeout) as resp:      # noqa: S310 (scheme checked by the callers)
-        return json.loads(resp.read().decode("utf-8"))
+        while True:
+            if time.monotonic() > deadline:
+                raise TimeoutError("model response too slow")
+            chunk = resp.read1(8192)                              # one socket read at most, so the deadline is checked
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+            if size > MAX_MODEL_RESPONSE_BYTES:                   # never read an unbounded body (APPSEC-4)
+                raise ModelResponseTooLarge("model response too large")
+        if getattr(resp, "length", 0):                            # fewer bytes than the server promised
+            raise ConnectionError("model response was cut short")
+    return json.loads(b"".join(chunks).decode("utf-8"))
 
 
 # ---------------------------------------------------------------------------------------------- the base class
@@ -234,6 +284,12 @@ class ModelParser:
             what = "timed out" if reason == "timeout" else "is unreachable"
             return self._fall_back(text, names, pq, f"{noun} {what}; used the offline rules parser.", t0, reason,
                                    f"{type(exc).__name__}: {str(exc)[:120]}")
+        except ModelEndpointRefused:
+            return self._fall_back(text, names, pq, f"{noun} endpoint was refused; used the offline rules parser.",
+                                   t0, "endpoint_refused")
+        except ModelResponseTooLarge:
+            return self._fall_back(text, names, pq, f"{noun} reply was too large; used the offline rules parser.",
+                                   t0, "too_large")
         except ValueError:
             return self._fall_back(text, names, pq, f"{noun} returned invalid JSON; used the offline rules parser.",
                                    t0, "invalid_json")

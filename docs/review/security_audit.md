@@ -222,3 +222,39 @@ All 11 round-2 findings are fixed in `c10f0a0`. The xfail marker of each was rem
 | AUDIT2-11 | Fixed | `MAX_MESSAGE_CHARS = 2000` is checked before any scan or parse (the chat input has the same limit); the amount regex is non-backtracking. |
 
 Not covered by this audit: `bg/agent/connectors.py`, `bg/agent/model_parser.py`, the cascade and the Language model selector, all added in `c10f0a0`.
+
+## Round 3: before the public release (2026-10-20)
+
+A third white-box review, again by a separate AI agent that did not write the code, covered what changed since
+`c10f0a0`: the scripted-task harness and its HTTP API, `help.py`, FX cost, Verification of Payee, the light UI, Docker
+and CI. Four parallel audits ran first, read-only: application security, secrets and git history (gitleaks 8.21.2 plus
+manual searches), dependencies and infrastructure (pip-audit, npm audit), and publication readiness. The fixes followed,
+each covered by a test in `tests/audit/test_audit3_findings.py` or `tests/harness/test_http_api.py`.
+
+| ID | Sev. | Finding | Fix |
+|---|---|---|---|
+| APPSEC-1 | High | With "Connect a model" and an empty key field, the operator's `BG_MODEL_API_KEY` was sent to whatever Base URL a UI visitor typed. This was reproduced with a capture server. | The environment key is used only for the origin named in `BG_MODEL_BASE_URL` (`connectors._env_key_for`). |
+| APPSEC-2 | Medium | "Rules only" passed `parser=None`, so `BG_PARSER=connected/local/cascade` silently replaced the rules behind the label, including in the Attack tab. | The UI always passes an explicit `RulesParser` (`build_parser`, `make_backend`). |
+| APPSEC-3 | Medium | Streamlit listened on all interfaces with no Host allow-list, showed tracebacks, and the docs published `-p 8501:8501`. | `.streamlit/config.toml`: `address = 127.0.0.1`, `allowedHosts`, `showErrorDetails = none`. Docker is documented with `-p 127.0.0.1:8501:8501`. |
+| APPSEC-4 | Low | The model response was read without a size limit. | `post_json` reads at most 256 KiB; anything larger is refused and the rules take over. |
+| APPSEC-5 | Low | An IBAN in a document, split by inserted words ("GB33BUKB (new branch) 2020…"), was not recognised as coming from the document, so a no-match payee got R3 instead of R4. | `_doc_ibans` also accepts the IBAN's characters in order within a short window. End to end, the case is now denied (R4). |
+| APPSEC-6 | Low | `--allow-remote` started an unauthenticated plain-HTTP API. | `make_server` refuses a non-loopback address without `BG_API_TOKEN`. |
+| APPSEC-7 | Low | Uploads up to 200 MB were decoded before being cut to 20,000 characters. | `maxUploadSize = 1` (MB), and only the bytes that are kept are decoded. |
+| APPSEC-8 | Low | On Windows, another process could bind the harness port next to it (SO_REUSEADDR). | Exclusive bind on Windows (`SO_EXCLUSIVEADDRUSE`). |
+
+Release hygiene done in the same pass:
+- `.dockerignore` now also excludes personal and third-party material and media builds.
+- The image code is owned by root; only the regenerated evidence is writable.
+- CI actions are pinned by commit SHA, with `persist-credentials: false`, timeouts and a pip-audit step. Dependabot covers pip, actions and docker.
+- `.gitignore` has broader secret and OS patterns, with the research rules anchored to the root.
+- The deck metadata no longer carries a template author's name.
+
+Follow-up in the same pass (all tested in `tests/audit/test_audit3_findings.py`):
+- **Not-available outcome:** a payee whose account is outside the bank's directory ("not available") and whose IBAN comes from a document is now denied (R4), like a no-match. Typed by the customer, it still needs her code (R3).
+- **Model endpoints:** a remote model endpoint must resolve to public addresses only. This is checked at every call, so a DNS change is caught. Loopback stays allowed for local model servers; `BG_MODEL_ALLOW_PRIVATE=1` is an explicit operator opt-in for a private model server.
+- **Harness API:** the Host header is parsed strictly, and a request with two Host headers is refused. `BG_API_USER` limits the API to one customer.
+- **Dependencies:** `requirements-lock.txt` and `requirements-dev.txt` carry sha256 hashes for every pin. pip installs them in hash-checking mode; this was checked by a fresh install and by resolution for Linux, Windows and macOS.
+- **Docker:** the base image is pinned by digest (`python:3.11.17-slim`).
+- **Portability:** the build scripts find LibreOffice on PATH and use the running Python; `sync-voice.mjs` calls ffprobe without a shell.
+- **Secrets scan:** gitleaks found no secret in the 36 commits (local and remote), nor in the working tree. Every hit was a false positive: test fixtures, placeholders, the documented public demo signing key and idempotency ids. Office and PDF files were checked separately, for their metadata and for text patterns.
+- **Remaining limit:** there are no per-user tokens. One token gives full access to the sandbox customers that the API serves, so set `BG_API_USER` to serve only one.

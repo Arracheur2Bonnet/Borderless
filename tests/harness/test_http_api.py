@@ -47,8 +47,9 @@ def test_t01_through_http_ends_at_600_196_74_and_three_receipts(api):
     assert st == 200 and [a["type"] for a in m["actions"]] == ["fx", "payment", "payment"]
     assert "Cost of this exchange: 11.96 USD (0.50%)" in m["assistant_text"]
     assert any(e["kind"] == "prompt_injection" for e in m["events"])
-    for otp in (None, None, "246810"):
-        st, c = call(api, "POST", "/confirm", {"session": sid, "action": "last", **({"otp": otp} if otp else {})})
+    for a, otp in zip(m["actions"], (None, None, "246810")):                    # the approval carries the hash shown
+        st, c = call(api, "POST", "/confirm", {"session": sid, "action": a["id"], "params_hash": a["params_hash"],
+                                               **({"otp": otp} if otp else {})})
         assert st == 200 and c["actions"][0]["status"] == "executed", c
     st, ov = call(api, "GET", f"/overview?session={sid}")
     assert st == 200 and ov["balances"] == {"EUR": "600.00", "USD": "196.74"}
@@ -68,8 +69,9 @@ def test_reject_leaves_the_balances_alone(api):
 def test_wrong_otp_is_refused_and_the_step_keeps_waiting(api):
     _, s = call(api, "POST", "/session", {"user": "u_lina"})
     sid = s["session"]
-    call(api, "POST", "/message", {"session": sid, "text": "send 100 euros to jean"})
-    st, r = call(api, "POST", "/confirm", {"session": sid, "action": "last", "otp": "111111"})
+    _, m = call(api, "POST", "/message", {"session": sid, "text": "send 100 euros to jean"})
+    st, r = call(api, "POST", "/confirm", {"session": sid, "action": "last", "otp": "111111",
+                                           "params_hash": m["actions"][0]["params_hash"]})
     assert st == 200 and r["actions"][0]["status"] == "awaiting_confirmation" and r["balances"]["EUR"] == "450.00"
     assert any(e["kind"] == "step_up_failed" for e in r["events"]) and r["receipts"] == []
     assert "111111" not in json.dumps(r)
@@ -88,8 +90,9 @@ def test_field_validation(api):
     assert call(api, "POST", "/message", {"session": sid, "text": 42})[0] == 400
     assert call(api, "POST", "/message", {"session": ["x"], "text": "hi"})[0] == 404
     assert call(api, "POST", "/confirm", {"session": sid, "otp": 123456})[0] == 400
-    assert call(api, "POST", "/confirm", {"session": sid, "action": "last"})[0] == 409      # nothing waiting
-    assert call(api, "POST", "/confirm", {"session": sid, "action": "act_nope"})[0] == 404
+    assert call(api, "POST", "/confirm", {"session": sid, "action": "last"})[0] == 400      # the hash is required
+    assert call(api, "POST", "/confirm", {"session": sid, "action": "last", "params_hash": "abc"})[0] == 409   # nothing waiting
+    assert call(api, "POST", "/confirm", {"session": sid, "action": "act_nope", "params_hash": "abc"})[0] == 404
     assert call(api, "POST", "/session", {"user": "u_nobody"})[0] == 400
 
 
@@ -103,7 +106,7 @@ def test_unknown_session_is_a_404(api):
     assert call(api, "POST", "/message", {"session": "s_999_deadbeef", "text": "hi"})[0] == 404
     assert call(api, "GET", "/overview?session=s_999_deadbeef")[0] == 404
     assert call(api, "GET", "/overview")[0] == 404
-    assert call(api, "POST", "/confirm", {"session": "nope", "action": "last", "otp": "246810"})[0] == 404
+    assert call(api, "POST", "/confirm", {"session": "nope", "action": "last", "otp": "246810", "params_hash": "x"})[0] == 404
 
 
 def test_content_type_methods_and_paths(api):
@@ -139,10 +142,13 @@ def test_token_is_enforced_when_configured():
         server.server_close()
 
 
-def test_non_loopback_host_needs_an_explicit_opt_in():
+def test_non_loopback_host_needs_an_explicit_opt_in_and_a_token(monkeypatch):
+    monkeypatch.delenv("BG_API_TOKEN", raising=False)
     with pytest.raises(ValueError):
         make_server("0.0.0.0", 0)
-    make_server("0.0.0.0", 0, allow_remote=True).server_close()
+    with pytest.raises(ValueError):                                  # APPSEC-6: no unauthenticated remote mode
+        make_server("0.0.0.0", 0, allow_remote=True)
+    make_server("0.0.0.0", 0, allow_remote=True, token="t0ken-for-test").server_close()
 
 
 def test_responses_carry_no_traceback_or_secret(api):
@@ -150,3 +156,102 @@ def test_responses_carry_no_traceback_or_secret(api):
     st, r = call(api, "POST", "/message", {"session": s["session"], "text": "my code is 246810, send 20 euros to mom"})
     blob = json.dumps(r)
     assert "Traceback" not in blob and "BG_RECEIPT_KEY" not in blob
+
+
+# ------------------------------------------------------------------------------------------- phase 2 hardening
+def _serve(**kw):
+    server = make_server("127.0.0.1", 0, Harness(), **kw)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    host, port = server.server_address[:2]
+    return server, f"http://{host}:{port}"
+
+
+def test_session_ids_are_random_and_the_internal_id_is_not_accepted(api):
+    ids = {call(api, "POST", "/session", {})[1]["session"] for _ in range(5)}
+    assert len(ids) == 5 and all(len(i) >= 20 and not i.startswith("s_") for i in ids)
+    assert call(api, "POST", "/message", {"session": "s_1_cb8ccc36", "text": "hi"})[0] == 404     # the old, guessable form
+
+
+def test_an_approval_is_bound_to_the_hash_shown_with_the_action(api):
+    _, s = call(api, "POST", "/session", {})
+    sid = s["session"]
+    _, m = call(api, "POST", "/message", {"session": sid, "text": "send 50 euros to mom"})
+    a = m["actions"][0]
+    assert a["status"] == "awaiting_confirmation" and len(a["params_hash"]) == 64
+    st, b = call(api, "POST", "/confirm", {"session": sid, "action": a["id"], "params_hash": "0" * 64})
+    assert st == 409 and "does not match" in b["error"]
+    _, ov = call(api, "GET", f"/overview?session={sid}")
+    assert ov["balances"]["EUR"] == "450.00"                                     # nothing moved
+    st, c = call(api, "POST", "/confirm", {"session": sid, "action": a["id"], "params_hash": a["params_hash"]})
+    assert st == 200 and c["actions"][0]["status"] == "executed"
+
+
+def test_a_customer_token_opens_and_uses_only_its_own_customers_sessions():
+    lina, other = "t" * 20 + "-lina", "t" * 20 + "-other"
+    server, base = _serve(user_tokens={lina: "u_lina", other: "u_other"})
+    try:
+        as_lina, as_other = {"Authorization": f"Bearer {lina}"}, {"Authorization": f"Bearer {other}"}
+        assert call(base, "POST", "/session", {}, headers={})[0] == 401
+        assert call(base, "POST", "/session", {}, headers={"Authorization": "Bearer nope"})[0] == 401
+        st, s = call(base, "POST", "/session", {}, headers=as_lina)                 # no user given: the token's customer
+        assert st == 201 and s["user"] == "u_lina"
+        assert call(base, "POST", "/session", {"user": "u_other"}, headers=as_lina)[0] == 403
+        _, so = call(base, "POST", "/session", {}, headers=as_other)
+        assert so["user"] == "u_other"
+        # a token never reaches another customer's session, and cannot tell that it exists
+        assert call(base, "POST", "/message", {"session": so["session"], "text": "hi"}, headers=as_lina)[0] == 404
+        assert call(base, "GET", f"/overview?session={so['session']}", headers=as_lina)[0] == 404
+        assert call(base, "GET", f"/overview?session={s['session']}", headers=as_lina)[0] == 200
+    finally:
+        server.shutdown(); server.server_close()
+
+
+def test_the_session_table_is_bounded(monkeypatch):
+    import bg.http_api as api_mod
+    monkeypatch.setattr(api_mod, "MAX_SESSIONS", 3)
+    server, base = _serve()
+    try:
+        codes = [call(base, "POST", "/session", {})[0] for _ in range(4)]
+        assert codes == [201, 201, 201, 429]
+    finally:
+        server.shutdown(); server.server_close()
+
+
+def test_user_token_spec_is_validated():
+    from bg.http_api import parse_user_tokens
+    assert parse_user_tokens("a" * 16 + "=u_lina") == {"a" * 16: "u_lina"}
+    for bad in ("short=u_lina", "a" * 16 + "=u_nobody", "a" * 16):
+        with pytest.raises(ValueError):
+            parse_user_tokens(bad)
+    with pytest.raises(ValueError):
+        make_server("0.0.0.0", 0, Harness(), allow_remote=True, token=None, user_tokens={})
+    make_server("0.0.0.0", 0, Harness(), allow_remote=True, user_tokens={"a" * 16: "u_lina"}).server_close()
+
+
+def test_the_code_lock_freezes_a_one_tap_approval_too(api):
+    """Three wrong codes on the rent card; an R2 one-tap on another card is refused while the lock is on."""
+    _, s = call(api, "POST", "/session", {"user": "u_lina"})
+    sid = s["session"]
+    _, rent = call(api, "POST", "/message", {"session": sid, "text": "send 100 euros to jean"})       # R3: needs a code
+    r3 = rent["actions"][0]
+    for _ in range(3):
+        call(api, "POST", "/confirm", {"session": sid, "action": r3["id"], "otp": "000000", "params_hash": r3["params_hash"]})
+    _, mom = call(api, "POST", "/message", {"session": sid, "text": "send 20 euros to mom"})          # R2: one tap
+    r2 = next(a for a in mom["actions"] if a["status"] == "awaiting_confirmation")
+    st, out = call(api, "POST", "/confirm", {"session": sid, "action": r2["id"], "params_hash": r2["params_hash"]})
+    assert st == 200 and out["actions"][0]["status"] != "executed" and out["balances"]["EUR"] == "450.00"
+    assert "locked" in out["assistant_text"].lower()
+
+
+def test_one_customer_cannot_use_up_the_session_budget_of_the_others(monkeypatch):
+    """Independent review P2-6: with a server-wide cap only, a token holder could lock every other customer out."""
+    import bg.http_api as api_mod
+    monkeypatch.setattr(api_mod, "MAX_SESSIONS_PER_USER", 2)
+    lina, other = "t" * 20 + "-lina", "t" * 20 + "-other"
+    server, base = _serve(user_tokens={lina: "u_lina", other: "u_other"})
+    try:
+        as_lina, as_other = {"Authorization": f"Bearer {lina}"}, {"Authorization": f"Bearer {other}"}
+        assert [call(base, "POST", "/session", {}, headers=as_other)[0] for _ in range(3)] == [201, 201, 429]
+        assert call(base, "POST", "/session", {}, headers=as_lina)[0] == 201
+    finally:
+        server.shutdown(); server.server_close()

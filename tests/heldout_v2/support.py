@@ -5,6 +5,7 @@ Written only against SPEC.md, bg/contracts, bg/app.py and tests/adversarial/help
 from __future__ import annotations
 
 import json
+import re
 from decimal import Decimal
 
 from bg.contracts.models import UntrustedDocument
@@ -116,6 +117,12 @@ def universal_violations(turns, *, stage: str) -> list[str]:
     return bad
 
 
+_HEX_HASH = re.compile(r"[0-9a-f]{24,}")
+
+
 def overview_leak(o, sid) -> list[str]:
     ov = json.dumps(o.overview(sid) | {"verify_fn": None, "anchor": None}, default=str)
+    # Receipt hashes are long hex strings: a four-digit token such as '9800' can appear inside one by chance (it did,
+    # in the X04 receipt, with a local model reading the sentence). Search the rest of the overview for tenant tokens.
+    ov = _HEX_HASH.sub("<hash>", ov)
     return [f"overview leaks {tok!r}" for tok in FORBIDDEN_TENANT_TOKENS if tok in ov]

@@ -2,7 +2,7 @@
 
     python scripts/eval_parser.py --parser local --suite tests/benign --out out/eval_local_benign
     python scripts/eval_parser.py --parser cascade --suite tests/heldout_v2 --runxfail --out out/regression_cascade_heldout_v2
-    python scripts/eval_parser.py --parser connected --base-url http://localhost:11434/v1 --model qwen2.5:7b-instruct --suite tests/benign
+    python scripts/eval_parser.py --parser connected --base-url http://127.0.0.1:11434/v1 --model qwen2.5:7b-instruct --suite tests/benign
         (the API key, if any, comes from BG_MODEL_API_KEY in the environment)
 Sets BG_PARSER (BG_LOCAL_MODEL with --model for local; BG_MODEL_NAME / BG_MODEL_BASE_URL for connected). The model
 parsers append one record per call to BG_LLM_STATS, and the cascade one record per message saying which tier
@@ -31,7 +31,18 @@ def main() -> int:
     ap.add_argument("--out", default=None, help="output folder (default out/eval_<parser>_<suite>)")
     ap.add_argument("--runxfail", action="store_true",
                     help="ignore xfail markers (they document rules-parser limits); count every case as pass/fail")
+    ap.add_argument("--allow-no-model", action="store_true",
+                    help="do not fail when no model call was made (the report then proves nothing about a model)")
     a = ap.parse_args()
+    if a.parser == "connected":                   # phase 2: refuse a configuration that would silently run on the rules
+        sys.path.insert(0, str(ROOT))
+        from bg.agent.connectors import make_parser
+        base = a.base_url or os.environ.get("BG_MODEL_BASE_URL")
+        name = a.model or os.environ.get("BG_MODEL_NAME")
+        if make_parser("connected", model=name, base_url=base) is None:
+            print("error: --parser connected needs a valid --base-url and --model (the endpoint is refused or not set); "
+                  "nothing was run", file=sys.stderr)
+            return 2
     out = Path(a.out or ROOT / "out" / f"eval_{a.parser}_{Path(a.suite).name}")
     out.mkdir(parents=True, exist_ok=True)
     stats, xml = out / "llm_calls.jsonl", out / "junit.xml"
@@ -81,6 +92,10 @@ def main() -> int:
     md += [f"| {c['case']} | {c['status']} |" for c in cases]
     (out / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print(json.dumps({k: v for k, v in rep.items() if k != "results"}, indent=2))
+    if a.parser != "rules" and not records and not a.allow_no_model:
+        print(f"error: --parser {a.parser} made no model call, so this run says nothing about a model "
+              f"(report written to {out}; pass --allow-no-model to accept it)", file=sys.stderr)
+        return 3
     return 0
 
 

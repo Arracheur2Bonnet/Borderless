@@ -1,5 +1,7 @@
 # Held-out v2: independent blind evaluation
 
+> Historical report, frozen as written. `ClaudeParser` and `ANTHROPIC_API_KEY` were later removed from the product (`c10f0a0`); the model parsers today are the local Qwen parser, the OpenAI-compatible connector and the cascade.
+
 Date: 2026-10-17. Tester: a separate AI agent (not a human), with restricted file access, not involved in building or tuning the system.
 Command: `./.venv/Scripts/python -m pytest tests/heldout_v2 -q -p no:cacheprovider`
 Result: **105 tests, 93 passed, 12 failed** (one adversarial failure, 6 English benign failures, 5 non-English benign failures).

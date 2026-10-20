@@ -15,6 +15,7 @@ from datetime import timedelta
 from decimal import Decimal
 from itertools import count
 
+from bg.contracts.canonical import normalize_iban, payee_name_match
 from bg.contracts.hashing import GENESIS_HASH, params_hash, sha256_hex
 from bg.contracts.models import (
     Account, ActionView, AddBeneficiaryAction, AgentTurn, Beneficiary, ChainVerification, ConfirmationRequest,
@@ -22,7 +23,7 @@ from bg.contracts.models import (
     ReceiptAnchor, RiskLevel, RuleResult, SecurityEvent, SimulationResult, UntrustedDocument, Verdict,
 )
 from bg.contracts.params import (
-    DAILY_OUTFLOW_LIMIT_EUR, DEMO_NOW, DEMO_OTP, DEMO_RECEIPT_KEY, DEMO_RESERVE_EUR, DEMO_USER_ID, FX_FEE_RATE,
+    ACCOUNT_HOLDERS, DAILY_OUTFLOW_LIMIT_EUR, DEMO_NOW, DEMO_OTP, DEMO_RECEIPT_KEY, DEMO_RESERVE_EUR, DEMO_USER_ID, FX_FEE_RATE,
     FX_RATES, LANDLORD_IBAN, MAX_OTP_ATTEMPTS, MAX_SINGLE_PAYMENT_EUR, POLICY_VERSION, POISONED_FX_NOTE,
     R2_MAX_PAYMENT_EUR, SANCTIONS_WATCHLIST_IBANS, SANCTIONS_WATCHLIST_NAMES, SEED_ACCOUNTS, SEED_BENEFICIARIES,
     SEED_OBLIGATIONS, STRUCTURING_THRESHOLD_EUR,
@@ -31,7 +32,8 @@ from bg.contracts.params import (
 _RULES = [("SIM_FEASIBLE", "R4"), ("BENEFICIARY_REGISTERED", "R4"), ("BENEFICIARY_NOT_BLOCKED", "R4"),
           ("IBAN_MATCHES_REGISTRY", "R4"), ("TENANT_ISOLATION", "R4"), ("RESERVE_FLOOR", "R4"),
           ("MAX_SINGLE_PAYMENT", "R4"), ("DAILY_LIMIT", "R4"), ("UNTRUSTED_ORIGIN", "R4"),
-          ("SANCTIONS_SCREEN", "R4"), ("BENEFICIARY_AGE", "R3"), ("AMOUNT_TIER", "R3"), ("FX_TIER", "R3"),
+          ("SANCTIONS_SCREEN", "R4"), ("BENEFICIARY_AGE", "R3"), ("PAYEE_VERIFICATION", "R3"),
+          ("AMOUNT_TIER", "R3"), ("FX_TIER", "R3"),
           ("NEW_PAYEE_ACTION", "R3"), ("STRUCTURING", "R3")]
 
 _INJECTION_PATTERNS = ["ignore your previous instructions", "note to the ai assistant",
@@ -106,6 +108,55 @@ def _help_reply(low: str, paying: bool = False) -> str | None:
     return body + "\n\nWhat I can do: " + _CAN_DO + "\n" + _TRY
 
 
+# Verification of Payee (v8): the wording of bg/policy/engine._vop_rule and bg/agent/orchestrator (copied, as above).
+_HOLDERS = {normalize_iban(k): v for k, v in ACCOUNT_HOLDERS.items()}
+
+
+def _vop(typed: str, iban: str, in_document: bool = False) -> tuple[str, str, str, str]:
+    """(outcome, rule detail, severity, holder) of PAYEE_VERIFICATION for a typed name and an IBAN."""
+    nib, typed = normalize_iban(iban), typed.strip()
+    tail, holder = nib[-4:], _HOLDERS.get(nib)
+    if holder is None:
+        return ("na", f"NOT AVAILABLE: the bank has no account-holder record for the account ending {tail}, so the name "
+                      f"{typed!r} could not be checked", "R3", "")
+    out = payee_name_match(typed, holder)
+    if out == "match":
+        return out, f"MATCH: the name {typed!r} matches the account holder on record for the account ending {tail}", "R3", holder
+    if out == "close_match":
+        return out, f"CLOSE MATCH: you gave {typed!r}; the bank has the account ending {tail} as {holder!r}", "R3", holder
+    if in_document:
+        return (out, f"NO MATCH: the name {typed!r} does not match the account holder on record for the account ending "
+                     f"{tail}, and that account number comes from a document (invoice or letter) supplied for this "
+                     "request: invoice-IBAN-swap pattern", "R4", "")
+    return out, f"NO MATCH: the name {typed!r} does not match the account holder on record for the account ending {tail}", "R3", ""
+
+
+def _vop_card_line(outcome: str, holder: str) -> str:
+    if outcome == "match":
+        return f"Payee check: match - the bank has this account as \"{holder}\"."
+    if outcome == "close_match":
+        return f"Payee check: close match - the bank has this account as \"{holder}\". Did you mean that?"
+    if outcome == "no_match":
+        return ("Payee check: no match - the name does not match the account holder at the bank. "
+                "Only go on if the payee gave you these exact details themselves.")
+    return ("Payee check: not available - the bank has no record of who holds this account, "
+            "so the name could not be checked.")
+
+
+def _vop_sentence(outcome: str, name: str, holder: str) -> str:
+    if outcome == "match":
+        return f"Name check passed: the bank has this account as \"{holder}\"."
+    if outcome == "close_match":
+        return (f"The bank has this account as \"{holder}\". Did you mean that? You gave \"{name}\". If so, say no to "
+                "this step and add the payee again under that name; if not, check the name with them before you approve.")
+    if outcome == "no_match":
+        return (f"Warning: the name \"{name}\" does not match the name the bank has for this account. This is how "
+                "invoice and rental scams work. Did someone ask you to change bank details? If so, do not approve: call "
+                "the payee on a number you already know first.")
+    return ("Warning: I could not check the name, because the bank has no record of who holds this account. "
+            "Only go on if the payee gave you these details themselves.")
+
+
 def _dec(s: str) -> Decimal:
     return Decimal(s.replace(",", "")).quantize(_Q)
 
@@ -113,7 +164,7 @@ def _dec(s: str) -> Decimal:
 _FX_RULES = [("SIM_FEASIBLE", "R4"), ("TENANT_ISOLATION", "R4"), ("RESERVE_FLOOR", "R4"), ("FX_PRICE_CHECK", "R4"),
              ("FX_TIER", "R3")]
 _PAYEE_RULES = [("SIM_FEASIBLE", "R4"), ("IBAN_VALID", "R4"), ("PAYEE_NAME_UNIQUE", "R4"), ("SANCTIONS_SCREEN", "R4"),
-                ("NEW_PAYEE_ACTION", "R3")]
+                ("PAYEE_VERIFICATION", "R3"), ("NEW_PAYEE_ACTION", "R3")]
 _PAYMENT_RULES = [r for r in _RULES if r[0] not in ("FX_TIER", "NEW_PAYEE_ACTION")]
 
 
@@ -222,6 +273,12 @@ class FakeOrchestrator:
             fail["RESERVE_FLOOR"] = f"EUR after payment {available - amount:,.2f} would fall below your {reserve:,.2f} reserve"
         if ben["iban"] == LANDLORD_IBAN:
             fail["BENEFICIARY_AGE"] = "payee added 20.00h ago, less than the 72.00h new-payee window"
+        vop_line = ""
+        if ben["iban"] == LANDLORD_IBAN:         # the only seeded payee younger than the 72 h check window
+            v_out, v_detail, _sev, v_holder = _vop(name, ben["iban"])
+            vop_line = _vop_card_line(v_out, v_holder)
+            if v_out != "match":
+                fail["PAYEE_VERIFICATION"] = v_detail
         if amount > R2_MAX_PAYMENT_EUR and amount <= MAX_SINGLE_PAYMENT_EUR:
             fail["AMOUNT_TIER"] = f"{amount:,.2f} EUR is above the {R2_MAX_PAYMENT_EUR:,.0f} EUR one-tap tier"
         prior = [a for b, a in self.executed_payments if b == bid]
@@ -243,6 +300,8 @@ class FakeOrchestrator:
                                balances_after={"acc_eur": available - amount})
         lines = [f"To the account ending {ben['iban'][-4:]} (saved for this payee)",
                  f"EUR balance after: {available:,.2f} -> {available - amount:,.2f}"]
+        if vop_line:
+            lines.insert(1, vop_line)
         title = f"Pay {amount:,.2f} EUR to {name}" + (f" ({label})" if label else "")
         return self._decide(act, sim, risk, title, lines, verdict, rules)
 
@@ -368,7 +427,7 @@ class FakeOrchestrator:
             reply = question + (" I don't send \"everything\" or \"the maximum\"; give me a figure and I'll check "
                                 "it against your balance and limits.")
         elif m := re.match(r"(?:please\s+)?(?:add|register)\s+(.+?)\s+(?:with|,)\s*(?:iban\s*)?(.+)$", text, re.I):
-            reply = self._add_payee(session_id, m.group(1), m.group(2), views, events)
+            reply = self._add_payee(session_id, m.group(1), m.group(2), views, events, documents)
         elif re.search(r"\b(buy|convert|exchange)\b", low) and amounts and not has_pay:
             views.append(self._fx_view(self._aid(session_id), amounts[0]))
             reply = self._one_reply(views[0])
@@ -476,7 +535,8 @@ class FakeOrchestrator:
                 f"{reserve:,.2f} EUR reserve. This is a simulation: nothing was proposed or executed.")
         return p, text[0].upper() + text[1:]
 
-    def _add_payee(self, sid: str, name: str, iban_text: str, views: list, events: list) -> str:
+    def _add_payee(self, sid: str, name: str, iban_text: str, views: list, events: list,
+                   documents: list | None = None) -> str:
         aid = self._aid(sid)
         iban = re.sub(r"\s", "", iban_text).upper().strip(".")
         act = AddBeneficiaryAction(action_id=aid, idempotency_key=f"idem-{aid}", display_name=name.strip(),
@@ -491,11 +551,24 @@ class FakeOrchestrator:
                                       _rules({"SANCTIONS_SCREEN": detail}, _PAYEE_RULES)))
             return (f"I can't add {name.strip()} as a payee: the payee matches an entry on the sanctions list, so the "
                     "bank can't deal with it. Nothing was saved.")
-        views.append(self._decide(act, sim, "R3", f"Add payee {name.strip()}", [f"IBAN: …{iban[-4:]}"],
-                                  Verdict.STEP_UP, _rules({"NEW_PAYEE_ACTION": "adding a payee needs a one-time code"},
-                                                          _PAYEE_RULES)))
+        in_doc = any(iban in re.sub(r"[^A-Z0-9]", "", d.text.upper()) for d in documents or [])
+        v_out, v_detail, v_sev, v_holder = _vop(name, iban, in_doc)
+        if v_sev == "R4":
+            views.append(self._decide(act, sim, "R4", f"Add payee {name.strip()}", [], Verdict.DENY,
+                                      _rules({"PAYEE_VERIFICATION": v_detail}, _PAYEE_RULES)))
+            return (f"I can't add {name.strip()} as a payee: the name you gave doesn't match the account holder at the "
+                    "bank, and the account number comes from a document (an invoice or a letter). That is the classic "
+                    "invoice scam. Call the payee on a number you already know to check any change of bank details. "
+                    "Nothing was saved.")
+        fail = {"NEW_PAYEE_ACTION": "adding a payee needs a one-time code"}
+        if v_out != "match":
+            fail["PAYEE_VERIFICATION"] = v_detail
+        card = [f"IBAN ends {iban[-4:]}", "Payments to this payee need your one-time code for 72 hours",
+                _vop_card_line(v_out, v_holder)]
+        views.append(self._decide(act, sim, "R3", f"Add payee {name.strip()}", card, Verdict.STEP_UP,
+                                  _rules(fail, _PAYEE_RULES)))
         return (f"Add {name.strip()} as a payee (account ending {iban[-4:]}). Adding a payee always needs your one-time "
-                "code.\nNothing moves until you approve it.")
+                f"code. {_vop_sentence(v_out, name.strip(), v_holder)}\nNothing moves until you approve it.")
 
     def confirm(self, session_id: str, action_id: str, params_hash_: str, otp: str | None = None) -> AgentTurn:
         S = self._sessions[session_id]

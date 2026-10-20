@@ -24,7 +24,8 @@ from typing import Any, Sequence
 from bg.contracts import params
 from bg.contracts.canonical import iban_screening_form, name_skeleton, normalize_iban, parse_amount, q2
 from bg.contracts.models import (
-    AddBeneficiary, AffordabilityCheck, Beneficiary, Clarify, Correct, FxConvert, Pay, PayObligations, ProvideDetail,
+    AddBeneficiary, AffordabilityCheck, Beneficiary, Cancel, Clarify, Correct, FxConvert, Pay, PayObligations,
+    ProvideDetail,
 )
 
 from .rules_parser import RulesParser, _IBAN_RE, _find_iban
@@ -501,9 +502,9 @@ def _g_amount(i, kind: str, name: str, amount: Decimal | None, known: set[Decima
 def _g_ref(kind: str, name: str, ref: str | None, tx: _Text, ctx: GroundingContext, reps: list[Repair]) -> bool:
     if ref_grounded(ref, tx, ctx):
         return True
-    shown = "that IBAN" if ref and _is_iban_like(ref) else f"\"{ref}\""
-    reps.append(Repair(kind, name, "payee or IBAN not in the user's message", before=_mask(ref),
-                       note=f"{shown[0].upper() + shown[1:]} isn't in what you wrote, so I didn't use it as the payee."))
+    shown = "That IBAN" if ref and _is_iban_like(ref) else "The payee name I was given"   # never echo a model's text
+    reps.append(Repair(kind, name, "payee or IBAN not in the user's message", before=_mask(ref)[:60] if ref else ref,
+                       note=f"{shown} isn't in what you wrote, so I didn't use it as the payee."))
     return False
 
 
@@ -595,7 +596,7 @@ def _g_kind(kind: str, k: str, tx: _Text, reps: list[Repair]) -> bool:
 
 
 def _obligations(i: PayObligations, tx, ctx, known, reps):
-    kinds = [k for k in i.obligation_kinds if _g_kind("pay_obligations", k, tx, reps)]
+    kinds = [k for k in dict.fromkeys(i.obligation_kinds) if _g_kind("pay_obligations", k, tx, reps)]
     if not kinds:
         q = _clar("Which bill would you like me to pay: your tuition or your rent? Please name it.")
         reps[-1].replaced_by = q
@@ -631,6 +632,13 @@ def _detail(i: ProvideDetail, tx, ctx, known, reps):
 
 
 def _correct(i: Correct, tx, ctx, known, reps):
+    raw = unicodedata.normalize("NFKC", tx.raw)
+    if not (_CORRECT_OPENER.match(raw) or _CORRECT_PHRASE.search(raw)):
+        q = _clar("I wasn't sure you wanted to change the request, so I left it as it was. Say \"make it 40\" or "
+                  "\"actually, to Anna\" if you do.")
+        reps.append(Repair("correct", "wording", "no correction wording in the user's message", replaced_by=q,
+                           note="Nothing was changed."))
+        return q
     upd: dict[str, Any] = {}
     if i.amount is not None and not _g_amount(i, "correct", "amount", i.amount, known, reps):
         upd["amount"] = None
@@ -674,6 +682,33 @@ def _typed_name(text: str, llm_name: str) -> str | None:
     return None
 
 
+# F3 (AI audit, phase 2): a model's Cancel or Correct changes what the customer is about to approve, so the message must
+# carry a cue for it. The cues are the rules parser's, plus the common words of the languages a model is there for.
+_LEAD = (r"^\W*(?:(?:no|nope|ok|okay|please|actually|wait|hmm|sorry|oh|oops|bitte|por favor|non|nein|"
+         r"s'il (?:te|vous) pla[iî]t)\W+)*")
+_CANCEL_CUE = re.compile(
+    _LEAD + r"(?:cancel\w*|never ?mind|forget (?:it|that|about it|everything)|stop|abort|scrap|drop (?:it|that)|reject|"
+    r"discard|remove|delete|withdraw|don'?t (?:send|pay|do|transfer)|do not (?:send|pay|do|transfer)|annul\w*|"
+    r"oublie\w*|laisse tomber|arr[eê]t\w*|olv[ií]d\w*|deja (?:eso|todo)|abbrech\w*|stornier\w*|vergiss\w*|"
+    r"esque[cç]a)\b", re.I)
+_CORRECT_OPENER = re.compile(
+    r"^\W*(?:actually|no|nope|sorry|wait|oops|correction|en fait|non|eigentlich|mejor|en realidad|na verdade|"
+    r"plut[oô]t|lieber)\b", re.I)
+_CORRECT_PHRASE = re.compile(
+    r"\binstead\b|\bmake (?:it|that)\b|\bchange (?:the |that |it )?(?:amount|sum|payee|recipient|beneficiary|to)\b|"
+    r"\bcorrect (?:the )?(?:amount|payee)\b|\bi meant\b|\bje voulais\b|\bplut[oô]t\b|\bquise decir\b|\bich meinte\b|"
+    r"\bstattdessen\b|\bem vez\b|\bcambia(?:r|lo)?\b|\bcorrige\w*\b|\b[aä]nder\w*\b", re.I)
+
+
+def _cancel(i: Cancel, tx, ctx, known, reps):
+    if _CANCEL_CUE.match(unicodedata.normalize("NFKC", tx.raw)):
+        return i
+    q = _clar("I wasn't sure you wanted to cancel, so I left everything as it was. Say \"cancel\" if you do.")
+    reps.append(Repair("cancel", "wording", "no cancellation wording in the user's message", replaced_by=q,
+                       note="Nothing was cancelled."))
+    return q
+
+
 def _add(i: AddBeneficiary, tx, ctx, known, reps):
     if not normalize_iban(i.iban) or normalize_iban(i.iban) not in tx.iban_flat:
         q = _clar("I couldn't find that account number in your message, so I didn't add anyone. Please type the "
@@ -702,4 +737,4 @@ def _add(i: AddBeneficiary, tx, ctx, known, reps):
 
 
 _HANDLERS = {"pay": _pay, "fx_convert": _fx, "affordability_check": _afford, "pay_obligations": _obligations,
-             "provide_detail": _detail, "correct": _correct, "add_beneficiary": _add}
+             "provide_detail": _detail, "correct": _correct, "add_beneficiary": _add, "cancel": _cancel}

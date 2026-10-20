@@ -179,13 +179,19 @@ def _vop_rule(ctx: PolicyContext, typed_name: str, iban: str) -> RuleResult:
     customer gave is compared with the holder the bank has on record for the IBAN. The detail always starts with the
     outcome so that the agent can phrase it: "MATCH", "CLOSE MATCH", "NO MATCH" or "NOT AVAILABLE".
 
-    MATCH passes. CLOSE MATCH, NO MATCH and NOT AVAILABLE fail at R3 (step-up). NO MATCH becomes R4 (deny) when the
-    IBAN also appears in a document supplied for this request: the invoice IBAN-swap scam. The holder's name is only
+    MATCH passes. CLOSE MATCH, NO MATCH and NOT AVAILABLE fail at R3 (step-up). NO MATCH and NOT AVAILABLE become R4
+    (deny) when the IBAN also appears in a document supplied for this request: the invoice IBAN-swap scam. The holder's name is only
     ever quoted for a close match (as banks do); a no-match detail never reveals who holds the account.
     """
     nib = _norm_iban(iban)
     tail = nib[-4:]
     holder = ctx.payee_holders.get(nib)
+    in_doc = nib in {_norm_iban(x) for x in ctx.document_ibans}
+    if holder is None and in_doc:          # unverifiable AND taken from a document: same scam pattern (APPSEC-5)
+        return _R("PAYEE_VERIFICATION", False, RiskLevel.R4,
+                  f"NOT AVAILABLE: the bank has no account-holder record for the account ending {tail}, and that "
+                  f"account number comes from a document (invoice or letter) supplied for this request: an "
+                  f"unverifiable account from a document is refused")
     if holder is None:
         return _R("PAYEE_VERIFICATION", False, RiskLevel.R3,
                   f"NOT AVAILABLE: the bank has no account-holder record for the account ending {tail}, so the name "
@@ -197,7 +203,6 @@ def _vop_rule(ctx: PolicyContext, typed_name: str, iban: str) -> RuleResult:
     if outcome == VOP_CLOSE:
         return _R("PAYEE_VERIFICATION", False, RiskLevel.R3,
                   f"CLOSE MATCH: you gave {typed_name!r}; the bank has the account ending {tail} as {holder!r}")
-    in_doc = nib in {_norm_iban(x) for x in ctx.document_ibans}
     if in_doc:
         return _R("PAYEE_VERIFICATION", False, RiskLevel.R4,
                   f"NO MATCH: the name {typed_name!r} does not match the account holder on record for the account "

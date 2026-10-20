@@ -68,6 +68,8 @@ _REFUSAL_TEXT = {
     "out_of_scope": "That's outside what I can do. I can help with your balance, your bills and payments to your "
                     "saved payees.",
 }
+_QUESTION_CLARIFY = ("That reads as a question, so I didn't do anything. If you want me to act, tell me what to do, "
+                     "for example \"send 50 euros to mom\".")        # our own words, shown even for a model parser
 _FIXED_CLARIFY = "I didn't fully understand that. Who should receive how much? For example \"send 50 euros to mom\"."
 _Q_LINK = re.compile(r"https?:|ftp:|www\.|\b[\w.+-]+@[\w-]+\.[a-z]{2,}|\b[\w-]+\.(?:com|net|org|io|info|biz|ru|cn|example)\b",
                      re.I)
@@ -76,11 +78,25 @@ _Q_CLAIM = re.compile(r"\b(?:done|sent|executed|completed|processed|transferred|
                       re.I)
 
 
+# Phase 2 (AI audit F2): a denylist let through "reply YES to approve 5000 EUR", "read us your PIN" and the like. A model's
+# question is now shown only if it has the shape of a plain clarifying question: one sentence that opens with an
+# interrogative and ends in "?", made of letters, digits and light punctuation, and none of the words a scam uses.
+_Q_SHAPE = re.compile(r"^(?:who|whom|which|what|how|when|where|do you|did you|could you|can you|would you|is that|"
+                      r"is it|are you|should i|shall i|to whom|for whom|from which)\b[\w\s,'.\-]*\?$", re.I | re.A)
+_Q_SCAM = re.compile(r"\b(?:confirm|approve|authori[sz]e|reply|answer yes|yes|password|passcode|pin|otp|cvv|code|"
+                     r"login|log in|sign in|verify|verification|click|call|phone|number on the back|urgent|frozen|"
+                     r"suspended|blocked|risk|security|system|admin|administrator|override|ignore|instruction|"
+                     r"transfer(?:red)? now|send me|give me|tell me|share|sms|text message|digits?|numbers?|card|unlock|ring|"
+                     r"dial|account details|bank details|iban|read (?:me|us|out))\b", re.I)
+
+
 def model_question_ok(q: str) -> bool:
-    """A parser's Clarify.question is shown only if it is short and carries no link, address, code or claim that
-    something was done (it is shown as the bank's own words)."""
+    """A parser's Clarify.question is shown only if it is a short, plain clarifying question (it is shown as the bank's
+    own words): no link, address, code or claim that something was done, no request for a secret or an approval."""
     q = (q or "").strip()
-    return bool(q) and len(q) <= 200 and not (_Q_LINK.search(q) or _Q_CODE.search(q) or _Q_CLAIM.search(q))
+    return (bool(q) and len(q) <= 160 and q.isascii() and q.count("?") == 1 and _Q_SHAPE.match(q) is not None
+            and not any(ch.isdigit() for ch in q)           # look-alike letters and digit runs are refused outright
+            and not (_Q_LINK.search(q) or _Q_CODE.search(q) or _Q_CLAIM.search(q) or _Q_SCAM.search(q)))
 
 
 _RATE_Q = re.compile(r"\b(rate|exchange rate|how much (?:is|are|would|will)|worth|give me|get me|in (?:eur|euros?|usd|dollars?))\b",
@@ -355,6 +371,17 @@ class _Orchestrator:
         parsed = self.parser.parse(text, beneficiary_names=names,
                                    pending_question=draft.question if draft else None)
         t.trusted_text = parsed.parser in _TRUSTED_PARSERS
+        if any(n.endswith("used the offline rules parser.") for n in parsed.notes):
+            # phase 2 (AI audit F11): a selected model that did not answer is said so, in the chat and in the API record
+            t.notes.append("The language model did not answer, so the built-in rules read this message.")
+        if not t.trusted_text:
+            # P2-7: the security event of a refusal follows the deterministic rules, whatever intent a model chose
+            # for the text (a model may call "raise my limit" a clarification, or a data request a jailbreak).
+            sensitive = _rules_refusal_category(text)
+            if sensitive is not None:
+                kind = "data_access_denied" if sensitive == "data_access" else "jailbreak_attempt"
+                if not any(e.kind == kind for e in t.events):
+                    t.events.append(self._event(s, kind, "user_message", _REFUSAL_TEXT[sensitive]))
         parsed = self._questions_never_pay(parsed)
         parsed, repairs = self._ground(s, parsed, GroundingContext(
             text=text or "", beneficiaries=bens, draft_ref=draft.ref if draft else None,
@@ -508,9 +535,11 @@ class _Orchestrator:
         prior = rec.decision
         was_step_up = prior is not None and prior.verdict == Verdict.STEP_UP
         verified = False
+        # Three wrong codes freeze EVERY approval for this customer, the one-tap ones included: a run of wrong codes
+        # is a sign of guessing or a stolen session, and a tap on a card is the same session's approval (R-03).
+        if self.step_up.locked(s.user_id):
+            return self._otp_locked(s, rec, events)
         if was_step_up:
-            if self.step_up.locked(s.user_id):
-                return self._otp_locked(s, rec, events)
             if not otp:
                 self._audit("confirm", s, action_id=action_id, outcome="otp_missing")
                 left = self.step_up.remaining(s.user_id)
@@ -601,7 +630,7 @@ class _Orchestrator:
                                   "Step-up approval is locked for this customer; code not checked."))
         self._audit("confirm", s, action_id=aid, outcome="otp_locked")
         r = self._lock_rec(s, rec)
-        return self._turn(s, f"Approval by code is locked on your account after {params.MAX_OTP_ATTEMPTS} wrong "
+        return self._turn(s, f"Approvals are locked on your account after {params.MAX_OTP_ATTEMPTS} wrong "
                              f"codes, so I didn't {self._plain(rec)}. The attempt is recorded (receipt "
                              f"{r.receipt_id}). The bank has to unlock it first.",
                           [self._view(rec)], events, [r])
@@ -648,14 +677,21 @@ class _Orchestrator:
         elif isinstance(intent, Clarify):
             self._clarify_from_parser(s, intent, t, text, names)
         elif isinstance(intent, Unsupported):
-            fixed = _REFUSAL_TEXT[intent.category]
+            category = intent.category
+            if not t.trusted_text and category == "out_of_scope":
+                # The security event must not depend on how a model labels a refusal: the deterministic rules read the
+                # same text, and a request for another customer's data or for a higher limit is recorded whatever the
+                # model called it (found with the real Qwen 7B on the adversarial suite, 2026-10-20).
+                category = _rules_refusal_category(text) or category
+            fixed = _REFUSAL_TEXT[category]
             shown = intent.reason if t.trusted_text else fixed          # AUDIT2-2: never relay a model's free text
-            if intent.category == "data_access":
-                t.events.append(self._event(s, "data_access_denied", "user_message", shown))
-            elif intent.category in ("jailbreak", "limit_change"):
+            if category == "data_access":
+                if not any(e.kind == "data_access_denied" for e in t.events):
+                    t.events.append(self._event(s, "data_access_denied", "user_message", shown))
+            elif category in ("jailbreak", "limit_change"):
                 if not any(e.kind == "jailbreak_attempt" for e in t.events):
                     t.events.append(self._event(s, "jailbreak_attempt", "user_message", shown))
-            more = _help.out_of_scope_suffix() if intent.category == "out_of_scope" else ""
+            more = _help.out_of_scope_suffix() if category == "out_of_scope" else ""
             if not t.trusted_text:
                 if intent.reason:       # kept for the audit log only
                     self._audit("clarify", s, unsupported_category=intent.category, model_reason=intent.reason[:200])
@@ -830,8 +866,14 @@ class _Orchestrator:
         bens = {b.beneficiary_id: b for b in self.ledger.get_beneficiaries(s.user_id)}
         obs_all = self.ledger.get_obligations(s.user_id)
         obs = []
-        for kind in intent.obligation_kinds:
+        for kind in dict.fromkeys(intent.obligation_kinds):          # P2-1: a bill type named twice is one bill
             obs.extend(o for o in obs_all if o.kind == kind)
+        paid = getattr(self.ledger, "is_obligation_paid", None)
+        if paid is not None:
+            done = [o for o in obs if paid(s.user_id, o.obligation_id)]
+            if done:
+                t.info.append("Already paid, so I left it out: " + ", ".join(sorted({o.kind for o in done})) + ".")
+            obs = [o for o in obs if o not in done]
         if not obs:
             t.info.append("I found no open obligations of that kind on your account.")
             return
@@ -976,7 +1018,7 @@ class _Orchestrator:
         self._audit("clarify", s, question=question, draft={"payee": ref, "amount": amount, "currency": currency})
 
     def _clarify_from_parser(self, s: _Session, intent: Clarify, t: _Turn, text: str, names: list[str]) -> None:
-        if not t.trusted_text and not model_question_ok(intent.question):
+        if not t.trusted_text and intent.question != _QUESTION_CLARIFY and not model_question_ok(intent.question):
             self._audit("clarify", s, model_question_rejected=True, model_question=intent.question[:200])
             intent = Clarify(question=_FIXED_CLARIFY)      # AUDIT2-2: a model's question must pass the filter
         hint = payment_draft_hint(text, names) if s.draft is None else None
@@ -1041,8 +1083,7 @@ class _Orchestrator:
                 head: Any = ReadOverview()
                 note = "The message is a question, so it was answered with the rate only; nothing was converted."
             else:
-                head = Clarify(question="That reads as a question, so I didn't do anything. If you want me to act, "
-                                        "tell me what to do, for example \"send 50 euros to mom\".")
+                head = Clarify(question=_QUESTION_CLARIFY)
                 note = "The message is a question, so no action was proposed."
             return parsed.model_copy(update={"intents": [head, *rest], "notes": [*parsed.notes, note]})
         kinds: list[str] = []
@@ -1223,10 +1264,11 @@ class _Orchestrator:
         bens = {b.beneficiary_id: b for b in self.ledger.get_beneficiaries(s.user_id)}
         pays: list[tuple[PaymentAction, str]] = []
         kinds_found: list[str] = []
-        for kind in intent.obligation_kinds:
+        paid = getattr(self.ledger, "is_obligation_paid", lambda *_: False)
+        for kind in dict.fromkeys(intent.obligation_kinds):
             for o in self.ledger.get_obligations(s.user_id):
                 b, acc = bens.get(o.beneficiary_id), self._account(s, o.currency)
-                if o.kind != kind or b is None or acc is None:
+                if o.kind != kind or b is None or acc is None or paid(s.user_id, o.obligation_id):
                     continue
                 pays.append((PaymentAction(action_id=f"proj_{o.obligation_id}", idempotency_key=f"proj_{o.obligation_id}",
                                            from_account_id=acc.account_id, beneficiary_id=b.beneficiary_id, iban=b.iban,
@@ -1916,6 +1958,19 @@ class _Orchestrator:
         return "idem_" + sha256_hex([s.session_id, s.turn, idx, intent, step])[:24]
 
 
+_PROBE = RulesParser()
+_SENSITIVE_REFUSALS = ("data_access", "jailbreak", "limit_change")
+
+
+def _rules_refusal_category(text: str | None) -> str | None:
+    """The refusal category the deterministic rules give to this text, when it is a sensitive one (another customer's
+    data, a jailbreak, a limit change); None otherwise. Pure and side-effect free."""
+    for intent in _PROBE.parse(text or "", beneficiary_names=[]).intents:
+        if isinstance(intent, Unsupported) and intent.category in _SENSITIVE_REFUSALS:
+            return intent.category
+    return None
+
+
 def _doc_ibans(action: ProposedAction, docs: list[UntrustedDocument]) -> list[str]:
     """v8: [the action's IBAN] when a document supplied or linked in this turn shows that account number (letters and
     digits only, any spacing), else []. Documents are DATA: this only tells the policy where the number came from."""
@@ -1924,9 +1979,29 @@ def _doc_ibans(action: ProposedAction, docs: list[UntrustedDocument]) -> list[st
         return []
     for d in docs:
         flat = "".join(ch for ch in unicodedata.normalize("NFKC", d.text or "").upper() if ch.isalnum())
-        if iban in flat:
+        if iban in flat or _spread_in(iban, flat):
             return [iban]
     return []
+
+
+def _spread_in(iban: str, flat: str) -> bool:
+    """True when the IBAN's characters appear in order inside a short window of the document: a number split by
+    inserted words ("FR76 3000 (branch) 4000 ...") still came from the document (APPSEC-5). The window allows as
+    many extra characters as the IBAN is long, which random text cannot reach for a 15+ character IBAN."""
+    if len(iban) < 15:
+        return False
+    span = 2 * len(iban)
+    for start in range(len(flat)):
+        if flat[start] != iban[0]:
+            continue
+        k, j = 1, start + 1
+        while k < len(iban) and j < len(flat) and j - start < span:
+            if flat[j] == iban[k]:
+                k += 1
+            j += 1
+        if k == len(iban):
+            return True
+    return False
 
 
 def _and(items: list[str]) -> str:

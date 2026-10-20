@@ -3,18 +3,18 @@
     ./.venv/Scripts/python deliverables/pitch/build_deck.py [--no-pdf] [--no-render]
 
 Output (deliverables/submission/):
-    InternationalAI-TopicC-Centrale-Deck.pptx   17 slides, 16:9
-    InternationalAI-TopicC-Centrale-Deck.pdf    same order; the 15 keynote slides are VECTOR pages printed by Playwright
+    InternationalAI-TopicC-Centrale-Deck.pptx   18 slides, 16:9
+    InternationalAI-TopicC-Centrale-Deck.pdf    same order; the 16 keynote slides are VECTOR pages printed by Playwright
                                                 (text stays sharp and selectable), between the official cover and
                                                 THANKS pages kept in render/official_cover.pdf and render/official_thanks.pdf
 
 Structure, in this order:
     1       the cover of the official template (docs/official_templates/presentation-template.pptx), with the project
             and team names filled in; the year "2025" painted out of the template artwork
-    2..16   the 15 keynote slides, each one a full-bleed 1920x1080 image of the FINAL build state of the slide (slide 1: its hook, see PRINT_BUILD),
+    2..17   the 16 keynote slides, each one a full-bleed 1920x1080 image of the FINAL build state of the slide (slide 1: its hook, see PRINT_BUILD),
             rendered by Playwright from deliverables/pitch/keynote/index.html (so the deck can never drift from the
             keynote), with the speaker notes of notes.js (generated from speaker_script.md by build_keynote.py)
-    17      the THANKS slide of the template (year painted out)
+    18      the THANKS slide of the template (year painted out)
 
 The slide images are also written to deliverables/pitch/render/slide_NN.png.
 Run build_keynote.py first when the keynote or the speaker script changed: this script only renders and packs.
@@ -45,7 +45,7 @@ NAME = "InternationalAI-TopicC-Centrale-Deck"
 PROJECT = "BorderlessGuard"
 TEAM_LINE = "Team Centrale \u00b7 International AI Track \u00b7 Topic C \u00b7 2026"
 FONT = "Segoe UI"        # the template's HarmonyOS font is not installed on most machines
-N_SLIDES = 15
+N_SLIDES = 16
 # Build state printed for a slide when it is not the last one. Slide 1 ends on a title card that repeats the official
 # cover, so the printed deck shows its hook instead: Lina, the forged invoice and EUR 450 against EUR 2,000.
 PRINT_BUILD = {1: 2}
@@ -177,7 +177,7 @@ def build_pptx(images: list[Path], notes: dict, ttl: list[str]) -> Path:
         shp.text_frame.auto_size = MSO_AUTO_SIZE.NONE
         shp.top, shp.width, shp.height = Emu(top), Emu(7400000), Emu(h)
 
-    # --- 15 keynote slides: one full-bleed picture each, with the speaker notes
+    # --- 16 keynote slides: one full-bleed picture each, with the speaker notes
     new = []
     for i, img in enumerate(images, 1):
         s = prs.slides.add_slide(blank)
@@ -189,10 +189,10 @@ def build_pptx(images: list[Path], notes: dict, ttl: list[str]) -> Path:
         s.notes_slide.notes_text_frame.text = note_text(i, ttl[i - 1], notes[str(i)])
         new.append(s)
     cover.notes_slide.notes_text_frame.text = (
-        f"{PROJECT} \u00b7 {TEAM_LINE}\n\nSlides 2 to 16 are the 15 slides of the offline HTML keynote "
+        f"{PROJECT} \u00b7 {TEAM_LINE}\n\nSlides 2 to 17 are the 16 slides of the offline HTML keynote "
         "(deliverables/pitch/keynote), final state of each slide. The notes are the speaker script.")
 
-    # --- order: cover, 15 slides, THANKS; drop the template's contents and content slides
+    # --- order: cover, 16 slides, THANKS; drop the template's contents and content slides
     lst = prs.slides._sldIdLst
     el_of = {id(s): el for s, el in zip(prs.slides, list(lst))}
     for s in (contents, content):
@@ -213,9 +213,10 @@ def build_pptx(images: list[Path], notes: dict, ttl: list[str]) -> Path:
     cp = prs.core_properties
     cp.title = f"{PROJECT}: International AI Track, Topic C"
     cp.author = "Team Centrale"
+    cp.last_modified_by = "Team Centrale"           # the organiser template carries a real person's name
     cp.subject = "Presentation deck"
     cp.keywords = "BorderlessGuard; Centrale; International AI Track; Topic C"
-    cp.comments = "Slides 2 to 16 are rendered from the offline HTML keynote."
+    cp.comments = "Slides 2 to 17 are rendered from the offline HTML keynote."
     SUBMIT.mkdir(parents=True, exist_ok=True)
     out = SUBMIT / f"{NAME}.pptx"
     prs.save(str(out))
@@ -223,7 +224,7 @@ def build_pptx(images: list[Path], notes: dict, ttl: list[str]) -> Path:
 
 
 def export_pdf() -> Path:
-    """Official cover, the 15 slides as vector pages (final build state), official THANKS page; all 960x540 pt."""
+    """Official cover, the 16 slides as vector pages (final build state), official THANKS page; all 960x540 pt."""
     import pymupdf
     from playwright.sync_api import sync_playwright
 

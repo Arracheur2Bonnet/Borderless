@@ -80,7 +80,7 @@ def test_environment_cannot_redirect_the_local_parser(monkeypatch):
     monkeypatch.setenv("BG_PARSER", "local")
     monkeypatch.setenv("BG_LOCAL_MODEL", "qwen2.5:7b-instruct")
     monkeypatch.setenv("OLLAMA_HOST", "http://evil.example:80")
-    assert _parser_from_env().host == "http://localhost:11434"
+    assert _parser_from_env().host == "http://127.0.0.1:11434"
     monkeypatch.setenv("BG_PARSER", "something-else")
     assert _parser_from_env() is None                         # unknown value: the offline rules parser
 

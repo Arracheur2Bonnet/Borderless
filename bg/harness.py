@@ -17,6 +17,7 @@ Output records never contain an OTP, a full IBAN or a secret.
 """
 from __future__ import annotations
 
+import hmac
 import threading
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -69,6 +70,8 @@ def _view(v: ActionView, titles: dict[str, str]) -> dict[str, Any]:
         "failed_rules": [r.rule_id for r in d.rules if not r.passed] if d else [],
         "needs_otp": bool(d and d.verdict.value == "step_up"),
         "receipt_id": v.receipt_id,
+        # the hash that binds an approval to this exact action; only while it waits for approval
+        "params_hash": cr.params_hash if (cr and v.status == "awaiting_confirmation") else None,
     }
 
 
@@ -118,12 +121,19 @@ class Harness:
                 s.latest_plan = plan
             return self._record(s, "message", turn)
 
-    def confirm(self, sid: Any, action: Any = "last", otp: Any = None) -> dict[str, Any]:
+    def confirm(self, sid: Any, action: Any = "last", otp: Any = None, params_hash: Any = None) -> dict[str, Any]:
+        """Approve a pending action. When the caller passes `params_hash` (the value shown with the action), it must
+        equal the hash the server holds, so the approval is bound to the exact action the caller saw (the HTTP API
+        requires it; the scripted CLI replay does not pass it)."""
         if otp is not None and (not isinstance(otp, str) or len(otp) > MAX_OTP_CHARS):
             raise HarnessError("'otp' must be a short string", 400)
+        if params_hash is not None and (not isinstance(params_hash, str) or len(params_hash) > 128):
+            raise HarnessError("'params_hash' must be the hash shown with the action", 400)
         with self._lock:
             s = self._get(sid)
             aid = self._resolve(s, action)
+            if params_hash is not None and not hmac.compare_digest(params_hash.encode("utf-8"), s.hashes.get(aid, "").encode("utf-8")):
+                raise HarnessError("the approval does not match the action it was shown for; nothing was done", 409)
             turn = self.orch.confirm(sid, aid, s.hashes.get(aid, ""), otp)
             self._track(s, turn)
             return self._record(s, "confirm", turn)
@@ -225,4 +235,6 @@ class Harness:
             "receipt_total": len(ov["receipts"]),
             "pending_question": turn.pending_question,
             "pending_actions": list(s.pending),
+            # who read the message: "rules", "local", "connected:<host>", "cascade:<tier>"; the signed receipts do not say
+            "parser": turn.parsed.parser if turn.parsed is not None else None,
         }

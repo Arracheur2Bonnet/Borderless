@@ -25,7 +25,7 @@ class LocalLLMParser(ModelParser):
     noun = "Local model"
     parser_tag = "local"
 
-    def __init__(self, model: str = DEFAULT_LOCAL_MODEL, host: str = "http://localhost:11434",
+    def __init__(self, model: str = DEFAULT_LOCAL_MODEL, host: str = "http://127.0.0.1:11434",
                  timeout: float = 30, http: HttpFn | None = None) -> None:
         super().__init__()
         host = host.rstrip("/")

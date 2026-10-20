@@ -1,0 +1,12 @@
+# Weekly update PRs for the Python lock files, the GitHub Actions (pinned by commit SHA) and the Docker base image.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule: {interval: weekly}
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directory: /
+    schedule: {interval: weekly}

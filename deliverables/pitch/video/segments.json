@@ -169,6 +169,7 @@
         "Eight controls, and only the first reads the text, and it only warns.",
         "Account numbers come only from saved payees.",
         "Approval is locked to a hash of the exact payment.",
+        "A payee name check compares the name with the bank's record.",
         "Two checks target financial crime: split payments, and sanctions.",
         "Every payment meets 14 named rules, and R4 has no override."
       ]

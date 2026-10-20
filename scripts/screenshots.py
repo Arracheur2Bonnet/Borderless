@@ -1,14 +1,18 @@
 """Capture demo screenshots of the Streamlit UI on the REAL backend (offline mode).
 
-    ./.venv/Scripts/python scripts/screenshots.py [out_dir] [light|dark] [WIDTHxHEIGHT]
+    ./.venv/Scripts/python scripts/screenshots.py [out_dir] [WIDTHxHEIGHT]
 
 Starts `streamlit run ui/app.py` headless, drives it with Playwright (Chromium) at 1920x1080 (the video
 resolution) and saves PNGs. Used for the deck, the technical document and the video storyboard; it is also a
 smoke test of the real UI, including a check that an HTML payload typed in the chat is shown as text.
+
+BorderlessGuard is LIGHT ONLY (design/BRAND.md). A "light" or "dark" argument is still accepted so older callers
+keep working, but it is ignored: the page is always captured in the light scheme.
 """
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import time
@@ -21,8 +25,9 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "deliverables" / "screenshots"
 PORT = 8599
 URL = f"http://localhost:{PORT}"
-SCHEME = sys.argv[2] if len(sys.argv) > 2 else "light"
-_W, _H = (sys.argv[3] if len(sys.argv) > 3 else "1920x1080").split("x")
+SCHEME = "light"                             # there is no dark theme; "light"/"dark" arguments are accepted and ignored
+_SIZE = next((a for a in sys.argv[2:] if re.fullmatch(r"\d+x\d+", a)), "1920x1080")
+_W, _H = _SIZE.split("x")
 VIEWPORT = {"width": int(_W), "height": int(_H)}
 
 
@@ -126,6 +131,16 @@ def free_story(page: Page) -> None:
     show_last_message(page)
     shot(page, "09_untrusted_text_escaped")
     print("escaping check passed: payload shown as text")
+
+    # a refusal (R4) and a payee-name check (Verification of Payee: close match asks for a code)
+    click(page, "Reset demo")
+    click(page, "Send 4,500 EUR to mom")
+    show_last_message(page)
+    shot(page, "10_blocked")
+    click(page, "Reset demo")
+    say(page, "Add Karim Hadad with IBAN DE89 3704 0044 0532 0130 00")
+    show_last_message(page)
+    shot(page, "11_payee_check")
 
 
 def guided_story(page: Page) -> None:

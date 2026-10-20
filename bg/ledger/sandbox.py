@@ -41,6 +41,8 @@ class SandboxLedger:
         # action executes only an issued, unexpired, unused quote, at the issued terms.
         self._quotes: dict[str, FxQuote] = {}
         self._used_quotes: set[str] = set()
+        # phase 2 (P2-1): a bill is paid once. (user_id, obligation_id) of every executed payment that settles one.
+        self._paid_obligations: set[tuple[str, str]] = set()
         self._quote_n = 0
         # v3 (AUDIT-3): wrong one-time codes are counted per user here, not per chat action or session.
         self.step_up = StepUpAttempts()
@@ -127,6 +129,9 @@ class SandboxLedger:
             return q2(Decimal(amount))
         return q2(Decimal(amount) * params.FX_RATES[(currency, "EUR")])
 
+    def is_obligation_paid(self, user_id: str, obligation_id: str) -> bool:
+        return (user_id, obligation_id) in self._paid_obligations
+
     def executed_today_eur(self, user_id: str) -> Decimal:
         today = self.now.date()
         return sum((e for u, d, e in self._outflows if u == user_id and d == today), Decimal("0.00"))
@@ -158,12 +163,17 @@ class SandboxLedger:
                 return ["UNKNOWN_ACCOUNT"]
             if ccy[action.from_account_id] != action.currency:
                 errors.append("CURRENCY_MISMATCH")
+            if action.obligation_id and ((user_id, action.obligation_id) in self._paid_obligations
+                                         or f"ob:{user_id}:{action.obligation_id}" in used):
+                errors.append("OBLIGATION_ALREADY_PAID")
             if action.amount <= 0:
                 errors.append("INVALID_AMOUNT")
             elif bal[action.from_account_id] < q2(action.amount):
                 errors.append("INSUFFICIENT_FUNDS")
             if not errors:
                 bal[action.from_account_id] -= q2(action.amount)
+                if action.obligation_id:
+                    used.add(f"ob:{user_id}:{action.obligation_id}")
         elif isinstance(action, FxAction):
             qt = action.quote
             if action.from_account_id not in bal or action.to_account_id not in bal:
@@ -232,6 +242,8 @@ class SandboxLedger:
         for k, v in bal.items():
             self._accounts[k] = self._accounts[k].model_copy(update={"balance": v})
         if isinstance(action, PaymentAction):
+            if action.obligation_id:
+                self._paid_obligations.add((user_id, action.obligation_id))
             eur = self.eur_equivalent(action.amount, action.currency)
             self._outflows.append((user_id, self.now.date(), eur))
             self._payments.append((user_id, RecentPayment(

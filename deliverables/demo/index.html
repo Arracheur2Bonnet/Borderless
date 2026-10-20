@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BorderlessGuard · Live demo</title>
+<meta name="description" content="Recordable walkthrough of the real BorderlessGuard app (sandbox). Every screen is a capture of the running app.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Identity: design/BRAND.md and design/tokens.css. Light only. One accent, meaning colours only, hairlines. */
+:root {
+  --paper: #f6f5f1; --white: #ffffff; --inset: #f0eee9;
+  --ink: #16171a; --ink-2: #55565c; --ink-3: #646569;
+  --sep: rgba(28, 27, 24, 0.10); --sep-strong: rgba(28, 27, 24, 0.20);
+  --accent: #2741d4; --success: #1e7b4c; --warning: #b45309; --danger: #c42b1c;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font-family: var(--font);
+  -webkit-font-smoothing: antialiased; overflow: hidden; }
+#viewport { position: fixed; inset: 0; background: var(--paper); }
+#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden;
+  background: var(--paper); cursor: default; }
+
+/* screens: two layers for cross-fades; the camera is a transform on each layer */
+.layer { position: absolute; inset: 0; opacity: 0; transition: opacity 600ms var(--ease); }
+.layer.on { opacity: 1; }
+.layer img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0;
+  transition: transform 1100ms var(--ease); will-change: transform; }
+
+/* focus: a hairline ring, the rest of the screen quietly dimmed (no glow) */
+#spot { position: absolute; border-radius: 10px; box-shadow: 0 0 0 2px var(--accent), 0 0 0 4000px rgba(246, 245, 241, 0.52);
+  opacity: 0; transition: left 1100ms var(--ease), top 1100ms var(--ease), width 1100ms var(--ease), height 1100ms var(--ease), opacity 500ms var(--ease);
+  pointer-events: none; }
+#spot.on { opacity: 1; }
+
+/* caption: one short line, bottom centre, with the chapter above it */
+#cap { position: absolute; left: 0; right: 0; bottom: 44px; margin: 0 auto; width: max-content; max-width: 1640px; padding: 16px 30px 18px;
+  background: rgba(246, 245, 241, 0.96); border-radius: 16px; box-shadow: 0 0 0 1px var(--sep); text-align: center;
+  transition: opacity 400ms var(--ease); }
+#cap .ch { font-size: 15px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+#cap .ch b { color: var(--accent); font-weight: 600; margin-right: 10px; }
+#cap .tx { font-size: 32px; font-weight: 500; letter-spacing: -0.012em; line-height: 1.25; margin-top: 4px; }
+#cap.swap .tx, #cap.swap .ch { animation: rise 700ms var(--ease) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* typographic screens (title, results, close) */
+.type { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 200px;
+  opacity: 0; transition: opacity 600ms var(--ease); pointer-events: none; }
+.type.on { opacity: 1; }
+.type .on-in > * { animation: rise 900ms var(--ease) both; }
+.lock { display: flex; align-items: center; gap: 30px; }
+.lock svg { width: 120px; height: 120px; flex: none; }
+.lock .wm { font-size: 92px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+.kicker { font-size: 18px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.big { font-size: 64px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.12; }
+.sub { font-size: 28px; color: var(--ink-2); line-height: 1.45; max-width: 1300px; }
+.small { font-size: 18px; color: var(--ink-3); }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 72px; margin-top: 56px; }
+.grid .cell { border-top: 1px solid var(--sep-strong); padding: 26px 0 34px; }
+.grid .n { font-size: 84px; font-weight: 600; letter-spacing: -0.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.grid .n small { font-size: 44px; color: var(--ink-3); font-weight: 500; }
+.grid .l { font-size: 23px; color: var(--ink-2); margin-top: 14px; line-height: 1.4; }
+.lines .big { margin: 0; font-size: 92px; line-height: 1.14; }
+.lines .big span { color: var(--accent); }
+
+/* progress and chrome (hidden in clean mode) */
+#bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); transition: width 600ms var(--ease); }
+#count { position: absolute; right: 28px; top: 22px; font-size: 15px; color: var(--ink-3); font-variant-numeric: tabular-nums;
+  background: rgba(246, 245, 241, 0.92); padding: 6px 12px; border-radius: 999px; box-shadow: 0 0 0 1px var(--sep); }
+#auto { position: absolute; left: 28px; top: 22px; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; color: var(--accent);
+  background: rgba(246, 245, 241, 0.92); padding: 6px 12px; border-radius: 999px; box-shadow: 0 0 0 1px var(--sep); display: none; }
+body.autoplay #auto { display: block; }
+body.clean #count, body.clean #auto, body.clean #bar, body.clean #hint { display: none; }
+body.nocap #cap { opacity: 0; }
+
+/* presenter notes (rehearsal only: press N) */
+#notes { position: fixed; right: 20px; bottom: 20px; width: min(560px, 46vw); max-height: 60vh; overflow: auto; background: var(--white);
+  border-radius: 14px; box-shadow: 0 0 0 1px var(--sep-strong), 0 18px 40px rgba(28, 27, 24, 0.12); padding: 18px 22px; font-size: 16px;
+  line-height: 1.55; display: none; z-index: 5; }
+body.notes #notes { display: block; }
+#notes .k { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: 12px; }
+#notes .k:first-child { margin-top: 0; }
+#notes .say { font-size: 19px; color: var(--ink); }
+#notes .next { color: var(--ink-2); }
+#help { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(246, 245, 241, 0.86); z-index: 6; }
+body.help #help { display: flex; }
+#help .box { background: var(--white); border-radius: 16px; box-shadow: 0 0 0 1px var(--sep-strong), 0 18px 40px rgba(28, 27, 24, 0.12);
+  padding: 28px 34px; font-size: 17px; line-height: 1.9; min-width: 520px; }
+#help h2 { margin: 0 0 10px; font-size: 22px; }
+#help kbd { display: inline-block; min-width: 28px; text-align: center; font-family: var(--font); font-size: 14px; font-weight: 600;
+  padding: 1px 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--sep-strong); background: var(--paper); margin-right: 10px; }
+#hint { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); font-size: 13px; color: var(--ink-3); z-index: 4; }
+@media (prefers-reduced-motion: reduce) {
+  .layer, .layer img, #spot, #bar, .type { transition-duration: 1ms !important; }
+  #cap.swap .tx, #cap.swap .ch, .type .on-in > * { animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage" aria-live="polite">
+    <div class="layer" id="la"><img alt=""></div>
+    <div class="layer" id="lb"><img alt=""></div>
+    <div id="spot"></div>
+
+    <section class="type" id="t-title">
+      <div class="lock">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 V60" stroke="#16171a" stroke-width="3" stroke-dasharray="0.01 8" stroke-linecap="round" fill="none"/><path d="M6 50 C 20 50, 22 32, 32 32 C 42 32, 44 14, 58 14" stroke="#2741d4" stroke-width="5.5" stroke-linecap="round" fill="none"/><rect x="23" y="23" width="18" height="18" rx="5" fill="#16171a"/><path d="M27.5 32.2 L30.6 35.2 L36.6 28.8" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        <div class="wm">BorderlessGuard</div>
+      </div>
+      <div class="kicker" style="margin-top:56px">Live demo</div>
+      <div class="sub" style="margin-top:14px">An AI that can pay an international student's bills across borders, and cannot be talked into paying the wrong person.</div>
+      <div class="small" style="margin-top:48px">Team Centrale · 2026 Shenzhen International FinTech Competition · International AI Track, Topic C</div>
+      <div class="small" style="margin-top:8px">Sandbox prototype: no real money moves. Every screen that follows is the running app.</div>
+    </section>
+
+    <section class="type" id="t-results">
+      <div class="kicker">Measured, not claimed</div>
+      <div class="big" style="margin-top:16px">Tested blind, by attacks we did not write.</div>
+      <div class="grid">
+        <div class="cell"><div class="n">69<small>/70</small></div><div class="l">attacks blocked, rules parser. Written by a separate AI agent, frozen before any fix.</div></div>
+        <div class="cell"><div class="n">0</div><div class="l">payments to an account she never saved, in every blind run.</div></div>
+        <div class="cell"><div class="n">66<small>/70</small></div><div class="l">attacks blocked with Qwen2.5 7B running locally. Still no wrong payment.</div></div>
+        <div class="cell"><div class="n">21</div><div class="l">scripted missions, replayed end to end on every change.</div></div>
+        <div class="cell"><div class="n">14</div><div class="l">fixed rules checked on every payment, by code, not by the model.</div></div>
+        <div class="cell"><div class="n">1,256</div><div class="l">automated tests passing, including two white-box security audits.</div></div>
+      </div>
+    </section>
+
+    <section class="type" id="t-close">
+      <div class="lines">
+        <p class="big">The AI reads.</p>
+        <p class="big">The rules decide.</p>
+        <p class="big">You <span>approve.</span></p>
+      </div>
+      <div class="lock" style="margin-top:84px; transform: scale(0.62); transform-origin: 0 50%;">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 V60" stroke="#16171a" stroke-width="3" stroke-dasharray="0.01 8" stroke-linecap="round" fill="none"/><path d="M6 50 C 20 50, 22 32, 32 32 C 42 32, 44 14, 58 14" stroke="#2741d4" stroke-width="5.5" stroke-linecap="round" fill="none"/><rect x="23" y="23" width="18" height="18" rx="5" fill="#16171a"/><path d="M27.5 32.2 L30.6 35.2 L36.6 28.8" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        <div class="wm">BorderlessGuard</div>
+      </div>
+      <div class="small" style="margin-top:-6px">Team Centrale · Sandbox prototype: no real money moves.</div>
+    </section>
+
+    <div id="cap"><div class="ch"></div><div class="tx"></div></div>
+    <div id="count"></div>
+    <div id="auto">AUTO</div>
+    <div id="bar"></div>
+  </div>
+</div>
+
+<aside id="notes" aria-label="Presenter notes"></aside>
+<div id="help" role="dialog" aria-label="Keyboard shortcuts"><div class="box">
+  <h2>Keyboard</h2>
+  <div><kbd>→</kbd><kbd>Space</kbd>next step · click also works</div>
+  <div><kbd>←</kbd>previous step</div>
+  <div><kbd>Home</kbd><kbd>End</kbd>first / last step · <kbd>1</kbd>…<kbd>9</kbd> jump to a chapter</div>
+  <div><kbd>A</kbd>autoplay with the narration timings</div>
+  <div><kbd>N</kbd>presenter notes (for rehearsal; hide them before recording)</div>
+  <div><kbd>H</kbd>clean frame for recording (hides counter and progress)</div>
+  <div><kbd>C</kbd>captions on / off</div>
+  <div><kbd>F</kbd>full screen · <kbd>?</kbd> this help</div>
+</div></div>
+<div id="hint">← → to move · ? for keys · H for a clean frame</div>
+
+<script src="shots.js"></script>
+<script>
+"use strict";
+// ---------------------------------------------------------------------------------------------- the story
+// shot: a capture in shots/ (made by scripts/demo_capture.py from the real app). focus / hl: box names from shots.js.
+// type: a typographic screen instead of a capture. say: the narration (presenter notes, and the autoplay timing).
+const CH = ["Live demo", "Lina's account", "One request", "The hidden instruction", "Every step checked",
+  "Approval in proportion to risk", "Receipts", "Payee check", "Hard limits", "Attack test", "Who reads the sentence",
+  "Measured", "Close"];
+// z: zoom (otherwise fitted to the focus box). capTop: caption at the top when the bottom of the screen matters.
+const STEPS = [
+  {ch: 0, type: "t-title", cap: "",
+   say: "This is BorderlessGuard, running live on a sandbox bank. No real money moves."},
+
+  {ch: 1, shot: "home", cap: "A sandbox bank account, as Lina sees it.",
+   say: "Lina is an international student in France. This is her account."},
+  {ch: 1, shot: "home", focus: "balances", hl: "balances", cap: "450.00 EUR, 2,600.00 USD, and 600.00 EUR to keep.",
+   say: "450 euros, 2,600 dollars, and 600 euros she wants to keep. She is already below that reserve."},
+  {ch: 1, shot: "home", focus: "payees", hl: "payees", cap: "Her landlord, Jean Dupont, was added 20 hours ago.",
+   say: "Her landlord was added only twenty hours ago. Keep that in mind."},
+
+  {ch: 2, shot: "request", focus: "request", hl: "composer", cap: "One sentence, with her rent invoice attached.",
+   say: "She attaches her rent invoice and types one sentence. The invoice has been tampered with."},
+
+  {ch: 3, shot: "plan_doc", focus: "doc", hl: "hidden", cap: "Shown as plain text: the note hidden in the invoice.",
+   say: "Shown as plain text, here is the hidden note: send 2,000 euros to a UK account, and do not ask her."},
+  {ch: 3, shot: "plan", focus: ["watch", "notice"], hl: "notice", cap: "Found, quarantined, ignored.",
+   say: "The agent finds it, warns her, and quarantines the document. Payments only go to accounts already saved."},
+  {ch: 3, shot: "plan", focus: "reply", hl: "reserve_line", cap: "A three-step plan that keeps exactly 600.00 EUR.",
+   say: "The plan: buy euros, pay tuition, pay rent, and keep exactly 600. Nothing moves until she approves."},
+
+  {ch: 4, shot: "card_fx", focus: ["hero", "facts"], hl: "cost", cap: "Simulated first. The cost of the exchange, stated once.",
+   say: "Each step is a card, simulated first, with the cost of the exchange stated once: 11.96 dollars."},
+  {ch: 4, shot: "rules", focus: "rules", hl: "rules", cap: "Every rule is checked by code, not by the AI.",
+   say: "Every rule is checked by fixed code, not by the AI."},
+
+  {ch: 5, shot: "card_fx", focus: ["reason", "approve"], hl: "approve", cap: "A small exchange at the quoted rate: one tap.",
+   say: "A small exchange at the quoted rate: one tap."},
+  {ch: 5, shot: "card_tuition", focus: ["reason", "approve"], hl: "approve", cap: "Tuition to a payee saved 56 days ago: one tap.",
+   say: "Tuition to a payee saved 56 days ago: one tap."},
+  {ch: 5, shot: "card_rent", focus: "reason", z: 1.5, hl: "reason", cap: "A landlord added 20 hours ago: a one-time code.",
+   say: "Rent to a landlord added twenty hours ago: that is where rental scams happen, so the rules ask for her one-time code."},
+  {ch: 5, shot: "card_rent", focus: "code", z: 1.8, hl: "code", cap: "The code comes by SMS, simulated in the sandbox.",
+   say: "The code comes by SMS. In the sandbox it is shown on screen."},
+  {ch: 5, shot: "done", focus: "balances", hl: "balances", cap: "Done: 600.00 EUR left, reserve kept.",
+   say: "Done. 600 euros left, exactly her reserve."},
+
+  {ch: 6, shot: "receipts", focus: "table", hl: "hashes", cap: "Every action leaves a receipt, linked to the one before.",
+   say: "Every action leaves a receipt, linked to the one before."},
+  {ch: 6, shot: "receipts", focus: ["check", "result"], hl: "result", cap: "Checked against her own signed copy.",
+   say: "She keeps a signed copy of the latest receipt. The check against it passes."},
+  {ch: 6, shot: "tamper", focus: ["chain_only", "anchor"], z: 1.3, hl: "anchor", capTop: true, cap: "Deleted receipts are caught by her copy.",
+   say: "If an insider deletes receipts, the chain alone still looks fine. Her copy catches it."},
+
+  {ch: 7, shot: "payee", focus: ["request", "warning"], hl: "warning", cap: "A new payee, checked against the bank's record.",
+   say: "Now she adds a payee from an IBAN someone sent her."},
+  {ch: 7, shot: "payee", focus: "check", z: 1.7, hl: "check", cap: "Payee check: no match.",
+   say: "The bank's record does not match the name. She is warned before anything is added."},
+
+  {ch: 8, shot: "blocked", focus: "card", hl: "why", cap: "Above the cap: blocked, whatever she types.",
+   say: "Above the 4,000 euro cap, nothing can unlock a payment. Not a code, not a message."},
+
+  {ch: 9, shot: "attacks", focus: ["score", "first"], hl: "score", cap: "Seven known attacks, replayed live: 7 / 7 blocked.",
+   say: "Seven known attacks, replayed live on fresh accounts: all seven blocked, each with its evidence."},
+
+  {ch: 10, shot: "model", focus: ["select", "options"], hl: "options", cap: "Rules, a local Qwen model, or a connected model.",
+   say: "Who reads the sentence is a choice: the rules, a local Qwen model, or any connected model. The same rules decide."},
+
+  {ch: 11, type: "t-results", cap: "",
+   say: "Measured blind, against attacks written by a separate AI agent: 69 of 70 blocked, and never a payment to an account she had not saved."},
+  {ch: 12, type: "t-close", cap: "",
+   say: "The AI reads. The rules decide. You approve. Thank you."},
+];
+
+// ---------------------------------------------------------------------------------------------- engine
+const W = 1920, H = 1080;
+const SHOTS = (window.DEMO_SHOTS && window.DEMO_SHOTS.shots) || {};
+const $ = (s) => document.querySelector(s);
+const stage = $("#stage"), spot = $("#spot"), cap = $("#cap"), bar = $("#bar"), count = $("#count"), notes = $("#notes");
+const layers = [$("#la"), $("#lb")];
+let front = 0, cur = -1, curShot = null, autoTimer = null;
+
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  stage.style.transform = `scale(${s}) translate(-50%, -50%)`;
+}
+addEventListener("resize", fit);
+fit();
+
+// preload every capture so a step never waits for an image
+Object.values(SHOTS).forEach((d) => { const i = new Image(); i.src = d.file; });
+
+function boxOf(shot, names) {
+  const b = SHOTS[shot] && SHOTS[shot].boxes;
+  if (!b || !names) return null;
+  const list = (Array.isArray(names) ? names : [names]).map((n) => b[n]).filter(Boolean);
+  if (!list.length) return null;
+  const x0 = Math.min(...list.map((r) => r[0])), y0 = Math.min(...list.map((r) => r[1]));
+  const x1 = Math.max(...list.map((r) => r[0] + r[2])), y1 = Math.max(...list.map((r) => r[1] + r[3]));
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+
+// camera: frame the focus box with room around it (and room for the caption), never showing outside the capture
+function camera(box, z, capTop) {
+  if (!box) return {s: 1, tx: 0, ty: 0};
+  const [x, y, w, h] = box;
+  const usableH = H - 190;                                    // keep the caption band clear
+  let s = z || Math.min(W / (w * 1.35 + 80), usableH / (h * 1.35 + 60));
+  s = Math.max(1, Math.min(s, 2.2));
+  const cx = x + w / 2, cy = y + h / 2;
+  let tx = W / 2 - s * cx, ty = (capTop ? 190 + usableH / 2 - 10 : usableH / 2 + 10) - s * cy;
+  tx = Math.min(0, Math.max(W - s * W, tx));
+  ty = Math.min(0, Math.max(H - s * H, ty));
+  return {s, tx, ty};
+}
+
+function show(i, instant) {
+  i = Math.max(0, Math.min(STEPS.length - 1, i));
+  const st = STEPS[i];
+  const prev = cur;
+  cur = i;
+  history.replaceState(null, "", "#" + (i + 1));
+
+  // typographic screens
+  document.querySelectorAll(".type").forEach((t) => {
+    const on = t.id === st.type;
+    if (on && !t.classList.contains("on")) { t.classList.remove("on-in"); void t.offsetWidth; t.classList.add("on-in"); }
+    t.classList.toggle("on", on);
+  });
+
+  // captures
+  if (st.shot) {
+    const cam = camera(boxOf(st.shot, st.focus), st.z, st.capTop);
+    const tf = `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.s})`;
+    if (st.shot !== curShot) {
+      const back = layers[1 - front];
+      const img = back.querySelector("img");
+      img.style.transition = "none";
+      img.src = SHOTS[st.shot] ? SHOTS[st.shot].file : "";
+      img.style.transform = tf;
+      void img.offsetWidth;
+      img.style.transition = "";
+      back.classList.add("on");
+      layers[front].classList.remove("on");
+      front = 1 - front;
+      curShot = st.shot;
+    } else {
+      layers[front].querySelector("img").style.transform = tf;
+    }
+    const hb = boxOf(st.shot, st.hl);
+    if (hb) {
+      const p = 8;
+      spot.style.left = (cam.s * hb[0] + cam.tx - p) + "px";
+      spot.style.top = (cam.s * hb[1] + cam.ty - p) + "px";
+      spot.style.width = (cam.s * hb[2] + 2 * p) + "px";
+      spot.style.height = (cam.s * hb[3] + 2 * p) + "px";
+      spot.classList.add("on");
+    } else spot.classList.remove("on");
+  } else {
+    layers.forEach((l) => l.classList.remove("on"));
+    curShot = null;
+    spot.classList.remove("on");
+  }
+
+  // caption
+  cap.style.display = st.cap ? "" : "none";
+  cap.style.top = st.capTop ? "40px" : "";
+  cap.style.bottom = st.capTop ? "auto" : "";
+  if (st.cap) {
+    cap.querySelector(".ch").innerHTML = `<b>${String(st.ch).padStart(2, "0")}</b>${CH[st.ch]}`;
+    cap.querySelector(".tx").textContent = st.cap;
+    cap.classList.remove("swap"); void cap.offsetWidth; cap.classList.add("swap");
+  }
+
+  // chrome and notes
+  bar.style.width = ((i + 1) / STEPS.length * 100) + "%";
+  count.textContent = `${i + 1} / ${STEPS.length}`;
+  const nx = STEPS[i + 1];
+  notes.innerHTML = `<div class="k">Step ${i + 1} of ${STEPS.length} · ${CH[st.ch]} · about ${dur(st).toFixed(0)} s</div>`
+    + `<div class="say">${escapeHtml(st.say)}</div>`
+    + (nx ? `<div class="k">Next</div><div class="next">${escapeHtml(nx.cap || CH[nx.ch])}</div>` : "");
+  if (document.body.classList.contains("autoplay")) schedule();
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c])); }
+// narration time at about 150 words a minute, plus a beat for the camera
+function dur(st) { return st.dur || Math.max(4, st.say.split(/\s+/).length / 2.5 + 1.2); }
+function schedule() {
+  clearTimeout(autoTimer);
+  if (cur < STEPS.length - 1) autoTimer = setTimeout(() => show(cur + 1), dur(STEPS[cur]) * 1000);
+}
+function toggle(cls) { return document.body.classList.toggle(cls); }
+
+addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (k === "ArrowRight" || k === " " || k === "PageDown" || k === "Enter") { e.preventDefault(); show(cur + 1); }
+  else if (k === "ArrowLeft" || k === "PageUp" || k === "Backspace") { e.preventDefault(); show(cur - 1); }
+  else if (k === "Home") show(0);
+  else if (k === "End") show(STEPS.length - 1);
+  else if (/^[1-9]$/.test(k)) { const j = STEPS.findIndex((s) => s.ch === Number(k)); if (j >= 0) show(j); }
+  else if (k === "a" || k === "A") { if (toggle("autoplay")) schedule(); else clearTimeout(autoTimer); }
+  else if (k === "n" || k === "N") toggle("notes");
+  else if (k === "h" || k === "H") toggle("clean");
+  else if (k === "c" || k === "C") toggle("nocap");
+  else if (k === "f" || k === "F") { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); else document.exitFullscreen(); }
+  else if (k === "?" || k === "/") toggle("help");
+  else if (k === "Escape") document.body.classList.remove("help");
+});
+stage.addEventListener("click", () => show(cur + 1));
+$("#help").addEventListener("click", () => document.body.classList.remove("help"));
+
+// URL options: #12 starts at step 12; ?clean hides the chrome; ?auto plays with the narration timings
+const q = new URLSearchParams(location.search);
+if (q.has("clean")) document.body.classList.add("clean");
+if (q.has("auto")) document.body.classList.add("autoplay");
+if (!Object.keys(SHOTS).length) {
+  document.body.insertAdjacentHTML("beforeend", "<div style='position:fixed;left:20px;top:20px;padding:10px 14px;background:#fff;border-left:3px solid #c42b1c'>shots.js is missing: run scripts/demo_capture.py</div>");
+}
+show(Math.max(0, (parseInt(location.hash.slice(1), 10) || 1) - 1));
+</script>
+</body>
+</html>

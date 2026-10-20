@@ -76,15 +76,15 @@ def main() -> int:
             page.goto(INDEX + "#1")
             page.wait_for_selector("body.ready")
             cur = lambda: page.evaluate("document.getElementById('counter').textContent")
-            page.keyboard.press("ArrowRight"); assert cur() == "1 / 15", cur()      # first build, same slide
+            page.keyboard.press("ArrowRight"); assert cur() == "1 / 16", cur()      # first build, same slide
             for _ in range(3):                       # builds 2 and 3 of slide 1, then slide 2
                 page.keyboard.press("ArrowRight")
             page.wait_for_timeout(100)
-            ok = cur() == "2 / 15"
-            page.keyboard.press("ArrowLeft"); ok &= cur() == "1 / 15"
-            page.keyboard.press("End"); ok &= cur() == "15 / 15"
-            page.keyboard.press("Home"); ok &= cur() == "1 / 15"
-            page.keyboard.type("11"); page.keyboard.press("Enter"); ok &= cur() == "11 / 15"
+            ok = cur() == "2 / 16"
+            page.keyboard.press("ArrowLeft"); ok &= cur() == "1 / 16"
+            page.keyboard.press("End"); ok &= cur() == "16 / 16"
+            page.keyboard.press("Home"); ok &= cur() == "1 / 16"
+            page.keyboard.type("11"); page.keyboard.press("Enter"); ok &= cur() == "11 / 16"
             page.keyboard.press("Space"); ok &= page.evaluate("location.hash") == "#11.1"
             page.keyboard.press("n"); ok &= page.evaluate("document.body.classList.contains('notes')")
             page.wait_for_timeout(600); page.screenshot(path=str(OUT / f"{tag}_notes.png"))
@@ -97,7 +97,7 @@ def main() -> int:
             if sb2[0] > 2:
                 problems.append(f"{tag}: overview scrolls by {sb2[0]}px")
             page.keyboard.press("ArrowRight"); page.keyboard.press("Enter")
-            ok &= not page.evaluate("document.body.classList.contains('ov')") and cur() == "12 / 15"
+            ok &= not page.evaluate("document.body.classList.contains('ov')") and cur() == "12 / 16"
             page.keyboard.press("f")
             page.keyboard.press("?"); page.wait_for_timeout(300); page.screenshot(path=str(OUT / f"{tag}_help.png"))
             if not ok:

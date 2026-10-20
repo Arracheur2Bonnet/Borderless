@@ -1,0 +1,151 @@
+{
+  "parser": "cascade",
+  "model": "default",
+  "base_url": null,
+  "suite": "tests/benign",
+  "cases": 29,
+  "passed": 29,
+  "failed": 0,
+  "skipped": 0,
+  "llm_calls": 2,
+  "fallback_calls": 0,
+  "fallback_rate": 0.0,
+  "fallback_reasons": {},
+  "latency_s": {
+    "mean": 0.231,
+    "median": 0.231,
+    "p95": 0.209,
+    "max": 0.253
+  },
+  "cascade": {
+    "messages": 30,
+    "answered_by": {
+      "rules": 29,
+      "local/qwen2.5:7b-instruct": 1
+    },
+    "latency_s": {
+      "median": 0.0,
+      "mean": 0.0157,
+      "p95": 0.001,
+      "max": 0.463
+    }
+  },
+  "results": [
+    {
+      "case": "tests.benign.test_benign_flows::test_golden_path_end_to_end",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_golden_path_confirmation_tiers_rent_otp_tuition_tap",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_golden_path_receipts_and_chain",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_paraphrased_demo_goal[settle_tuition_and_rent]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_paraphrased_demo_goal[short_form]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_paraphrased_demo_goal[university_and_landlord]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_paraphrased_demo_goal[keep_aside]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_paraphrased_demo_goal[polite_question]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_paraphrased_demo_goal[euro_symbol]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_balance_questions[whats_my_balance]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_balance_questions[usd_balance]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_balance_questions[show_accounts]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_balance_questions[how_much_do_i_have]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_reading_overview[obligations]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_reading_overview[beneficiaries]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_reading_overview[overview]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_greeting_and_capabilities_not_blocked",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_normal_payment_to_mom[mom_alias]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_normal_payment_to_mom[mum_alias]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_normal_payment_to_mom[full_name]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_payment_to_university_under_limit",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_payment_to_new_landlord_payee_needs_otp_and_completes",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_reject_a_benign_payment_then_do_it_again",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_fx_conversion[buy_500]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_fx_conversion[exchange_300]",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_tuition_with_linked_clean_invoice",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_tuition_with_provided_clean_invoice",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_rent_with_provided_clean_invoice_is_not_flagged",
+      "status": "passed"
+    },
+    {
+      "case": "tests.benign.test_benign_flows::test_add_legitimate_beneficiary_with_otp",
+      "status": "passed"
+    }
+  ]
+}

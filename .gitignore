@@ -1,21 +1,75 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# local data, logs and secrets (never published)
 *.db
 *.sqlite
+*.sqlite-journal
+*.db-wal
+*.db-shm
+*.log
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
 data/runtime/
-# research material, not part of the submission
-*_files/
-*.html
-*.pdf
-_extract.py
-deep-research.txt
-FinTechathon*.txt
-verify-report/
-out/
-!deliverables/pitch/keynote/*.html
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code local settings (the shared agent definitions in .claude/agents and .claude/commands are tracked)
+.claude/settings.local.json
+
+# research material at the root, not part of the submission (kept locally)
+/*_files/
+/*.html
+/*.pdf
+/_extract.py
+/deep-research.txt
+/FinTechathon*.txt
+/references/
+# the registration form and other personal submission material (kept locally)
 /submission/
-!deliverables/**/*.pdf
-!deliverables/pitch/video/*.html
+
+# local outputs and generated reports
+/out/
+/verify-report/
+node_modules/
+
+# launch film build artefacts and generated audio
+media/launch-video/out/
+media/launch-video/public/voiceover/*.mp3
+media/launch-video/public/music.mp3
+media/final/
+# output of the retired film-mode kit's check_film.py
+deliverables/pitch/video/film_shots/
+
+# internal working documents, kept locally, not published: jury simulation and Q&A prep naming real judges,
+# compliance and strategy notes (public-release audit)
+/docs/review/judge_panel.md
+/docs/review/final_compliance.md
+/docs/review/final_plan.json
+/docs/review/anti_slop.md
+/docs/review/differentiation.md
+/docs/notes/
+/deliverables/pitch/qa_prep.md
+
+# organiser files not used by any build script (third-party names): kept locally
+/docs/official_templates/international-registration-form-en.xlsx
+/docs/official_templates/international-topics-rules-en.docx
+
+# keynote check screenshots (output of scripts/check_keynote.py) and the rendered launch film (a build output, silent draft)
+/keynote_shots/
+deliverables/video/
