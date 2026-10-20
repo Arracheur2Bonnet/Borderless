@@ -6,8 +6,8 @@ which leaves about 1:04 of margin inside the 10 minutes (worst case with a 75 s 
 Lines that start with `>` are said word for word. Text in [brackets] is a stage direction: do it, do not say it.
 The keynote notes (`deliverables/pitch/keynote/notes.js`) are generated from this file by
 `./.venv/Scripts/python deliverables/pitch/build_keynote.py`, one section per slide (15 spoken slides, plus S16, an architecture appendix that is not part of the talk). Edit the words here,
-then rebuild. Never edit notes.js by hand. (The older PowerPoint builder `build_deck.py` expects 14 sections and is
-no longer the source of the stage deck.)
+then rebuild. Never edit notes.js by hand. `build_deck.py` then packs the rendered keynote slides and these notes into
+the submitted PPTX and PDF in `deliverables/submission/`.
 
 **Key idea for delivery:** the live demo and the backup screenshot slides 4 to 7 use **the same words**. You learn
 one text. If the demo breaks, you keep talking and press the arrow key instead of clicking in the browser.
