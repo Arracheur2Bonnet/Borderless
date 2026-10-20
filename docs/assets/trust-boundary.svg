@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 633" width="1000" height="633" role="img" aria-labelledby="t d">
+<title id="t">Trust boundary</title>
+<desc id="d">Four untrusted sources: user text, documents, model output and FX tool output. Each is checked at the boundary. Deterministic code then decides: the orchestrator reads payee, IBAN and bill amount from the registry, the policy engine applies the rules, the student approves, the ledger executes and a receipt is written. A fooled model can propose an intent and nothing else.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}.m{font-family:ui-monospace,SFMono-Regular,"Cascadia Mono",Menlo,Consolas,monospace}</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#55565c"/></marker></defs>
+<rect x="0.5" y="0.5" width="999" height="632" rx="16" fill="#f6f5f1" stroke="#d9d7d0"/>
+<text x="24.0" y="38.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">UNTRUSTED</text>
+<rect x="24.0" y="52.0" width="226.0" height="76.0" rx="10" fill="#f0eee9" stroke="#646569" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="38.0" y="78.0" font-size="15" fill="#16171a" font-weight="600" text-anchor="start">User text</text>
+<text x="38.0" y="98.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">also an IBAN or a code typed in</text>
+<text x="38.0" y="113.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">it</text>
+<path d="M137.0 132.0 V174.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="24.0" y="180.0" width="226.0" height="147.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M34.0 180.0 H29.0 V327.0 H34.0" fill="none"/>
+<rect x="24.0" y="188.0" width="5" height="131.0" rx="2.5" fill="#16171a"/>
+<text x="42.0" y="208.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Scanned by the content</text>
+<text x="42.0" y="226.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">guard (advisory). The</text>
+<text x="42.0" y="245.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">sanctions screen reads the</text>
+<text x="42.0" y="263.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">raw text. An IBAN typed in it</text>
+<text x="42.0" y="282.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">is only a hint.</text>
+<rect x="266.0" y="52.0" width="226.0" height="76.0" rx="10" fill="#f0eee9" stroke="#646569" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="280.0" y="78.0" font-size="15" fill="#16171a" font-weight="600" text-anchor="start">Documents</text>
+<text x="280.0" y="98.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">invoices, letters, emails</text>
+<path d="M379.0 132.0 V174.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="266.0" y="180.0" width="226.0" height="147.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M276.0 180.0 H271.0 V327.0 H276.0" fill="none"/>
+<rect x="266.0" y="188.0" width="5" height="131.0" rx="2.5" fill="#16171a"/>
+<text x="284.0" y="208.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Read as data, never as orders.</text>
+<text x="284.0" y="226.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Hidden instructions mean</text>
+<text x="284.0" y="245.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">quarantine. Its IBAN and</text>
+<text x="284.0" y="263.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">amount are only compared: a</text>
+<text x="284.0" y="282.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">mismatch gives a warning</text>
+<text x="284.0" y="300.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">and the saved IBAN is paid.</text>
+<rect x="508.0" y="52.0" width="226.0" height="76.0" rx="10" fill="#e5e7ef" stroke="#2741d4" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="522.0" y="78.0" font-size="15" fill="#16171a" font-weight="600" text-anchor="start">Model output</text>
+<text x="522.0" y="98.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">the parser's reply, if a model is</text>
+<text x="522.0" y="113.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">used</text>
+<path d="M621.0 132.0 V174.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="508.0" y="180.0" width="226.0" height="147.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M518.0 180.0 H513.0 V327.0 H518.0" fill="none"/>
+<rect x="508.0" y="188.0" width="5" height="131.0" rx="2.5" fill="#16171a"/>
+<text x="526.0" y="208.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Parsed into typed intents</text>
+<text x="526.0" y="226.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">only (schema, extra fields</text>
+<text x="526.0" y="245.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">forbidden). Grounding drops</text>
+<text x="526.0" y="263.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">any field not in her text. If the</text>
+<text x="526.0" y="282.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">model fails, the rules parser</text>
+<text x="526.0" y="300.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">reads the message.</text>
+<rect x="750.0" y="52.0" width="226.0" height="76.0" rx="10" fill="#f0eee9" stroke="#646569" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="764.0" y="78.0" font-size="15" fill="#16171a" font-weight="600" text-anchor="start">FX tool output</text>
+<text x="764.0" y="98.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">the exchange quote</text>
+<path d="M863.0 132.0 V174.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="750.0" y="180.0" width="226.0" height="147.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M760.0 180.0 H755.0 V327.0 H760.0" fill="none"/>
+<rect x="750.0" y="188.0" width="5" height="131.0" rx="2.5" fill="#16171a"/>
+<text x="768.0" y="208.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Strict schema, unknown fields</text>
+<text x="768.0" y="226.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">dropped. Rate, fee, sell</text>
+<text x="768.0" y="245.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">amount and expiry must</text>
+<text x="768.0" y="263.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">equal the bank's reference</text>
+<text x="768.0" y="282.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">price, or the quote is</text>
+<text x="768.0" y="300.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">discarded.</text>
+<line x1="24.0" y1="152.0" x2="976.0" y2="152.0" stroke="#646569" stroke-width="1.2" stroke-dasharray="6 5"/>
+<rect x="432.0" y="141.0" width="136.0" height="22.0" rx="11" fill="#f6f5f1"/>
+<text x="500.0" y="156.0" font-size="11" fill="#646569" font-weight="600" text-anchor="middle" letter-spacing="0.9">TRUST BOUNDARY</text>
+<path d="M137.0 331.0 V356.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<path d="M379.0 331.0 V356.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<path d="M621.0 331.0 V356.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<path d="M863.0 331.0 V356.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="24.0" y="361.0" width="952.0" height="122.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M34.0 361.0 H29.0 V483.0 H34.0" fill="none"/>
+<rect x="24.0" y="369.0" width="5" height="106.0" rx="2.5" fill="#16171a"/>
+<text x="46.0" y="386.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">TRUSTED: DETERMINISTIC CODE DECIDES</text>
+<text x="960.0" y="386.0" font-size="11.5" fill="#55565c" font-weight="400" text-anchor="end">no model call, no network call in the policy engine or the ledger</text>
+<text x="46.0" y="423.0" font-size="14" fill="#16171a" font-weight="600" text-anchor="start">Orchestrator</text>
+<text x="46.0" y="443.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">payee, IBAN and bill</text>
+<text x="46.0" y="459.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">amount from the registry</text>
+<path d="M196.4 433.0 H216.4" fill="none" stroke="#55565c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<text x="230.4" y="423.0" font-size="14" fill="#16171a" font-weight="600" text-anchor="start">Policy engine</text>
+<text x="230.4" y="443.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">14 rules, tiers R0</text>
+<text x="230.4" y="459.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">to R4, fails closed</text>
+<path d="M380.8 433.0 H400.8" fill="none" stroke="#55565c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<text x="414.8" y="423.0" font-size="14" fill="#16171a" font-weight="600" text-anchor="start">The student</text>
+<text x="414.8" y="443.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">one tap, or a</text>
+<text x="414.8" y="459.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">one-time code</text>
+<path d="M565.2 433.0 H585.2" fill="none" stroke="#55565c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<text x="599.2" y="423.0" font-size="14" fill="#16171a" font-weight="600" text-anchor="start">Ledger</text>
+<text x="599.2" y="443.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">simulates, then runs</text>
+<text x="599.2" y="459.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">once, on its own quote</text>
+<path d="M749.6 433.0 H769.6" fill="none" stroke="#55565c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<text x="783.6" y="423.0" font-size="14" fill="#16171a" font-weight="600" text-anchor="start">Receipts</text>
+<text x="783.6" y="443.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">hash chain per customer,</text>
+<text x="783.6" y="459.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">signed anchor</text>
+<rect x="24.0" y="505.0" width="468.0" height="104.0" rx="10" fill="#e8f2ed" stroke="#1e7b4c" stroke-width="1.2"/>
+<text x="40.0" y="532.0" font-size="14.5" fill="#17633d" font-weight="600" text-anchor="start">A fooled or mistaken model can</text>
+<text x="40.0" y="555.0" font-size="13" fill="#16171a" font-weight="400" text-anchor="start">Propose an intent. It still has to pass grounding, the 14 rules and</text>
+<text x="40.0" y="573.5" font-size="13" fill="#16171a" font-weight="400" text-anchor="start">her own approval before anything moves.</text>
+<rect x="508.0" y="505.0" width="468.0" height="104.0" rx="10" fill="#faeeed" stroke="#c42b1c" stroke-width="1.2"/>
+<text x="524.0" y="532.0" font-size="14.5" fill="#a32317" font-weight="600" text-anchor="start">It cannot</text>
+<text x="524.0" y="555.0" font-size="13" fill="#16171a" font-weight="400" text-anchor="start">Approve or execute anything, put an IBAN into a payment, or see</text>
+<text x="524.0" y="573.5" font-size="13" fill="#16171a" font-weight="400" text-anchor="start">a saved IBAN, a balance, a document or another customer's data.</text>
+</svg>

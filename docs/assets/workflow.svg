@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" role="img" aria-labelledby="t d">
+<title id="t">Workflow: from one sentence to a signed receipt</title>
+<desc id="d">Nine steps. 1 the request, 2 the content guard, 3 the parser, 4 grounding, 5 plan and simulation, 6 the policy engine with 14 rules and tiers R0 to R4, 7 approval by one tap, a one-time code or a denial, 8 the sandbox ledger, 9 hash-chained receipts with a signed anchor. Only step 3 may use a language model.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}.m{font-family:ui-monospace,SFMono-Regular,"Cascadia Mono",Menlo,Consolas,monospace}</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#55565c"/></marker></defs>
+<rect x="0.5" y="0.5" width="999" height="699" rx="16" fill="#f6f5f1" stroke="#d9d7d0"/>
+<rect x="24.0" y="50.0" width="286.7" height="152.0" rx="10" fill="#f0eee9" stroke="#646569" stroke-width="1.2" stroke-dasharray="5 4"/>
+<circle cx="55.0" cy="76.0" r="11" fill="#16171a"/>
+<text x="55.0" y="80.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">1</text>
+<text x="74.0" y="81.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Request</text>
+<text x="44.0" y="112.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">One sentence. A rent invoice or a</text>
+<text x="44.0" y="130.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">letter can be attached. All of it is</text>
+<text x="44.0" y="149.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">untrusted.</text>
+<text x="296.7" y="81.0" font-size="10.5" fill="#646569" font-weight="600" text-anchor="end" letter-spacing="0.6">UNTRUSTED</text>
+<rect x="356.7" y="50.0" width="286.7" height="152.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M366.7 50.0 H361.7 V202.0 H366.7" fill="none"/>
+<rect x="356.7" y="58.0" width="5" height="136.0" rx="2.5" fill="#16171a"/>
+<circle cx="387.7" cy="76.0" r="11" fill="#16171a"/>
+<text x="387.7" y="80.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">2</text>
+<text x="406.7" y="81.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Content guard</text>
+<text x="376.7" y="112.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Scans the message and the</text>
+<text x="376.7" y="130.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">documents behind the request. A</text>
+<text x="376.7" y="149.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">document with hidden instructions is</text>
+<text x="376.7" y="167.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">quarantined: data only. Advisory.</text>
+<rect x="689.3" y="50.0" width="286.7" height="152.0" rx="10" fill="#e5e7ef" stroke="#2741d4" stroke-width="1.2"/>
+<circle cx="720.3" cy="76.0" r="11" fill="#2741d4"/>
+<text x="720.3" y="80.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">3</text>
+<text x="739.3" y="81.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Parser</text>
+<text x="709.3" y="112.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Turns the sentence into typed intents</text>
+<text x="709.3" y="130.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">and nothing else. Rules by default, a</text>
+<text x="709.3" y="149.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">model is optional. It has no tools.</text>
+<text x="962.0" y="81.0" font-size="10.5" fill="#2238b8" font-weight="600" text-anchor="end" letter-spacing="0.6">AI PROPOSES</text>
+<rect x="24.0" y="260.0" width="286.7" height="152.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M34.0 260.0 H29.0 V412.0 H34.0" fill="none"/>
+<rect x="24.0" y="268.0" width="5" height="136.0" rx="2.5" fill="#16171a"/>
+<circle cx="55.0" cy="286.0" r="11" fill="#16171a"/>
+<text x="55.0" y="290.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">4</text>
+<text x="74.0" y="291.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Grounding</text>
+<text x="44.0" y="322.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Every amount, payee, IBAN and bill</text>
+<text x="44.0" y="340.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">kind must appear in what she wrote,</text>
+<text x="44.0" y="359.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">or the field is dropped and she is</text>
+<text x="44.0" y="377.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">asked.</text>
+<rect x="356.7" y="260.0" width="286.7" height="152.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M366.7 260.0 H361.7 V412.0 H366.7" fill="none"/>
+<rect x="356.7" y="268.0" width="5" height="136.0" rx="2.5" fill="#16171a"/>
+<circle cx="387.7" cy="286.0" r="11" fill="#16171a"/>
+<text x="387.7" y="290.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">5</text>
+<text x="406.7" y="291.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Plan and simulate</text>
+<text x="376.7" y="322.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Payee, IBAN and bill amount come</text>
+<text x="376.7" y="340.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">from the registry, never from text. The</text>
+<text x="376.7" y="359.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">ledger simulates the whole plan first.</text>
+<rect x="689.3" y="260.0" width="286.7" height="152.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M699.3 260.0 H694.3 V412.0 H699.3" fill="none"/>
+<rect x="689.3" y="268.0" width="5" height="136.0" rx="2.5" fill="#16171a"/>
+<circle cx="720.3" cy="286.0" r="11" fill="#16171a"/>
+<text x="720.3" y="290.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">6</text>
+<text x="739.3" y="291.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Policy: 14 rules</text>
+<text x="709.3" y="322.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Returns a tier, R0 to R4, and a verdict.</text>
+<text x="709.3" y="340.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">A payment gets 14 rules (13 with no</text>
+<text x="709.3" y="359.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">reserve). Any error means deny.</text>
+<rect x="24.0" y="470.0" width="286.7" height="152.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M34.0 470.0 H29.0 V622.0 H34.0" fill="none"/>
+<rect x="24.0" y="478.0" width="5" height="136.0" rx="2.5" fill="#16171a"/>
+<circle cx="55.0" cy="496.0" r="11" fill="#16171a"/>
+<text x="55.0" y="500.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">7</text>
+<text x="74.0" y="501.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Approval</text>
+<text x="44.0" y="532.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Tied to a hash of the exact action. 3</text>
+<text x="44.0" y="550.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">wrong codes lock every approval for</text>
+<text x="44.0" y="569.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">the customer.</text>
+<rect x="44.0" y="586.0" width="83.0" height="22" rx="11.0" fill="#e8f2ed"/>
+<text x="85.5" y="600.9" font-size="11.5" fill="#17633d" font-weight="600" text-anchor="middle">R2 one tap</text>
+<rect x="133.0" y="586.0" width="66.2" height="22" rx="11.0" fill="#f6eae1"/>
+<text x="166.1" y="600.9" font-size="11.5" fill="#8a4106" font-weight="600" text-anchor="middle">R3 code</text>
+<rect x="205.1" y="586.0" width="78.5" height="22" rx="11.0" fill="#faeeed"/>
+<text x="244.4" y="600.9" font-size="11.5" fill="#a32317" font-weight="600" text-anchor="middle">R4 denied</text>
+<rect x="356.7" y="470.0" width="286.7" height="152.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M366.7 470.0 H361.7 V622.0 H366.7" fill="none"/>
+<rect x="356.7" y="478.0" width="5" height="136.0" rx="2.5" fill="#16171a"/>
+<circle cx="387.7" cy="496.0" r="11" fill="#16171a"/>
+<text x="387.7" y="500.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">8</text>
+<text x="406.7" y="501.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Sandbox ledger</text>
+<text x="376.7" y="532.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Runs once (idempotent). A currency</text>
+<text x="376.7" y="550.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">purchase needs a quote the ledger</text>
+<text x="376.7" y="569.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">issued, unchanged and unexpired.</text>
+<rect x="689.3" y="470.0" width="286.7" height="152.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<path d="M699.3 470.0 H694.3 V622.0 H699.3" fill="none"/>
+<rect x="689.3" y="478.0" width="5" height="136.0" rx="2.5" fill="#16171a"/>
+<circle cx="720.3" cy="496.0" r="11" fill="#16171a"/>
+<text x="720.3" y="500.5" font-size="13" fill="#ffffff" font-weight="600" text-anchor="middle">9</text>
+<text x="739.3" y="501.0" font-size="15.5" fill="#16171a" font-weight="600" text-anchor="start">Receipts</text>
+<text x="709.3" y="532.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Executed and denied actions both get</text>
+<text x="709.3" y="550.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">a receipt in the customer's hash chain.</text>
+<text x="709.3" y="569.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">She keeps a signed anchor of the</text>
+<text x="709.3" y="587.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">latest one.</text>
+<text x="24.0" y="36.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">READ</text>
+<text x="24.0" y="246.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">DECIDE</text>
+<text x="24.0" y="456.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">ACT AND PROVE</text>
+<line x1="315.7" y1="126.0" x2="350.7" y2="126.0" stroke="#55565c" stroke-width="1.6" marker-end="url(#ah)"/>
+<line x1="648.3" y1="126.0" x2="683.3" y2="126.0" stroke="#55565c" stroke-width="1.6" marker-end="url(#ah)"/>
+<line x1="315.7" y1="336.0" x2="350.7" y2="336.0" stroke="#55565c" stroke-width="1.6" marker-end="url(#ah)"/>
+<line x1="648.3" y1="336.0" x2="683.3" y2="336.0" stroke="#55565c" stroke-width="1.6" marker-end="url(#ah)"/>
+<line x1="315.7" y1="546.0" x2="350.7" y2="546.0" stroke="#55565c" stroke-width="1.6" marker-end="url(#ah)"/>
+<line x1="648.3" y1="546.0" x2="683.3" y2="546.0" stroke="#55565c" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M832.7 206.0 V220.0 H167.3 V255.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<path d="M832.7 416.0 V430.0 H167.3 V465.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="24.0" y="664.0" width="20.0" height="14.0" rx="4" fill="#f0eee9" stroke="#646569" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="52.0" y="675.5" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">untrusted input</text>
+<rect x="180.2" y="664.0" width="20.0" height="14.0" rx="4" fill="#e5e7ef" stroke="#2741d4" stroke-width="1.2"/>
+<text x="208.2" y="675.5" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">the model: proposes, has no tools</text>
+<rect x="447.7" y="664.0" width="20.0" height="14.0" rx="4" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<rect x="447.71201171875" y="666" width="4" height="10" rx="2" fill="#16171a"/>
+<text x="475.7" y="675.5" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">deterministic code: steps 2 and 4 to 9, no model call</text>
+</svg>

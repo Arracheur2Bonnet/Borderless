@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 670" width="1000" height="670" role="img" aria-labelledby="t d">
+<title id="t">Permission tiers and the approval boundary</title>
+<desc id="d">Four tiers. R0 read: no approval, nothing moves. R2 one tap. R3 one-time code. R4 denied, nothing overrides it. Three wrong codes in a row lock every approval for the customer, in every session.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}.m{font-family:ui-monospace,SFMono-Regular,"Cascadia Mono",Menlo,Consolas,monospace}</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#55565c"/></marker></defs>
+<rect x="0.5" y="0.5" width="999" height="669" rx="16" fill="#f6f5f1" stroke="#d9d7d0"/>
+<text x="24.0" y="20.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">LOW RISK</text>
+<text x="976.0" y="20.0" font-size="11" fill="#646569" font-weight="600" text-anchor="end" letter-spacing="0.9">HIGH RISK</text>
+<rect x="24.0" y="28.0" width="952.0" height="81.0" rx="12" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<rect x="24" y="28" width="206" height="81.0" rx="12" fill="#f0eee9"/>
+<rect x="216" y="28" width="14" height="81.0" fill="#f0eee9"/>
+<rect x="24" y="28" width="6" height="81.0" rx="3" fill="#16171a"/>
+<text x="48.0" y="66.0" font-size="30" fill="#16171a" font-weight="600" text-anchor="start">R0</text>
+<text x="98.5" y="58.0" font-size="15" fill="#16171a" font-weight="600" text-anchor="start">Read</text>
+<text x="98.5" y="77.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">verdict: allow</text>
+<text x="246.0" y="56.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Balances, payees and bills. A "can I afford...?" simulation. An exchange-rate</text>
+<text x="246.0" y="74.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">quote. No action is created.</text>
+<line x1="778" y1="42" x2="778" y2="95.0" stroke="#d9d7d0" stroke-width="1"/>
+<text x="790.0" y="56.0" font-size="10" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.8">THE STUDENT</text>
+<text x="790.0" y="76.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start">Nothing moves.</text>
+<rect x="24.0" y="121.0" width="952.0" height="81.0" rx="12" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<rect x="24" y="121.0" width="206" height="81.0" rx="12" fill="#e8f2ed"/>
+<rect x="216" y="121.0" width="14" height="81.0" fill="#e8f2ed"/>
+<rect x="24" y="121.0" width="6" height="81.0" rx="3" fill="#1e7b4c"/>
+<text x="48.0" y="159.0" font-size="30" fill="#17633d" font-weight="600" text-anchor="start">R2</text>
+<text x="98.5" y="151.0" font-size="15" fill="#16171a" font-weight="600" text-anchor="start">One tap</text>
+<text x="98.5" y="170.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">verdict: confirm</text>
+<text x="246.0" y="149.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Payee saved 72 h or more ago. Payment up to 1,500 EUR, and 1,500 EUR in 24</text>
+<text x="246.0" y="167.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">h to the same payee. Currency purchase up to 2,500 EUR equivalent.</text>
+<line x1="778" y1="135.0" x2="778" y2="188.0" stroke="#d9d7d0" stroke-width="1"/>
+<text x="790.0" y="149.0" font-size="10" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.8">THE STUDENT</text>
+<text x="790.0" y="169.0" font-size="13" fill="#17633d" font-weight="600" text-anchor="start">One tap on the card.</text>
+<rect x="24.0" y="214.0" width="952.0" height="118.0" rx="12" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<rect x="24" y="214.0" width="206" height="118.0" rx="12" fill="#f6eae1"/>
+<rect x="216" y="214.0" width="14" height="118.0" fill="#f6eae1"/>
+<rect x="24" y="214.0" width="6" height="118.0" rx="3" fill="#b45309"/>
+<text x="48.0" y="252.0" font-size="30" fill="#8a4106" font-weight="600" text-anchor="start">R3</text>
+<text x="98.5" y="244.0" font-size="15" fill="#16171a" font-weight="600" text-anchor="start">One-time code</text>
+<text x="98.5" y="263.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">verdict: step_up</text>
+<text x="246.0" y="242.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">Payee added less than 72 h ago. Payment above 1,500 EUR. Splitting: more</text>
+<text x="246.0" y="260.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">than 1,500 EUR in 24 h to one payee. Adding a payee. Currency purchase</text>
+<text x="246.0" y="279.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">above 2,500 EUR equivalent. A payee name that is a close match, no match or</text>
+<text x="246.0" y="297.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">not available at the bank (Verification of Payee).</text>
+<line x1="778" y1="228.0" x2="778" y2="318.0" stroke="#d9d7d0" stroke-width="1"/>
+<text x="790.0" y="242.0" font-size="10" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.8">THE STUDENT</text>
+<text x="790.0" y="262.0" font-size="13" fill="#8a4106" font-weight="600" text-anchor="start">A 6-digit one-time code.</text>
+<rect x="24.0" y="344.0" width="952.0" height="136.5" rx="12" fill="#ffffff" stroke="#d9d7d0" stroke-width="1"/>
+<rect x="24" y="344.0" width="206" height="136.5" rx="12" fill="#faeeed"/>
+<rect x="216" y="344.0" width="14" height="136.5" fill="#faeeed"/>
+<rect x="24" y="344.0" width="6" height="136.5" rx="3" fill="#c42b1c"/>
+<text x="48.0" y="382.0" font-size="30" fill="#a32317" font-weight="600" text-anchor="start">R4</text>
+<text x="99.3" y="374.0" font-size="15" fill="#16171a" font-weight="600" text-anchor="start">Denied</text>
+<text x="99.3" y="393.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start">verdict: deny</text>
+<text x="246.0" y="372.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">More than 4,000 EUR in one payment or 5,000 EUR in a day. Not enough</text>
+<text x="246.0" y="390.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">money, or less than the reserve left. Payee not saved, blocked or another</text>
+<text x="246.0" y="409.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">customer's. IBAN not the one on file. Sanctions hit. Invalid IBAN or look-alike</text>
+<text x="246.0" y="427.5" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">name for a new payee. Exchange quote off the bank's price. Invoice IBAN with</text>
+<text x="246.0" y="446.0" font-size="13" fill="#55565c" font-weight="400" text-anchor="start">a name that does not match. Approvals locked. Any internal error.</text>
+<line x1="778" y1="358.0" x2="778" y2="466.5" stroke="#d9d7d0" stroke-width="1"/>
+<text x="790.0" y="372.0" font-size="10" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.8">THE STUDENT</text>
+<text x="790.0" y="392.0" font-size="13" fill="#a32317" font-weight="600" text-anchor="start">No approval step.</text>
+<text x="790.0" y="410.5" font-size="13" fill="#a32317" font-weight="600" text-anchor="start">Nothing overrides it.</text>
+<rect x="24.0" y="496.5" width="952.0" height="150.0" rx="12" fill="#faeeed" stroke="#c42b1c" stroke-width="1.4"/>
+<text x="44.0" y="526.5" font-size="15" fill="#a32317" font-weight="600" text-anchor="start">Three wrong codes in a row freeze every approval</text>
+<circle cx="55" cy="570.5" r="11" fill="#ffffff" stroke="#c42b1c" stroke-width="1.5"/>
+<path d="M50.5 566.0 l9 9 m0 -9 l-9 9" fill="none" stroke="#c42b1c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="85" cy="570.5" r="11" fill="#ffffff" stroke="#c42b1c" stroke-width="1.5"/>
+<path d="M80.5 566.0 l9 9 m0 -9 l-9 9" fill="none" stroke="#c42b1c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="115" cy="570.5" r="11" fill="#ffffff" stroke="#c42b1c" stroke-width="1.5"/>
+<path d="M110.5 566.0 l9 9 m0 -9 l-9 9" fill="none" stroke="#c42b1c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M136 570.5 H162" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<rect x="172.0" y="559.5" width="73.2" height="22" rx="11.0" fill="#c42b1c"/>
+<text x="208.6" y="574.4" font-size="11.5" fill="#ffffff" font-weight="600" text-anchor="middle">LOCKED</text>
+<text x="324.0" y="552.5" font-size="12.5" fill="#16171a" font-weight="400" text-anchor="start">The count is kept per customer, not per session, so a new action or a new session does not reset it.</text>
+<text x="324.0" y="570.0" font-size="12.5" fill="#16171a" font-weight="400" text-anchor="start">One-tap approvals are refused too. Each refused attempt gets a denied receipt</text>
+<text x="324.0" y="587.5" font-size="12.5" fill="#16171a" font-weight="400" text-anchor="start">(STEP_UP_LOCKOUT, R4). Only the bank unlocks the account; in the demo, Reset demo stands in for</text>
+<text x="324.0" y="605.0" font-size="12.5" fill="#16171a" font-weight="400" text-anchor="start">it.</text>
+<line x1="44.0" y1="618.5" x2="956.0" y2="618.5" stroke="#eab4ae" stroke-width="1"/>
+<text x="44.0" y="638.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Every approval also carries a hash of the exact action. A changed amount or payee is refused as tampering.</text>
+</svg>

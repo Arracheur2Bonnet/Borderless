@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 936" width="1000" height="936" role="img" aria-labelledby="t d">
+<title id="t">Architecture: the modules of the repository</title>
+<desc id="d">Entry points: the Streamlit app in ui and the scripted harness with its HTTP API. One wiring point, bg/app.py. The orchestrator in bg/agent calls the parsers, grounding, the content guard and policy engine in bg/policy, and the sandbox ledger, code-attempt counter and receipt store in bg/ledger. The contracts package holds the typed models, parameters and canonical functions. Only the model parsers make network calls.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}.m{font-family:ui-monospace,SFMono-Regular,"Cascadia Mono",Menlo,Consolas,monospace}</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#55565c"/></marker></defs>
+<rect x="0.5" y="0.5" width="999" height="935" rx="16" fill="#f6f5f1" stroke="#d9d7d0"/>
+<text x="24.0" y="42.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">ENTRY POINTS</text>
+<text x="24.0" y="60.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start" class="m">ui/ and bg/</text>
+<rect x="186.0" y="22.0" width="388.0" height="101.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="200.0" y="45.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">ui/app.py, ui/guided.py</text>
+<text x="200.0" y="65.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Streamlit app, light theme: Assistant, Receipts and Attack</text>
+<text x="200.0" y="81.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">test tabs, a language-model selector, a guided 6-step</text>
+<text x="200.0" y="98.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">demo.</text>
+<rect x="588.0" y="22.0" width="388.0" height="101.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="602.0" y="45.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">bg/harness.py, bg/http_api.py</text>
+<text x="602.0" y="65.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">For evaluators: JSONL replay and chat (agent_cli.py) and</text>
+<text x="602.0" y="81.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">a localhost HTTP API (agent_api.py). Same sandbox and</text>
+<text x="602.0" y="98.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">rules.</text>
+<text x="24.0" y="167.5" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">WIRING</text>
+<text x="24.0" y="185.5" font-size="12" fill="#55565c" font-weight="400" text-anchor="start" class="m">bg/app.py</text>
+<rect x="186.0" y="147.5" width="790.0" height="68.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="200.0" y="170.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">build_default()</text>
+<text x="200.0" y="190.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">The one place that builds the system. BG_PARSER picks the parser: rules, local, cascade or connected.</text>
+<path d="M581.0 125.5 V143.5" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<text x="24.0" y="260.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">ORCHESTRATION</text>
+<text x="24.0" y="278.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start" class="m">bg/agent/</text>
+<rect x="186.0" y="240.0" width="225.3" height="101.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="200.0" y="263.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">grounding.py</text>
+<text x="200.0" y="283.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Checks every parser's output</text>
+<text x="200.0" y="299.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">against the user's text and</text>
+<text x="200.0" y="316.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">drops what is not there.</text>
+<rect x="423.3" y="240.0" width="202.8" height="101.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="437.3" y="263.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">help.py</text>
+<text x="437.3" y="283.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Fixed replies for help and</text>
+<text x="437.3" y="299.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">for requests the agent does</text>
+<text x="437.3" y="316.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">not handle.</text>
+<rect x="638.1" y="240.0" width="337.9" height="101.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="652.1" y="263.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">orchestrator.py</text>
+<text x="652.1" y="283.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Multi-turn state, expansion from the registry,</text>
+<text x="652.1" y="299.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">plain-language replies, audit sink. It calls</text>
+<text x="652.1" y="316.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">everything below.</text>
+<path d="M581.0 218.0 V236.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<text x="24.0" y="385.5" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">PARSERS</text>
+<text x="24.0" y="403.5" font-size="12" fill="#55565c" font-weight="400" text-anchor="start" class="m">bg/agent/</text>
+<rect x="186.0" y="365.5" width="179.5" height="118.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="200.0" y="388.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">rules_parser.py</text>
+<text x="200.0" y="408.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">RulesParser: offline,</text>
+<text x="200.0" y="425.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">English, the default and</text>
+<text x="200.0" y="441.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">the fallback.</text>
+<rect x="377.5" y="365.5" width="179.5" height="118.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="391.5" y="388.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">local_parser.py</text>
+<text x="391.5" y="408.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">LocalLLMParser:</text>
+<text x="391.5" y="425.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Qwen2.5 through</text>
+<text x="391.5" y="441.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Ollama on 127.0.0.1.</text>
+<rect x="569.0" y="365.5" width="179.5" height="118.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="583.0" y="388.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">connectors.py</text>
+<text x="583.0" y="408.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">OpenAICompatibleParser,</text>
+<text x="583.0" y="425.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">CascadeParser and</text>
+<text x="583.0" y="441.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">make_parser.</text>
+<rect x="760.5" y="365.5" width="179.5" height="118.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="774.5" y="388.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">model_parser.py</text>
+<text x="774.5" y="408.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Shared by the two</text>
+<text x="774.5" y="425.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">model parsers: prompt,</text>
+<text x="774.5" y="441.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">schema check, size</text>
+<text x="774.5" y="458.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">limits, fallback to rules.</text>
+<text x="24.0" y="527.5" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">POLICY</text>
+<text x="24.0" y="545.5" font-size="12" fill="#55565c" font-weight="400" text-anchor="start" class="m">bg/policy/</text>
+<rect x="186.0" y="507.5" width="370.0" height="85.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="200.0" y="530.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">guard.py</text>
+<text x="200.0" y="550.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">RuleBasedContentGuard: scans messages and</text>
+<text x="200.0" y="567.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">documents, sanitises tool output.</text>
+<rect x="570.0" y="507.5" width="370.0" height="85.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="584.0" y="530.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">engine.py</text>
+<text x="584.0" y="550.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">DeterministicPolicyEngine: named rules, tiers R0 to</text>
+<text x="584.0" y="567.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">R4, fails closed.</text>
+<text x="24.0" y="636.5" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">LEDGER</text>
+<text x="24.0" y="654.5" font-size="12" fill="#55565c" font-weight="400" text-anchor="start" class="m">bg/ledger/</text>
+<rect x="186.0" y="616.5" width="243.3" height="101.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="200.0" y="639.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">sandbox.py</text>
+<text x="200.0" y="659.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">SandboxLedger: accounts,</text>
+<text x="200.0" y="676.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">payees, simulate, execute, issued</text>
+<text x="200.0" y="692.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">FX quotes.</text>
+<rect x="441.3" y="616.5" width="243.3" height="101.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="455.3" y="639.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">stepup.py</text>
+<text x="455.3" y="659.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">StepUpAttempts: wrong codes</text>
+<text x="455.3" y="676.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">counted per customer, and the</text>
+<text x="455.3" y="692.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">lock.</text>
+<rect x="696.7" y="616.5" width="243.3" height="101.5" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="710.7" y="639.5" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">receipts.py</text>
+<text x="710.7" y="659.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">SqliteReceiptStore: hash chain per</text>
+<text x="710.7" y="676.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">customer, signed anchors.</text>
+<path d="M962.0 343.5 V667.2" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M962.0 424.5 H943.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<path d="M962.0 550.0 H943.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<path d="M962.0 667.2 H943.0" fill="none" stroke="#55565c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>
+<text x="24.0" y="762.0" font-size="11" fill="#646569" font-weight="600" text-anchor="start" letter-spacing="0.9">CONTRACTS</text>
+<text x="24.0" y="780.0" font-size="12" fill="#55565c" font-weight="400" text-anchor="start" class="m">bg/contracts/</text>
+<rect x="186.0" y="742.0" width="188.5" height="118.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="200.0" y="765.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">models.py</text>
+<text x="200.0" y="785.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Typed intents, actions,</text>
+<text x="200.0" y="801.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">decisions and receipts</text>
+<text x="200.0" y="818.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">(pydantic, extra fields</text>
+<text x="200.0" y="834.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">forbidden).</text>
+<rect x="386.5" y="742.0" width="188.5" height="118.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="400.5" y="765.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">params.py</text>
+<text x="400.5" y="785.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">Limits, rates, the demo</text>
+<text x="400.5" y="801.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">code and the demo</text>
+<text x="400.5" y="818.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">signing key.</text>
+<rect x="587.0" y="742.0" width="188.5" height="118.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="601.0" y="765.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">canonical.py, hashing.py</text>
+<text x="601.0" y="785.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">One IBAN, name and</text>
+<text x="601.0" y="801.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">amount function for</text>
+<text x="601.0" y="818.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">every layer. params_hash.</text>
+<rect x="787.5" y="742.0" width="188.5" height="118.0" rx="10" fill="#ffffff" stroke="#d9d7d0" stroke-width="1.1"/>
+<text x="801.5" y="765.0" font-size="13" fill="#16171a" font-weight="600" text-anchor="start" class="m">interfaces.py</text>
+<text x="801.5" y="785.0" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">The protocols the parts</text>
+<text x="801.5" y="801.5" font-size="12.5" fill="#55565c" font-weight="400" text-anchor="start">implement.</text>
+<rect x="24.0" y="874.0" width="952.0" height="40.0" rx="10" fill="#f0eee9" stroke="#d9d7d0" stroke-width="1"/>
+<text x="40.0" y="899.0" font-size="12.5" fill="#16171a" font-weight="400" text-anchor="start">Calls to a model (standard-library HTTP) are made only in connectors.py, local_parser.py and model_parser.py. Policy, ledger and contracts make none.</text>
+</svg>
