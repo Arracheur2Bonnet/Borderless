@@ -9,7 +9,7 @@
 #
 # The step-up one-time code in the demo is 246810. For anything beyond a demo, also pass -e BG_RECEIPT_KEY=<secret>.
 # Pinned by digest (multi-arch index of python:3.11.17-slim, 2026-10-09); Dependabot proposes updates.
-FROM python:3.11.17-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
+FROM python:3.15.0-slim@sha256:f5b92f2a669a4c347044f29367f31983280b648250ca94dea66f98c53bc87e58
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
